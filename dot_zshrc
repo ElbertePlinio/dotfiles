@@ -34,3 +34,77 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 export CHROME_EXECUTABLE=/usr/bin/google-chrome-stable
 
 alias claude-mem='bun "/home/dev/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
+export PATH="$HOME/.opencode/bin:$PATH"
+# Factory API keys (NOT chezmoi-managed, keep local)
+[ -f "$HOME/.config/factory-keys.env" ] && source "$HOME/.config/factory-keys.env"
+
+# Qwen3.6 35B A3B APEX - RX 9070 XT - 262K TurboQuant
+qwen262k() {
+  cd "$HOME/src/llama-cpp-turboquant" || return 1
+
+  local MODEL="$HOME/models/qwen3.6-apex/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"
+  local MMPROJ="$HOME/models/qwen3.6-apex/mmproj.gguf"
+
+  HIP_VISIBLE_DEVICES=0 ./build/bin/llama-server \
+    -m "$MODEL" \
+    --mmproj "$MMPROJ" \
+    --alias qwen3.6-35b-a3b-apex-262k-rx9070xt-turbo3-coding \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --jinja \
+    -ngl 999 \
+    --ctx-size 262144 \
+    -fa on \
+    --cache-type-k turbo3 \
+    --cache-type-v turbo3 \
+    --n-cpu-moe 22 \
+    --threads 8 \
+    --threads-batch 12 \
+    --batch-size 512 \
+    --ubatch-size 256 \
+    --parallel 1 \
+    --cache-reuse 256 \
+    --metrics \
+    --temp 0.3 \
+    --top-p 0.9 \
+    --top-k 20 \
+    --min-p 0.0 \
+    --presence-penalty 0.0 \
+    --repeat-penalty 1.05
+}
+
+qwen-hermes-fast() {
+  cd "$HOME/src/llama-cpp-turboquant" || return 1
+
+  local MODEL="$HOME/models/qwen3.6-apex/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"
+
+  HIP_VISIBLE_DEVICES=0 ./build/bin/llama-server \
+    -m "$MODEL" \
+    --alias qwen3.6-35b-a3b-apex-262k-rx9070xt-turbo3-coding \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --jinja \
+    -ngl 99 \
+    --ctx-size 65536 \
+    -fa on \
+    --cache-type-k turbo3 \
+    --cache-type-v turbo3 \
+    --n-cpu-moe 8 \
+    --threads 8 \
+    --threads-batch 12 \
+    --batch-size 1024 \
+    --ubatch-size 512 \
+    --parallel 1 \
+    --cache-reuse 256 \
+    --metrics \
+    --temp 0.3 \
+    --top-p 0.9 \
+    --top-k 20 \
+    --min-p 0.0 \
+    --presence-penalty 0.0 \
+    --repeat-penalty 1.05
+}
+
+stopllama() {
+  pkill -f llama-server
+}

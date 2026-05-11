@@ -1,2 +1,10 @@
 README.md
 LICENSE
+dot_factory/history.json
+dot_factory/sessions
+dot_factory/logs
+dot_factory/cache
+dot_factory/temp
+dot_factory/telemetry
+dot_factory/snapshots
+dot_factory/plugins/marketplaces/factory-plugins/dot_git
