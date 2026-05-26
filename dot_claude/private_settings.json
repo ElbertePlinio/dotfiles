@@ -70,7 +70,7 @@
     "superpowers@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
     "caveman@caveman": true,
-    "vgv-ai-flutter-plugin@very-good-claude-code-marketplace": true,
+    "vgv-ai-flutter-plugin@very-good-claude-code-marketplace": false,
     "claude-mem@thedotmack": true,
     "andrej-karpathy-skills@karpathy-skills": true
   },
@@ -100,6 +100,48 @@
       }
     }
   },
-  "effortLevel": "high",
-  "skipAutoPermissionPrompt": true
+  "effortLevel": "xhigh",
+  "skipAutoPermissionPrompt": true,
+  "agentPushNotifEnabled": true,
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/home/dev/.claude/hooks/caveman-activate.js\"",
+            "timeout": 5,
+            "statusMessage": "Loading caveman mode..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/home/dev/.claude/hooks/caveman-mode-tracker.js\"",
+            "timeout": 5,
+            "statusMessage": "Tracking caveman mode..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rtk hook claude"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"/home/dev/.claude/hooks/caveman-statusline.sh\""
+  }
 }

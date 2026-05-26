@@ -267,3 +267,11 @@ toggle do not disturb=,,Toggle do not disturb
 
 [services][com.mitchellh.ghostty.desktop]
 _launch=
+
+[services][org.kde.spectacle.desktop]
+CurrentMonitorScreenShot=
+OpenWithoutScreenshot=
+
+[slack]
+6ADE9BDCBC543904AF7655BB54A1752D-Ctrl+Shift+Space=,Ctrl+Shift+Space,Slack shortcut: Ctrl+Shift+Space
+_k_friendly_name=Slack

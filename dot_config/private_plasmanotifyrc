@@ -4,6 +4,12 @@ Seen=true
 [Applications][com.mitchellh.ghostty]
 Seen=true
 
+[Applications][cursor]
+Seen=true
+
+[Applications][org.qbittorrent.qBittorrent]
+Seen=true
+
 [Applications][slack]
 Seen=true
 

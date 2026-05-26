@@ -2,14 +2,9 @@
 count=0
 
 [Session: saved at previous logout]
-clientId1=10107123c792000177610533900000123130000
-clientId2=10107123c792000177637074400001404280000
-count=2
+clientId1=10107123c792000177826239000000021580017
+count=1
 program1=zen
-program2=/home/dev/Android/Sdk/emulator/qemu/linux-x86_64/qemu-system-x86_64
-restartCommand1=/opt/zen-browser-bin/zen,--sm-client-id,10107123c792000177610533900000123130000
-restartCommand2=/home/dev/Android/Sdk/emulator/qemu/linux-x86_64/qemu-system-x86_64,-session,10107123c792000177637074400001404280000_1776441652_930184
+restartCommand1=/opt/zen-browser-bin/zen,--sm-client-id,10107123c792000177826239000000021580017
 restartStyleHint1=0
-restartStyleHint2=0
 userId1=dev
-userId2=dev

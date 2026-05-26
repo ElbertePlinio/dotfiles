@@ -3,6 +3,9 @@ Id_1=15ad01db-6eba-4b7a-904b-fa8a1eb503fa
 Number=1
 Rows=1
 
+[NightColor]
+Active=true
+
 [Tiling][15ad01db-6eba-4b7a-904b-fa8a1eb503fa][]
 padding=4
 tiles={"layoutDirection":"horizontal","tiles":[{"width":0.25},{"width":0.5},{"width":0.25}]}

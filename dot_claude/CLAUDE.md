@@ -26,3 +26,5 @@ If the project contains an `.fvmrc` file or a `.fvm/` directory, always use `fvm
 Do not add unrequested features or refactors.
 Ask before making architectural decisions.
 If unsure, ask — don't assume.
+
+@RTK.md

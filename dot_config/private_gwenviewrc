@@ -5,12 +5,26 @@ LastUsedVersion=210800
 MenuBar=Disabled
 
 [Recent Files]
-File1[$e]=$HOME/Pictures/Screenshots/Screenshot_20260413_170620.png
-File2[$e]=$HOME/Downloads/Screenshot_20260416_095239.png
-File3[$e]=$HOME/Downloads/Screenshot_20260416_095239(1).png
-Name1[$e]=Screenshot_20260413_170620.png
-Name2[$e]=Screenshot_20260416_095239.png
-Name3[$e]=Screenshot_20260416_095239(1).png
+File1[$e]=$HOME/Downloads/Screenshot_20260506_164051.jpg
+File10[$e]=$HOME/Downloads/carteirinha-abrapango.png
+File2[$e]=$HOME/Downloads/Screenshot_20260506_165945.jpg
+File3[$e]=$HOME/Downloads/Screenshot_20260506_165939.jpg
+File4[$e]=$HOME/Pictures/Screenshots/Screenshot_20260506_172438.png
+File5[$e]=$HOME/Downloads/Screenshot_20260507_102708.jpg
+File6[$e]=$HOME/Downloads/ChatGPT Image May 8, 2026, 10_52_34 AM.png
+File7[$e]=$HOME/Pictures/Pickforge/Dart Arena/ChatGPT Image May 8, 2026, 10_52_34 AM.png
+File8[$e]=$HOME/Pictures/Pickforge/Dart Arena/ChatGPT Image May 8, 2026, 11_14_50 AM_no_bg.png
+File9[$e]=$HOME/Pictures/Pickforge/Dart Arena/ChatGPT Image May 8, 2026, 10_52_34 AM_no_bg.png
+Name1[$e]=Screenshot_20260506_164051.jpg
+Name10[$e]=carteirinha-abrapango.png
+Name2[$e]=Screenshot_20260506_165945.jpg
+Name3[$e]=Screenshot_20260506_165939.jpg
+Name4[$e]=Screenshot_20260506_172438.png
+Name5[$e]=Screenshot_20260507_102708.jpg
+Name6[$e]=ChatGPT Image May 8, 2026, 10_52_34 AM.png
+Name7[$e]=ChatGPT Image May 8, 2026, 10_52_34 AM.png
+Name8[$e]=ChatGPT Image May 8, 2026, 11_14_50 AM_no_bg.png
+Name9[$e]=ChatGPT Image May 8, 2026, 10_52_34 AM_no_bg.png
 
 [SideBar]
 InformationSplitterSizes=211,244
