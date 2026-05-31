@@ -13,6 +13,7 @@ x-scheme-handler/slack=slack.desktop
 x-scheme-handler/claude-cli=claude-code-url-handler.desktop
 x-scheme-handler/termius=termius.desktop
 x-scheme-handler/ssh=ktelnetservice6.desktop
+x-scheme-handler/antigravity=antigravity.desktop
 
 [Added Associations]
 x-scheme-handler/http=zen.desktop;userapp-Zen-YO3IN3.desktop;
@@ -29,3 +30,4 @@ x-scheme-handler/slack=slack.desktop;
 x-scheme-handler/claude-cli=claude-code-url-handler.desktop
 x-scheme-handler/termius=termius.desktop;Termius.desktop;
 x-scheme-handler/ssh=ktelnetservice6.desktop;Termius.desktop;
+x-scheme-handler/antigravity=antigravity.desktop

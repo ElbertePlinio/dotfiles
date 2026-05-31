@@ -97,4 +97,4 @@ keybind = alt+eight=goto_tab:8
 keybind = alt+nine=goto_tab:9
 
 # --- 7. Misc ---
-keybind = shift+enter=text:\x1b\r
+keybind = shift+enter=text:\n
