@@ -2,4 +2,5 @@
 NumLock=0
 
 [Mouse]
-cursorTheme=capitaine-cursors
+cursorSize=42
+cursorTheme=Breeze_Light
