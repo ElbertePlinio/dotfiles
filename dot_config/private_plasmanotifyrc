@@ -10,6 +10,9 @@ Seen=true
 [Applications][cursor]
 Seen=true
 
+[Applications][google-chrome]
+Seen=true
+
 [Applications][org.qbittorrent.qBittorrent]
 Seen=true
 

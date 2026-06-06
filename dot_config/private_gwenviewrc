@@ -5,26 +5,26 @@ LastUsedVersion=210800
 MenuBar=Disabled
 
 [Recent Files]
-File1[$e]=$HOME/Pictures/Pickforge/brand-kit/pickforge-brand-preview.png
-File10[$e]=$HOME/Pictures/Pickforge/brand-kit/pickforge-app-icon-1024.png
-File2[$e]=$HOME/Pictures/Pickforge/brand-kit/pickforge-mark-white-2048.png
-File3[$e]=$HOME/Pictures/Pickforge/brand-kit/pickforge-mark-transparent-2048.png
-File4[$e]=$HOME/Development/Personal/dart_arena/assets/branding/dart_arena_logo_badge.png
-File5[$e]=$HOME/Development/Personal/dart_arena/assets/branding/dart_arena_app_icon.png
-File6[$e]=$HOME/Development/Personal/dart_arena/assets/branding/dart_arena_mark.png
-File7[$e]=$HOME/Development/Personal/dart_arena/assets/branding/dart_arena_logo_horizontal_light.png
-File8[$e]=$HOME/Development/Personal/dart_arena/assets/branding/dart_arena_logo_horizontal_dark.png
-File9[$e]=$HOME/Pictures/Pickforge/brand-kit/pickforge-logo-horizontal-white-2400x720.png
-Name1[$e]=pickforge-brand-preview.png
-Name10[$e]=pickforge-app-icon-1024.png
-Name2[$e]=pickforge-mark-white-2048.png
-Name3[$e]=pickforge-mark-transparent-2048.png
-Name4[$e]=dart_arena_logo_badge.png
-Name5[$e]=dart_arena_app_icon.png
-Name6[$e]=dart_arena_mark.png
-Name7[$e]=dart_arena_logo_horizontal_light.png
-Name8[$e]=dart_arena_logo_horizontal_dark.png
-Name9[$e]=pickforge-logo-horizontal-white-2400x720.png
+File1[$e]=trash:/0-Screenshot_1780409716.png
+File10[$e]=$HOME/Downloads/NFSe/May 2026/Andela/Screenshot_20260605_141201_cadanapay.jpg
+File2[$e]=$HOME/Desktop/Screenshot_1780409716.png
+File3[$e]=$HOME/Desktop/Screenshot_1780409675.png
+File4[$e]=$HOME/Desktop/Screenshot_1780507414.png
+File5[$e]=$HOME/Downloads/NFSe/May 2026/Techunting/Screenshot_20260605_141201_cadanapay.jpg
+File6[$e]=$HOME/Downloads/NFSe/May 2026/Techunting/Screenshot_20260605_141118_cadanapay.jpg
+File7[$e]=$HOME/Downloads/NFSe/May 2026/Techunting/Screenshot_20260605_141252_Wise.jpg
+File8[$e]=$HOME/Downloads/NFSe/May 2026/Andela/NFSe_212210_23.pdf
+File9[$e]=$HOME/Downloads/NFSe/May 2026/Andela/Screenshot_20260605_141118_cadanapay.jpg
+Name1[$e]=0-Screenshot_1780409716.png
+Name10[$e]=Screenshot_20260605_141201_cadanapay.jpg
+Name2[$e]=Screenshot_1780409716.png
+Name3[$e]=Screenshot_1780409675.png
+Name4[$e]=Screenshot_1780507414.png
+Name5[$e]=Screenshot_20260605_141201_cadanapay.jpg
+Name6[$e]=Screenshot_20260605_141118_cadanapay.jpg
+Name7[$e]=Screenshot_20260605_141252_Wise.jpg
+Name8[$e]=NFSe_212210_23.pdf
+Name9[$e]=Screenshot_20260605_141118_cadanapay.jpg
 
 [SideBar]
 InformationSplitterSizes=211,244

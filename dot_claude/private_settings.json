@@ -65,6 +65,7 @@
     ],
     "defaultMode": "auto"
   },
+  "model": "claude-gpt-5.5-codex[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -85,7 +86,8 @@
     "caveman@caveman": false,
     "vgv-ai-flutter-plugin@very-good-claude-code-marketplace": false,
     "claude-mem@thedotmack": true,
-    "andrej-karpathy-skills@karpathy-skills": true
+    "andrej-karpathy-skills@karpathy-skills": true,
+    "vercel@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -115,6 +117,5 @@
   },
   "effortLevel": "xhigh",
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true,
-  "model": "claude-gpt-5.5-codex[1m]"
+  "skipAutoPermissionPrompt": true
 }

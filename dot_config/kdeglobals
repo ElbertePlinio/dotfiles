@@ -133,8 +133,7 @@ ForegroundPositive=39,174,96
 ForegroundVisited=155,89,182
 
 [General]
-ColorScheme=BreezeLight
-ColorSchemeHash=2c3f86428c11011a7c64ee1e7f47c274d498ff10
+ColorSchemeHash=9f63c7711a13123582e720791ea0f8c0172977d2
 
 [Icons]
 Theme=breeze-dark

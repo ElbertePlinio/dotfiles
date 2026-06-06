@@ -162,6 +162,10 @@ location=0
 plugin=org.kde.plasma.folder
 wallpaperplugin=org.kde.image
 
+[Containments][43][ConfigDialog]
+DialogHeight=630
+DialogWidth=810
+
 [ScreenMapping]
 itemsOnDisabledScreens=
 screenMapping=

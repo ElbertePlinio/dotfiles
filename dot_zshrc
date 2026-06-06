@@ -108,3 +108,5 @@ qwen-hermes-fast() {
 stopllama() {
   pkill -f llama-server
 }
+
+export CLIPROXY_API_BASE_URL="http://127.0.0.1:8317/v1"
