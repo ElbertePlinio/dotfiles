@@ -1,0 +1,15 @@
+# Global Claude Rules
+
+{{ template "agents-shared.md" . }}
+
+## Codex Delegation Workflow
+
+For substantial coding tasks (features, refactors, multi-file changes — not trivial edits or quick answers):
+1. **Plan (Claude)**: break the task down — architecture, file targets, constraints, edge cases — and write a precise implementation brief including project invariants from CLAUDE.md.
+2. **Execute (Codex)**: delegate the brief to the `codex-rescue` agent with `--write`. Never implement the code yourself.
+3. **Review (Claude)**: critically review Codex's diff for correctness, contract adherence, and test impact. Run the project's verification (typecheck, tests, analyzer).
+4. **Loop**: if review finds issues, send specific corrections back through `codex-rescue` with `--resume`. Repeat until verification passes.
+
+Claude never writes the implementation; Codex never decides the design.
+
+@RTK.md

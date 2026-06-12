@@ -1,0 +1,12 @@
+# Personal Codex Notes
+
+{{ template "agents-shared.md" . }}
+
+## Context7 usage
+
+Use Context7 MCP to fetch current documentation whenever the user asks about a library, framework, SDK, API, CLI tool, or cloud service -- even well-known ones. Use even when you think you know the answer -- your training data may not reflect recent changes. Prefer this over web search for library docs. Do not use for refactoring, writing scripts from scratch, debugging business logic, code review, or general programming concepts.
+
+1. Start with `resolve-library-id` using the library name and the user's question, unless given an exact `/org/project` ID.
+2. Pick the best match by name, relevance, snippet count, reputation, and benchmark score. Use version-specific IDs when a version is mentioned.
+3. `query-docs` with the selected library ID and the user's full question.
+4. Answer using the fetched docs.

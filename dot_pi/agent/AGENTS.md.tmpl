@@ -1,0 +1,15 @@
+# Personal Pi Notes
+
+{{ template "agents-shared.md" . }}
+
+## Model flow
+
+Use a small routed flow. The current main model orchestrates, keeps context, and gives the final answer. Do not build a jury unless the work is genuinely risky.
+
+- Use `coder` as the default implementation worker when delegating focused code changes. It is GPT 5.5 Medium.
+- Use `principal` for architecture, hard bugs, failed validation loops, security/auth/data/migration risk, broad refactors, escalation, and final-judge passes. It is GPT 5.5 XHigh.
+- Use `frontend-polish` for visual UI/frontend taste: screens, widgets, layout, styling, responsive polish, and design-system fit. It is Opus 4.8 High.
+- Use `frontend-escalation` only rarely for hard redesigns, stubborn visual/product issues, or a failed `frontend-polish` pass. It is Opus 4.8 XHigh.
+- For mixed UI tasks, main/coder wires logic, state, APIs, and routes. Frontend agents handle presentation only after needed interfaces exist.
+- Use `git-spark` for quick status/diff/commit-message chores when useful.
+- Pass compact artifacts, not full transcripts.
