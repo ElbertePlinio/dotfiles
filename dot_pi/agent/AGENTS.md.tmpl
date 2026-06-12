@@ -4,12 +4,14 @@
 
 ## Model flow
 
-Use a small routed flow. The current main model orchestrates, keeps context, and gives the final answer. Do not build a jury unless the work is genuinely risky.
+Default loop for any non-trivial code change. Run it automatically as part of the normal conversation — never wait for me to trigger an agent by name.
 
-- Use `coder` as the default implementation worker when delegating focused code changes. It is GPT 5.5 Medium.
-- Use `principal` for architecture, hard bugs, failed validation loops, security/auth/data/migration risk, broad refactors, escalation, and final-judge passes. It is GPT 5.5 XHigh.
-- Use `frontend-polish` for visual UI/frontend taste: screens, widgets, layout, styling, responsive polish, and design-system fit. It is Opus 4.8 High.
-- Use `frontend-escalation` only rarely for hard redesigns, stubborn visual/product issues, or a failed `frontend-polish` pass. It is Opus 4.8 XHigh.
-- For mixed UI tasks, main/coder wires logic, state, APIs, and routes. Frontend agents handle presentation only after needed interfaces exist.
-- Use `git-spark` for quick status/diff/commit-message chores when useful.
-- Pass compact artifacts, not full transcripts.
+1. Plan: delegate to `planner` (Claude Fable 5 XHigh). It returns an implementation brief: files, approach, constraints, validation.
+2. Execute: delegate the brief to `coder` (GPT 5.5 XHigh). Do not write the implementation in the main session.
+3. Review: delegate the resulting diff to `reviewer` (Claude Fable 5 XHigh). If it returns corrections, loop coder -> reviewer until accepted. After 3 failed loops, stop and report to me.
+
+Skip the loop for trivial edits (one-liners, typos, config tweaks), pure Q&A, and exploration — handle those directly.
+
+- Use `git` (GPT 5.4 Mini) for status/diff/staging/commit-message chores.
+- Pass compact artifacts (briefs, diffs, file lists), not full transcripts.
+- The main model orchestrates, keeps context, and gives the final answer.
