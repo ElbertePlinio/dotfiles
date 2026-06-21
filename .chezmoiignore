@@ -1,13 +1,13 @@
 README.md
 LICENSE
-dot_factory/history.json
-dot_factory/sessions
-dot_factory/logs
-dot_factory/cache
-dot_factory/temp
-dot_factory/telemetry
-dot_factory/snapshots
-dot_factory/plugins/marketplaces/factory-plugins/dot_git
+.factory/history.json
+.factory/sessions
+.factory/logs
+.factory/cache
+.factory/temp
+.factory/telemetry
+.factory/snapshots
+.factory/plugins/marketplaces/factory-plugins/.git
 
 # pi session state — transient, regenerated every run
 .pi/context-mode/sessions
