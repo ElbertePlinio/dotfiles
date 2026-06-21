@@ -15,3 +15,5 @@ LICENSE
 # SQLite write-ahead / shared-memory scratch — never version
 **/*.db-wal
 **/*.db-shm
+# installed npm deps — reconstructible via `npm ci`, never version
+**/node_modules
