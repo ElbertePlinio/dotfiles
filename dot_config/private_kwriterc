@@ -2,11 +2,11 @@
 Days Meta Infos=30
 Save Meta Infos=true
 Show Full Path in Title=false
-Show Menu Bar=false
+Show Menu Bar=true
 Show Status Bar=true
 Show Tab Bar=true
 Show Url Nav Bar=false
 
 [MainWindow]
-3840x2160 screen: Height=740
-3840x2160 screen: Width=848
+3840x2160 screen: Height=561
+3840x2160 screen: Width=793

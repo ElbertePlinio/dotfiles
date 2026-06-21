@@ -3,3 +3,4 @@
 -- Add any additional options here
 vim.opt.relativenumber = false
 vim.opt.exrc = true
+vim.opt.spelllang = { "en_us", "pt_br" }

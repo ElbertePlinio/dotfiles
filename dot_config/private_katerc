@@ -9,8 +9,10 @@ Show Tab Bar=true
 Show Url Nav Bar=true
 
 [MainWindow]
-3840x2160 screen: Height=1015
-3840x2160 screen: Width=1667
+3072x1728 screen: Height=854
+3072x1728 screen: Width=1242
+3840x2160 screen: Height=939
+3840x2160 screen: Width=1295
 
 [filetree]
 editShade=30,78,103
@@ -22,3 +24,28 @@ showFullPathOnRoots=false
 showToolbar=true
 sortRole=0
 viewShade=77,46,91
+
+[lspclient]
+AllowedServerCommandLines=/home/dev/ProgramsDev/flutter/bin/dart language-server
+AutoHover=true
+AutoImport=true
+BlockedServerCommandLines=
+CompletionDocumentation=true
+CompletionParens=true
+Diagnostics=true
+FormatOnSave=false
+HighlightGoto=true
+HighlightSymbol=true
+IncrementalSync=false
+InlayHints=false
+Messages=true
+ReferencesDeclaration=true
+SemanticHighlighting=true
+ServerConfiguration=
+ShowCompletions=true
+SignatureHelp=true
+SymbolDetails=false
+SymbolExpand=true
+SymbolSort=false
+SymbolTree=true
+TypeFormatting=false

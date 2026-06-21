@@ -34,6 +34,11 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 export CHROME_EXECUTABLE=/usr/bin/google-chrome-stable
 
 alias claude-mem='bun "/home/dev/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
+
+# Feed the gh CLI token to Claude Code's github MCP plugin, scoped to this process only.
+claude() {
+  GITHUB_PERSONAL_ACCESS_TOKEN="$(command gh auth token 2>/dev/null)" command claude "$@"
+}
 export PATH="$HOME/.opencode/bin:$PATH"
 # Factory API keys (NOT chezmoi-managed, keep local)
 [ -f "$HOME/.config/factory-keys.env" ] && source "$HOME/.config/factory-keys.env"

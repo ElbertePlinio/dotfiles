@@ -1,30 +1,39 @@
+[Crop]
+CropAdvancedSettingsEnabled=true
+CropRatioHeight=1
+CropRatioIndex=1
+CropRatioWidth=1
+
 [General]
 LastUsedVersion=210800
+SideBarPage=operations
 
 [MainWindow]
 MenuBar=Disabled
 
 [Recent Files]
-File1[$e]=trash:/0-Screenshot_1780409716.png
-File10[$e]=$HOME/Downloads/NFSe/May 2026/Andela/Screenshot_20260605_141201_cadanapay.jpg
-File2[$e]=$HOME/Desktop/Screenshot_1780409716.png
-File3[$e]=$HOME/Desktop/Screenshot_1780409675.png
-File4[$e]=$HOME/Desktop/Screenshot_1780507414.png
-File5[$e]=$HOME/Downloads/NFSe/May 2026/Techunting/Screenshot_20260605_141201_cadanapay.jpg
-File6[$e]=$HOME/Downloads/NFSe/May 2026/Techunting/Screenshot_20260605_141118_cadanapay.jpg
-File7[$e]=$HOME/Downloads/NFSe/May 2026/Techunting/Screenshot_20260605_141252_Wise.jpg
-File8[$e]=$HOME/Downloads/NFSe/May 2026/Andela/NFSe_212210_23.pdf
-File9[$e]=$HOME/Downloads/NFSe/May 2026/Andela/Screenshot_20260605_141118_cadanapay.jpg
-Name1[$e]=0-Screenshot_1780409716.png
-Name10[$e]=Screenshot_20260605_141201_cadanapay.jpg
-Name2[$e]=Screenshot_1780409716.png
-Name3[$e]=Screenshot_1780409675.png
-Name4[$e]=Screenshot_1780507414.png
-Name5[$e]=Screenshot_20260605_141201_cadanapay.jpg
-Name6[$e]=Screenshot_20260605_141118_cadanapay.jpg
-Name7[$e]=Screenshot_20260605_141252_Wise.jpg
-Name8[$e]=NFSe_212210_23.pdf
-Name9[$e]=Screenshot_20260605_141118_cadanapay.jpg
+File1[$e]=$HOME/Desktop/gpt-images/eyes-fixed/profile-editorial-01-eyes-fixed.png
+File10[$e]=$HOME/Desktop/opus-images/04-outdoor-beanie.png
+File2[$e]=$HOME/Desktop/gpt-images/eyes-fixed/profile-preview-sheet-eyes-fixed.jpg
+File3[$e]=$HOME/Desktop/gpt-images/eyes-fixed/profile-studio-01-eyes-fixed.png
+File4[$e]=$HOME/Desktop/gpt-images/eyes-fixed/profile-studio-02-eyes-fixed.png
+File5[$e]=$HOME/Desktop/opus-images/02-creator-hair.png
+File6[$e]=$HOME/Desktop/opus-images/03-editorial-hair.png
+File7[$e]=$HOME/Desktop/opus-images/07-editorial-beanie.png
+File8[$e]=$HOME/Desktop/opus-images/01-studio-beanie.png
+File9[$e]=$HOME/Desktop/opus-images/06-creator-beanie.png
+Name1[$e]=profile-editorial-01-eyes-fixed.png
+Name10[$e]=04-outdoor-beanie.png
+Name2[$e]=profile-preview-sheet-eyes-fixed.jpg
+Name3[$e]=profile-studio-01-eyes-fixed.png
+Name4[$e]=profile-studio-02-eyes-fixed.png
+Name5[$e]=02-creator-hair.png
+Name6[$e]=03-editorial-hair.png
+Name7[$e]=07-editorial-beanie.png
+Name8[$e]=01-studio-beanie.png
+Name9[$e]=06-creator-beanie.png
 
 [SideBar]
-InformationSplitterSizes=211,244
+InformationSplitterSizes=220,255
+IsVisible ViewMode=true
+SideBarSplitterSizes=210,610

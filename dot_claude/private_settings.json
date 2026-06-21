@@ -65,7 +65,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "claude-gpt-5.5-codex[1m]",
+  "model": "opus[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -80,14 +80,15 @@
     ]
   },
   "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": false,
+    "superpowers@claude-plugins-official": false,
     "context7@claude-plugins-official": true,
     "caveman@caveman": false,
     "vgv-ai-flutter-plugin@very-good-claude-code-marketplace": false,
-    "claude-mem@thedotmack": true,
-    "andrej-karpathy-skills@karpathy-skills": true,
-    "vercel@claude-plugins-official": true
+    "claude-mem@thedotmack": false,
+    "andrej-karpathy-skills@karpathy-skills": false,
+    "vercel@claude-plugins-official": true,
+    "codex@openai-codex": true
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -113,9 +114,18 @@
         "source": "github",
         "repo": "forrestchang/andrej-karpathy-skills"
       }
+    },
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
+      }
     }
   },
   "effortLevel": "xhigh",
+  "tui": "fullscreen",
+  "skipDangerousModePermissionPrompt": true,
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "skipWorkflowUsageWarning": true
 }

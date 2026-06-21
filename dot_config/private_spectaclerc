@@ -1,18 +1,26 @@
 [Annotations]
-annotationToolType=6
-arrowStrokeColor=0,255,0
+ellipseFillColor=255,0,0,0
+ellipseStrokeColor=255,170,0
 rectangleFillColor=255,0,0,0
-rectangleStrokeColor=0,255,127
+rectangleStrokeColor=255,170,0
+
+[General]
+ocrLanguages=afr
 
 [ImageSave]
-lastImageSaveLocation=file:///home/dev/Development/Personal/vibes/vibe-flutter-unified-unimplemented/build/run/pickforge-terminal-fix.png
+lastImageSaveAsLocation=file:///home/dev/Desktop/pickforge-screens/16.png
+lastImageSaveLocation=file:///home/dev/Pictures/Screenshots/Screenshot_20260621_164648.png
 translatedScreenshotsFolder=Screenshots
 
 [VideoSave]
 translatedScreencastsFolder=Screencasts
 
 [ViewerWindow]
+2 screens: Height=885
+2 screens: Width=1627
 2560x1440 screen: Height=856
 2560x1440 screen: Width=774
-3840x2160 screen: Height=1221
-3840x2160 screen: Width=1283
+3072x1728 screen: Height=562
+3072x1728 screen: Width=814
+3840x2160 screen: Height=885
+3840x2160 screen: Width=1627

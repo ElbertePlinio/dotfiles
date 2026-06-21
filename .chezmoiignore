@@ -8,3 +8,10 @@ dot_factory/temp
 dot_factory/telemetry
 dot_factory/snapshots
 dot_factory/plugins/marketplaces/factory-plugins/dot_git
+
+# pi session state — transient, regenerated every run
+.pi/context-mode/sessions
+.pi/agent/pi-hermes-memory/sessions.db
+# SQLite write-ahead / shared-memory scratch — never version
+**/*.db-wal
+**/*.db-shm

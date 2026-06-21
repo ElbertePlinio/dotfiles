@@ -20,7 +20,7 @@ plugin=org.kde.plasma.kickoff
 
 [Containments][23][Applets][24][Configuration]
 popupHeight=509
-popupWidth=647
+popupWidth=671
 
 [Containments][23][Applets][24][Configuration][ConfigDialog]
 DialogHeight=540
@@ -153,6 +153,7 @@ SlidePaths=/usr/share/wallpapers/
 [Containments][43]
 ItemGeometries-1920x1080=
 ItemGeometries-2560x1440=
+ItemGeometries-3072x1728=
 ItemGeometriesHorizontal=
 activityId=116cc5da-cadf-46c7-8026-64fa28ed03d0
 formfactor=0
@@ -160,12 +161,35 @@ immutability=1
 lastScreen=0
 location=0
 plugin=org.kde.plasma.folder
-wallpaperplugin=org.kde.image
+wallpaperplugin=org.kde.slideshow
 
 [Containments][43][ConfigDialog]
 DialogHeight=630
 DialogWidth=810
 
+[Containments][43][General]
+changedPositions={}
+lastResolution=3840x2160
+positions={"1920x1080":["8","17","desktop:/brand_glass_2","2","20","desktop:/Brand glass","2","19","desktop:/opus-images","3","20","desktop:/gpt-images","3","19"],"3840x2160":["1","35"]}
+sortMode=-1
+
+[Containments][43][Wallpaper][org.kde.image][General]
+Image=file:///home/dev/.local/share/wallpapers/Nordic-mountain-wallpaper.jpg
+SlidePaths=/home/dev/.local/share/wallpapers/,/usr/share/wallpapers/
+
+[Containments][43][Wallpaper][org.kde.slideshow][General]
+Image=file:///home/dev/Pictures/wallpapers-3840x2160/18-fresh-semi-realistic-home-cooking-no-beard-wallpaper-3840x2160-realesrgan-4k.png
+SlidePaths=/home/dev/Pictures/wallpapers-3840x2160/
+
+[Containments][53]
+activityId=116cc5da-cadf-46c7-8026-64fa28ed03d0
+formfactor=0
+immutability=1
+lastScreen=1
+location=0
+plugin=org.kde.plasma.folder
+wallpaperplugin=org.kde.image
+
 [ScreenMapping]
 itemsOnDisabledScreens=
-screenMapping=
+screenMapping=desktop:/20260619_135542.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop:/20260308_185739.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop:/20251116_201405.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop:/20260308_185710.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0

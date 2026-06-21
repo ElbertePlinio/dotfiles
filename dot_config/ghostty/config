@@ -3,9 +3,8 @@
 # config-file = ?theme.conf
 theme = dracula 
 
-font-family = "JetBrainsMono Nerd Font"
-font-style = Regular
-font-size = 14
+font-family = "SF Mono"
+font-size = 11
 
 window-theme = ghostty
 window-padding-x = 14
