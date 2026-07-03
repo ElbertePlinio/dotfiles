@@ -1,15 +1,17 @@
 [Annotations]
+annotationToolType=7
 ellipseFillColor=255,0,0,0
 ellipseStrokeColor=255,170,0
 rectangleFillColor=255,0,0,0
-rectangleStrokeColor=255,170,0
+rectangleStrokeColor=255,0,0
+rectangleStrokeWidth=4
 
 [General]
 ocrLanguages=afr
 
 [ImageSave]
-lastImageSaveAsLocation=file:///home/dev/Desktop/pickforge-screens/16.png
-lastImageSaveLocation=file:///home/dev/Pictures/Screenshots/Screenshot_20260621_164648.png
+lastImageSaveAsLocation=file:///home/dev/Desktop/Screenshot_20260630_142128.png
+lastImageSaveLocation=file:///tmp/claude-1001/-home-dev-Projects-Pickforge-pickforge/c260bfe8-8aeb-4d42-8add-c38e324f981d/scratchpad/pf-orch.png
 translatedScreenshotsFolder=Screenshots
 
 [VideoSave]

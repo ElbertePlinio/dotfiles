@@ -14,6 +14,10 @@ tiles={"layoutDirection":"horizontal","tiles":[{"width":0.25},{"width":0.5},{"wi
 padding=4
 tiles={"layoutDirection":"horizontal","tiles":[{"width":0.25},{"width":0.5},{"width":0.25}]}
 
+[Tiling][15ad01db-6eba-4b7a-904b-fa8a1eb503fa][e291551a-e2f6-4643-9beb-ec7a9803d981]
+padding=4
+tiles={"layoutDirection":"horizontal","tiles":[{"width":0.25},{"width":0.5},{"width":0.25}]}
+
 [Tiling][15ad01db-6eba-4b7a-904b-fa8a1eb503fa][ec1c7989-5c8a-4366-8dce-3af8ad2cabc7]
 padding=4
 tiles={"layoutDirection":"horizontal","tiles":[{"width":0.25},{"width":0.5},{"width":0.25}]}
@@ -26,7 +30,7 @@ tiles={"layoutDirection":"horizontal","tiles":[{"width":0.25},{"width":0.5},{"wi
 InputMethod[$e]=/usr/share/applications/org.fcitx.Fcitx5.desktop
 
 [Xwayland]
-Scale=1.25
+Scale=2
 
 [org.kde.kdecoration2]
 NoPlugin=false

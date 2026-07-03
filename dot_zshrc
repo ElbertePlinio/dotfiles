@@ -110,8 +110,95 @@ qwen-hermes-fast() {
     --repeat-penalty 1.05
 }
 
+# Qwen3.6 35B A3B APEX I-Mini 14GB - RX 9070 XT - 64K - n-cpu-moe 4 (daily / Claude Code, sobra VRAM p/ desktop)
+qwen-mini() {
+  cd "$HOME/src/llama-cpp-turboquant" || return 1
+
+  local MODEL="$HOME/models/qwen3.6-apex/Qwen3.6-35B-A3B-APEX-I-Mini.gguf"
+  local MMPROJ="$HOME/models/qwen3.6-apex/mmproj.gguf"
+
+  HIP_VISIBLE_DEVICES=0 ./build/bin/llama-server \
+    -m "$MODEL" \
+    --mmproj "$MMPROJ" \
+    --no-mmproj-offload \
+    --alias qwen3.6-mini \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --jinja \
+    -ngl 999 \
+    --ctx-size 65536 \
+    -fa on \
+    --cache-type-k turbo3 \
+    --cache-type-v turbo3 \
+    --n-cpu-moe 4 \
+    --threads 8 \
+    --threads-batch 12 \
+    --batch-size 1024 \
+    --ubatch-size 512 \
+    --parallel 1 \
+    --cache-reuse 256 \
+    --metrics \
+    --temp 0.3 \
+    --top-p 0.9 \
+    --top-k 20 \
+    --min-p 0.0 \
+    --presence-penalty 0.0 \
+    --repeat-penalty 1.05
+}
+
+# Mesmo modelo, todos experts na GPU (n-cpu-moe 0) - so com apps de GPU fechados
+qwen-mini-max() {
+  cd "$HOME/src/llama-cpp-turboquant" || return 1
+
+  local MODEL="$HOME/models/qwen3.6-apex/Qwen3.6-35B-A3B-APEX-I-Mini.gguf"
+  local MMPROJ="$HOME/models/qwen3.6-apex/mmproj.gguf"
+
+  HIP_VISIBLE_DEVICES=0 ./build/bin/llama-server \
+    -m "$MODEL" \
+    --mmproj "$MMPROJ" \
+    --no-mmproj-offload \
+    --alias qwen3.6-mini \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --jinja \
+    -ngl 999 \
+    --ctx-size 32768 \
+    -fa on \
+    --cache-type-k turbo3 \
+    --cache-type-v turbo3 \
+    --n-cpu-moe 0 \
+    --threads 8 \
+    --threads-batch 12 \
+    --batch-size 1024 \
+    --ubatch-size 512 \
+    --parallel 1 \
+    --cache-reuse 256 \
+    --metrics \
+    --temp 0.3 \
+    --top-p 0.9 \
+    --top-k 20 \
+    --min-p 0.0 \
+    --presence-penalty 0.0 \
+    --repeat-penalty 1.05
+}
+
 stopllama() {
   pkill -f llama-server
 }
 
 export CLIPROXY_API_BASE_URL="http://127.0.0.1:8317/v1"
+
+# Claude Code apontado pro Qwen local (I-Mini via cli-proxy-api)
+claude-mini() {
+  ANTHROPIC_BASE_URL="http://127.0.0.1:8317" \
+  ANTHROPIC_AUTH_TOKEN="$CLIPROXY_API_KEY" \
+  ANTHROPIC_MODEL="qwen-mini" \
+  ANTHROPIC_SMALL_FAST_MODEL="qwen-mini" \
+  claude "$@"
+}
+
+# >>> grok installer >>>
+export PATH="$HOME/.grok/bin:$PATH"
+fpath=(~/.grok/completions/zsh $fpath)
+autoload -Uz compinit && compinit -C
+# <<< grok installer <<<

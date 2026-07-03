@@ -9,6 +9,8 @@ Show Tab Bar=true
 Show Url Nav Bar=true
 
 [MainWindow]
+2 screens: Height=1048
+2 screens: Width=1589
 3072x1728 screen: Height=854
 3072x1728 screen: Width=1242
 3840x2160 screen: Height=939

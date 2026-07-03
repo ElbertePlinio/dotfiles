@@ -65,7 +65,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -88,7 +88,7 @@
     "claude-mem@thedotmack": false,
     "andrej-karpathy-skills@karpathy-skills": false,
     "vercel@claude-plugins-official": true,
-    "codex@openai-codex": true
+    "codex@openai-codex": false
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -122,10 +122,10 @@
       }
     }
   },
-  "effortLevel": "xhigh",
+  "effortLevel": "high",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true,
-  "skipWorkflowUsageWarning": true
+  "skipAutoPermissionPrompt": true
 }
