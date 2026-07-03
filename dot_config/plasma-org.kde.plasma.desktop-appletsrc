@@ -20,7 +20,7 @@ plugin=org.kde.plasma.kickoff
 
 [Containments][23][Applets][24][Configuration]
 popupHeight=509
-popupWidth=671
+popupWidth=673
 
 [Containments][23][Applets][24][Configuration][ConfigDialog]
 DialogHeight=540
@@ -168,9 +168,9 @@ DialogHeight=630
 DialogWidth=810
 
 [Containments][43][General]
-changedPositions={}
-lastResolution=3840x2160
-positions={"1920x1080":["8","17","desktop:/brand_glass_2","2","20","desktop:/Brand glass","2","19","desktop:/opus-images","3","20","desktop:/gpt-images","3","19"],"3840x2160":["1","35"]}
+changedPositions={"desktop:/Screenshot_20260624_164901.png":[",3072x1728,1920x1080,1280x720","2","12"],"desktop:/images":[",3072x1728,1920x1080,1280x720","1","10"]}
+lastResolution=3072x1728
+positions={"1280x720":["1","11","desktop:/Screenshot_1782390027.png","7","4","desktop:/Screenshot_20260630_142128.png","0","1","desktop:/expert-analysis.webm","0","0","desktop:/Screenshot_20260624_164901.png","2","12","desktop:/expert-analysis-small.gif","1","8","desktop:/brand_glass_2","2","20","desktop:/Screenshot_1782390080.png","7","8","desktop:/Brand glass","2","19","desktop:/Screenshot_20260630_125123.png","2","7","desktop:/Screenshot_1782390034.png","7","7","desktop:/Screenshot_1782390032.png","7","6","desktop:/pickforge-screens","0","0","desktop:/Screenshot_1782390100.png","7","9","desktop:/opus-images","3","20","desktop:/expert-analysis.gif","1","10","desktop:/Screenshot_1782390030.png","7","5","desktop:/Screenshot_20260630_125009.png","1","4","desktop:/gpt-images","3","19","desktop:/ffmpeg2pass-0.log","0","1","desktop:/Screenshot_20260630_142116.png","0","0","desktop:/images","1","10"],"1920x1080":["1","17","desktop:/Screenshot_20260624_164901.png","2","12","desktop:/brand_glass_2","2","20","desktop:/Brand glass","2","19","desktop:/opus-images","3","20","desktop:/gpt-images","3","19","desktop:/images","1","10"],"3072x1728":["1","28","desktop:/Screenshot_1782390027.png","7","4","desktop:/Screenshot_20260630_142128.png","0","1","desktop:/expert-analysis.webm","0","0","desktop:/Screenshot_20260624_164901.png","2","12","desktop:/expert-analysis-small.gif","1","8","desktop:/brand_glass_2","2","20","desktop:/Screenshot_1782390080.png","7","8","desktop:/Brand glass","2","19","desktop:/Screenshot_20260630_125123.png","2","7","desktop:/Screenshot_1782390034.png","7","7","desktop:/Screenshot_1782390032.png","7","6","desktop:/pickforge-screens","0","0","desktop:/Screenshot_1782390100.png","7","9","desktop:/opus-images","3","20","desktop:/expert-analysis.gif","1","10","desktop:/Screenshot_1782390030.png","7","5","desktop:/Screenshot_20260630_125009.png","1","4","desktop:/gpt-images","3","19","desktop:/ffmpeg2pass-0.log","0","1","desktop:/Screenshot_20260630_142116.png","0","0","desktop:/client_secret_480307058860-kde0s8osa00tf3kp69oa7hig1dlanqgi.apps.googleusercontent.com.json","0","0","desktop:/images","1","10"],"3840x2160":["1","35"]}
 sortMode=-1
 
 [Containments][43][Wallpaper][org.kde.image][General]
@@ -178,7 +178,7 @@ Image=file:///home/dev/.local/share/wallpapers/Nordic-mountain-wallpaper.jpg
 SlidePaths=/home/dev/.local/share/wallpapers/,/usr/share/wallpapers/
 
 [Containments][43][Wallpaper][org.kde.slideshow][General]
-Image=file:///home/dev/Pictures/wallpapers-3840x2160/18-fresh-semi-realistic-home-cooking-no-beard-wallpaper-3840x2160-realesrgan-4k.png
+Image=file:///home/dev/Pictures/wallpapers-3840x2160/12-semi-realistic-waterfall-hike-no-beard-wallpaper-3840x2160-realesrgan-4k.png
 SlidePaths=/home/dev/Pictures/wallpapers-3840x2160/
 
 [Containments][53]
@@ -192,4 +192,4 @@ wallpaperplugin=org.kde.image
 
 [ScreenMapping]
 itemsOnDisabledScreens=
-screenMapping=desktop:/20260619_135542.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop:/20260308_185739.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop:/20251116_201405.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop:/20260308_185710.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0
+screenMapping=desktop://screenshot_20260630_125009.png,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop:/20260308_185739.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://screenshot_1782390032.png,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://screenshot_1782390030.png,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://images,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://expert-analysis.gif,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop:/20251116_201405.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop:/20260619_135542.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://screenshot_1782390100.png,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://screenshot_20260624_164901.png,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://expert-analysis-small.gif,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://screenshot_20260630_125123.png,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://screenshot_1782390080.png,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://screenshot_1782390034.png,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop://screenshot_1782390027.png,0,116cc5da-cadf-46c7-8026-64fa28ed03d0,desktop:/20260308_185710.jpg,0,116cc5da-cadf-46c7-8026-64fa28ed03d0
