@@ -198,9 +198,10 @@ qwythos() {
     --host 127.0.0.1 \
     --port 8080 \
     --jinja \
-    --chat-template chatml \
+    --chat-template-file "$HOME/.config/llama-cpp/qwythos-claude-code.jinja" \
+    --chat-template-kwargs '{"enable_thinking":false}' \
     -ngl 999 \
-    --ctx-size 65536 \
+    --ctx-size 229376 \
     -fa on \
     --threads 8 \
     --threads-batch 12 \
