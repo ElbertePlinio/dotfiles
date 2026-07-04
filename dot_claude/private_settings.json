@@ -81,7 +81,6 @@
   },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": false,
-    "superpowers@claude-plugins-official": false,
     "context7@claude-plugins-official": true,
     "caveman@caveman": false,
     "vgv-ai-flutter-plugin@very-good-claude-code-marketplace": false,
