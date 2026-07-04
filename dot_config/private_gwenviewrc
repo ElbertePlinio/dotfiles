@@ -12,26 +12,26 @@ SideBarPage=operations
 MenuBar=Disabled
 
 [Recent Files]
-File1[$e]=$HOME/Desktop/opus-images/07-editorial-beanie.png
-File10[$e]=$HOME/Desktop/Screenshot_20260630_142128.png
-File2[$e]=$HOME/Desktop/opus-images/01-studio-beanie.png
-File3[$e]=$HOME/Desktop/opus-images/06-creator-beanie.png
-File4[$e]=$HOME/Desktop/opus-images/04-outdoor-beanie.png
-File5[$e]=$HOME/Pictures/Untitled.png
-File6[$e]=$HOME/Desktop/images/Screenshot_20260624_091149.png
-File7[$e]=$HOME/Desktop/images/image_2.png
-File8[$e]=$HOME/Desktop/Screenshot_20260624_164901.png
-File9[$e]=$HOME/Desktop/Screenshot_20260630_125009.png
-Name1[$e]=07-editorial-beanie.png
-Name10[$e]=Screenshot_20260630_142128.png
-Name2[$e]=01-studio-beanie.png
-Name3[$e]=06-creator-beanie.png
-Name4[$e]=04-outdoor-beanie.png
-Name5[$e]=Untitled.png
-Name6[$e]=Screenshot_20260624_091149.png
-Name7[$e]=image_2.png
-Name8[$e]=Screenshot_20260624_164901.png
-Name9[$e]=Screenshot_20260630_125009.png
+File1[$e]=$HOME/Desktop/images/Screenshot_20260624_091149.png
+File10[$e]=$HOME/Desktop/Screenshot_20260703_160117.png
+File2[$e]=$HOME/Desktop/images/image_2.png
+File3[$e]=$HOME/Desktop/Screenshot_20260624_164901.png
+File4[$e]=$HOME/Desktop/Screenshot_20260630_125009.png
+File5[$e]=$HOME/Desktop/Screenshot_20260630_142128.png
+File6[$e]=$HOME/Pictures/HMRPTUJaEAAHfAD.jpg
+File7[$e]=$HOME/Desktop/Screenshot_20260703_160146.png
+File8[$e]=$HOME/Desktop/Screenshot_20260703_160334.png
+File9[$e]=$HOME/Desktop/Screenshot_20260703_160213.png
+Name1[$e]=Screenshot_20260624_091149.png
+Name10[$e]=Screenshot_20260703_160117.png
+Name2[$e]=image_2.png
+Name3[$e]=Screenshot_20260624_164901.png
+Name4[$e]=Screenshot_20260630_125009.png
+Name5[$e]=Screenshot_20260630_142128.png
+Name6[$e]=HMRPTUJaEAAHfAD.jpg
+Name7[$e]=Screenshot_20260703_160146.png
+Name8[$e]=Screenshot_20260703_160334.png
+Name9[$e]=Screenshot_20260703_160213.png
 
 [SideBar]
 InformationSplitterSizes=220,255
