@@ -31,6 +31,7 @@ InputMethod[$e]=/usr/share/applications/org.fcitx.Fcitx5.desktop
 
 [Xwayland]
 Scale=2
+XwaylandEisNoPromptApps=xdotool
 
 [org.kde.kdecoration2]
 NoPlugin=false

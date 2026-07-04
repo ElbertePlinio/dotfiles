@@ -11,15 +11,13 @@ ocrLanguages=afr
 
 [ImageSave]
 lastImageSaveAsLocation=file:///home/dev/Desktop/Screenshot_20260630_142128.png
-lastImageSaveLocation=file:///tmp/claude-1001/-home-dev-Projects-Pickforge-pickforge/c260bfe8-8aeb-4d42-8add-c38e324f981d/scratchpad/pf-orch.png
+lastImageSaveLocation=file:///tmp/claude-1001/-home-dev-Projects-Pickforge-pickforge/a41de830-ef5f-41a7-ad50-2bcea4a50406/scratchpad/e2e/10-cleared-existing-composer.png
 translatedScreenshotsFolder=Screenshots
 
 [VideoSave]
 translatedScreencastsFolder=Screencasts
 
 [ViewerWindow]
-2 screens: Height=885
-2 screens: Width=1627
 2560x1440 screen: Height=856
 2560x1440 screen: Width=774
 3072x1728 screen: Height=562

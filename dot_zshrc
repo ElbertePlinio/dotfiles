@@ -37,7 +37,11 @@ alias claude-mem='bun "/home/dev/.claude/plugins/marketplaces/thedotmack/plugin/
 
 # Feed the gh CLI token to Claude Code's github MCP plugin, scoped to this process only.
 claude() {
-  GITHUB_PERSONAL_ACCESS_TOKEN="$(command gh auth token 2>/dev/null)" command claude "$@"
+  GITHUB_PERSONAL_ACCESS_TOKEN="$(command gh auth token 2>/dev/null)" command claude --dangerously-skip-permissions "$@"
+}
+
+codex() {
+  command codex --yolo "$@"
 }
 export PATH="$HOME/.opencode/bin:$PATH"
 # Factory API keys (NOT chezmoi-managed, keep local)
@@ -182,6 +186,62 @@ qwen-mini-max() {
     --repeat-penalty 1.05
 }
 
+# Qwythos 9B local model - Fable/Mythos distilled model for Claude Code/Pi tests
+qwythos() {
+  cd "$HOME/src/llama-cpp-turboquant" || return 1
+
+  local MODEL="$HOME/models/qwythos-9b/Qwythos-9B-Claude-Mythos-5-1M-Q4_K_M.gguf"
+
+  HIP_VISIBLE_DEVICES=0 ./build/bin/llama-server \
+    -m "$MODEL" \
+    --alias qwythos \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --jinja \
+    --chat-template chatml \
+    -ngl 999 \
+    --ctx-size 65536 \
+    -fa on \
+    --threads 8 \
+    --threads-batch 12 \
+    --batch-size 1024 \
+    --ubatch-size 512 \
+    --parallel 1 \
+    --cache-reuse 256 \
+    --metrics \
+    --temp 0.6 \
+    --top-p 0.95 \
+    --top-k 20 \
+    --repeat-penalty 1.05
+}
+
+# Fable traces meme model - tiny Qwen3 4B quant for quick local testing
+fable-traces() {
+  cd "$HOME/src/llama-cpp-turboquant" || return 1
+
+  local MODEL="$HOME/models/fable-traces/fable-traces-q4_k_m.gguf"
+
+  HIP_VISIBLE_DEVICES=0 ./build/bin/llama-server \
+    -m "$MODEL" \
+    --alias fable-traces \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --jinja \
+    -ngl 999 \
+    --ctx-size 32768 \
+    -fa on \
+    --threads 8 \
+    --threads-batch 12 \
+    --batch-size 1024 \
+    --ubatch-size 512 \
+    --parallel 1 \
+    --metrics \
+    --temp 0.6 \
+    --top-p 0.95 \
+    --top-k 20 \
+    --repeat-penalty 1.05
+}
+
 stopllama() {
   pkill -f llama-server
 }
@@ -195,6 +255,34 @@ claude-mini() {
   ANTHROPIC_MODEL="qwen-mini" \
   ANTHROPIC_SMALL_FAST_MODEL="qwen-mini" \
   claude "$@"
+}
+
+# Claude Code/Pi pointed at local Qwythos on llama-server :8080
+claude-qwythos() {
+  ANTHROPIC_BASE_URL="http://127.0.0.1:8317" \
+  ANTHROPIC_AUTH_TOKEN="$CLIPROXY_API_KEY" \
+  ANTHROPIC_MODEL="qwythos" \
+  ANTHROPIC_SMALL_FAST_MODEL="qwythos" \
+  claude "$@"
+}
+
+pi-qwythos() {
+  pi --model local-llama/qwythos "$@"
+}
+
+# Claude Code/Pi pointed at local fable-traces on llama-server :8080
+claude-fable-traces() {
+  ANTHROPIC_BASE_URL="http://127.0.0.1:8317" \
+  ANTHROPIC_AUTH_TOKEN="$CLIPROXY_API_KEY" \
+  ANTHROPIC_MODEL="fable-traces" \
+  ANTHROPIC_SMALL_FAST_MODEL="fable-traces" \
+  claude "$@"
+}
+
+pi-fable-traces() {
+  OPENAI_API_KEY="none" \
+  OPENAI_BASE_URL="http://127.0.0.1:8080/v1" \
+  pi --provider openai --model fable-traces "$@"
 }
 
 # >>> grok installer >>>

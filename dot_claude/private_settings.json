@@ -88,7 +88,8 @@
     "claude-mem@thedotmack": false,
     "andrej-karpathy-skills@karpathy-skills": false,
     "vercel@claude-plugins-official": true,
-    "codex@openai-codex": false
+    "codex@openai-codex": false,
+    "stripe@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -122,7 +123,7 @@
       }
     }
   },
-  "effortLevel": "high",
+  "effortLevel": "medium",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
