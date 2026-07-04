@@ -36,10 +36,10 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 ### Pull requests
 
 - My GitHub (personal + pickforge accounts) runs an automated **Codex PR review** (`chatgpt-codex-connector[bot]`).
-- It reviews **once**, automatically, when a PR is **opened**. It does **not** re-review later pushes, and `@codex review` comments do **nothing** — don't post them, don't poll for a second review.
-- After opening a PR, **wait** for that single review to land (poll the PR's reviews/inline comments — a few minutes), then triage. Fix the **valid, correct** findings (not false positives); briefly say why any finding is dismissed.
-- Because there's no re-review, batch work so the important code is present when the PR is first opened. If a later batch genuinely needs a Codex pass, that means **opening a fresh PR** (open is the only trigger).
-- Don't merge a PR until its (one) Codex review has been addressed.
+- It reviews on PR **open** and re-reviews on every `@codex review` comment (👀 = started, 👍 = clean pass with no review posted). The full loop is codified in the `ship-pr` skill — follow it.
+- Triage every finding: fix the **valid, correct** ones (not false positives); briefly reply why any finding is dismissed. Never silently ignore one.
+- **Max 5 review rounds** per PR (the open review + 4 re-reviews). From round 4 on, raise the bar: fix only what a real user would plausibly hit; dismiss-with-rationale the exotic edge cases. At the cap, answer any open findings (fix if genuinely severe, otherwise reply + file a follow-up) and merge — don't let the loop spawn round 6.
+- Don't merge with a review round in flight or findings unanswered.
 
 ## Worktrees
 
