@@ -32,6 +32,14 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 - Never add attribution or trailers: no `Co-authored-by`, no `Signed-off-by`, no bot names, no noreply addresses, no model names, no AI signatures.
 - Never use the word "Claude" in commit messages.
 
+### Pull requests
+
+- My GitHub repos use an automated Codex PR review (`chatgpt-codex-connector[bot]`).
+- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `$ship-pr`.
+- Triage every review finding: fix valid findings; reply briefly with rationale for false positives.
+- Maximum 5 review rounds per PR. From round 4 on, fix only issues a real user would plausibly hit unless severity is high.
+- Do not merge with a review round in flight, failing required checks, or unanswered findings.
+
 ## Worktrees
 
 Use worktrees for risky or multi-step implementation. Create them in the centralized location, outside the repo:
@@ -69,13 +77,32 @@ Final coding reports should be compact:
 3. Risks/uncertainties
 4. Next action, only if needed
 
-## Codex + Opus delegation
+## Model orchestration
 
-For substantial, risky, frontend, backend, architecture, or full-stack tasks, use `$codex-opus-delegation`. In that workflow, Codex orchestrates and reviews, Opus 4.8 xhigh writes implementation code, and Ollama Cloud GLM/Kimi are read-only dissent reviewers for larger decisions.
+For substantial, risky, frontend, backend, architecture, full-stack, multi-agent, fan-out review, or explicit Fable/Opus/Sonnet routing tasks, use `$model-orchestration`.
 
-If Opus delegation cannot run because the Claude Code CLI is unauthenticated, missing, or otherwise unavailable, stop and tell me. Do not switch to direct Codex implementation unless I explicitly approve that fallback.
+| model    | cost | intelligence | taste |
+|----------|-----:|-------------:|------:|
+| gpt-5.5  | 9    | 8            | 5     |
+| sonnet-5 | 5    | 5            | 7     |
+| opus-4.8 | 4    | 7            | 8     |
+| fable-5  | 2    | 9            | 9     |
 
-Exception: when running non-interactively via `codex exec` (another orchestrator spawned you, e.g. Claude Code's codex-fable workflow), skip this delegation entirely and implement directly yourself — the orchestrator owns planning and review.
+- These are defaults, not limits. Judge output quality, not price.
+- For anything that ships, prefer intelligence > taste > cost.
+- User-facing UI, copy, API design, and product decisions need taste >= 7.
+- Mechanical/backend/scouting work fits gpt-5.5 through Codex CLI.
+- Frontend, UX, copy, API taste, and difficult implementation fit opus-4.8 or fable-5.
+- Planning, reviews, and dissent fit fable-5 or opus-4.8, optionally with gpt-5.5 as an independent reviewer.
+- Keep one active writer by default. Parallel writers require isolated worktrees and patch handoff.
+- Review and dissent agents are read-only unless explicitly assigned as the single writer.
+- Balance Claude and Codex pools. For neutral review or verification fleets, split work roughly between gpt-5.5 xhigh and opus-4.8 xhigh unless limits suggest otherwise.
+- Never use Haiku.
+- Fable effort is high at most.
+
+If required delegation cannot run because the relevant CLI is unauthenticated, missing, or otherwise unavailable, stop and tell me. Do not silently switch to a different implementation path unless I explicitly approve that fallback.
+
+Exception: when running non-interactively via `codex exec` under another orchestrator, skip delegation and implement directly yourself; the parent orchestrator owns planning and review.
 
 ## Context7 usage
 
