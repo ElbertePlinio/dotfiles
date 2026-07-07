@@ -27,7 +27,8 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 
 - Protect user work. Check status before staging, committing, merging, or cleaning.
 - Treat untracked files as user-owned.
-- Never push unless I explicitly ask.
+- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects.
+- Pickforge or Personal means the repo path or GitHub remote makes that ownership clear, such as `~/Projects/Pickforge/...`, `~/Projects/Personal/...`, `github.com/pickforge/...`, or `github.com/ElbertePlinio/...`. Outside those projects, explicit push permission is still required.
 - Commit messages must be English Conventional Commits.
 - Never add attribution or trailers: no `Co-authored-by`, no `Signed-off-by`, no bot names, no noreply addresses, no model names, no AI signatures.
 - Never use the word "Claude" in commit messages.
@@ -36,6 +37,7 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 
 - My GitHub repos use an automated Codex PR review (`chatgpt-codex-connector[bot]`).
 - For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `$ship-pr`.
+- In clearly identified Pickforge or Personal projects, use `$ship-pr` automatically when pushing/opening a PR is the natural next step; outside those projects, ask first.
 - Triage every review finding: fix valid findings; reply briefly with rationale for false positives.
 - Maximum 5 review rounds per PR. From round 4 on, fix only issues a real user would plausibly hit unless severity is high.
 - Do not merge with a review round in flight, failing required checks, or unanswered findings.
@@ -81,22 +83,25 @@ Final coding reports should be compact:
 
 For substantial, risky, frontend, backend, architecture, full-stack, multi-agent, fan-out review, or explicit Fable/Opus/Sonnet routing tasks, use `$model-orchestration`.
 
-| model    | cost | intelligence | taste |
-|----------|-----:|-------------:|------:|
-| gpt-5.5  | 9    | 8            | 5     |
-| sonnet-5 | 5    | 5            | 7     |
-| opus-4.8 | 4    | 7            | 8     |
-| fable-5  | 2    | 9            | 9     |
+| model    | cost | intelligence | taste | vision |
+|----------|-----:|-------------:|------:|--------|
+| gpt-5.5  | 9    | 8            | 5     | yes    |
+| glm-5.2  | 7    | 8            | 7     | no     |
+| sonnet-5 | 5    | 5            | 7     | yes    |
+| opus-4.8 | 4    | 7            | 8     | yes    |
+| fable-5  | 2    | 9            | 9     | yes    |
 
 - These are defaults, not limits. Judge output quality, not price.
 - For anything that ships, prefer intelligence > taste > cost.
 - User-facing UI, copy, API design, and product decisions need taste >= 7.
 - Mechanical/backend/scouting work fits gpt-5.5 through Codex CLI.
 - Frontend, UX, copy, API taste, and difficult implementation fit opus-4.8 or fable-5.
-- Planning, reviews, and dissent fit fable-5 or opus-4.8, optionally with gpt-5.5 as an independent reviewer.
-- Keep one active writer by default. Parallel writers require isolated worktrees and patch handoff.
+- Planning, reviews, and dissent default to a 3-model panel for serious work: gpt-5.5 xhigh for correctness, opus-4.8 xhigh for taste/design/intent, and glm-5.2 via Ollama Cloud for long-context agentic dissent. Add fable-5 for the highest-risk gates when available.
+- Parallelize aggressively when scopes are independent: scouts, builders, validation, and reviewers should run concurrently instead of serially. For multiple independent issues/features, use isolated worktrees and separate branches; if the repo is eligible for `$ship-pr`, open multiple PRs in parallel and serialize only final triage/merge/conflict resolution.
+- Keep one active writer per file/worktree. Parallel writers require isolated worktrees and patch handoff.
 - Review and dissent agents are read-only unless explicitly assigned as the single writer.
-- Balance Claude and Codex pools. For neutral review or verification fleets, split work roughly between gpt-5.5 xhigh and opus-4.8 xhigh unless limits suggest otherwise.
+- Balance Claude, Codex, and Ollama pools. Route frontend/UI/copy/taste to opus-4.8 xhigh; backend/mechanical/scouting to gpt-5.5 xhigh; long-context review/dissent to glm-5.2 via Ollama Cloud. For serious reviews, use the full gpt-5.5 + opus-4.8 + glm-5.2 panel unless the edit is tiny.
+- GLM-5.2 is text-only: never send it image files/screenshots/diagrams/videos. The orchestrator must summarize visual attachments for GLM; Opus/GPT can inspect visuals directly when available.
 - Never use Haiku.
 - Fable effort is high at most.
 
@@ -112,3 +117,14 @@ Use Context7 MCP to fetch current documentation whenever the user asks about a l
 2. Pick the best match by name, relevance, snippet count, reputation, and benchmark score. Use version-specific IDs when a version is mentioned.
 3. `query-docs` with the selected library ID and the user's full question.
 4. Answer using the fetched docs.
+
+## Shared Agent Memory
+
+Before user-specific work, read relevant files from `/home/dev/AgentMemory`:
+
+- Always: `CORE_PROFILE.md`, `WRITING_STYLE.md`, `BOUNDARIES.md`
+- Coding: `CODING_AGENT_RULES.md`, `WORK_AND_PROJECTS.md`
+- Social/media: `SOCIAL_MEDIA.md`
+- Project-specific: `projects/*.md`
+
+Do not read or import `/home/dev/AgentMemory/archive_raw/` unless explicitly scoped. Do not store secrets in memory.
