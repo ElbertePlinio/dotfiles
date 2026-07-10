@@ -12,26 +12,26 @@ SideBarPage=operations
 MenuBar=Disabled
 
 [Recent Files]
-File1[$e]=$HOME/Desktop/images/Screenshot_20260624_091149.png
-File10[$e]=$HOME/Desktop/Screenshot_20260703_160117.png
-File2[$e]=$HOME/Desktop/images/image_2.png
-File3[$e]=$HOME/Desktop/Screenshot_20260624_164901.png
-File4[$e]=$HOME/Desktop/Screenshot_20260630_125009.png
-File5[$e]=$HOME/Desktop/Screenshot_20260630_142128.png
-File6[$e]=$HOME/Pictures/HMRPTUJaEAAHfAD.jpg
-File7[$e]=$HOME/Desktop/Screenshot_20260703_160146.png
-File8[$e]=$HOME/Desktop/Screenshot_20260703_160334.png
-File9[$e]=$HOME/Desktop/Screenshot_20260703_160213.png
-Name1[$e]=Screenshot_20260624_091149.png
-Name10[$e]=Screenshot_20260703_160117.png
-Name2[$e]=image_2.png
-Name3[$e]=Screenshot_20260624_164901.png
-Name4[$e]=Screenshot_20260630_125009.png
-Name5[$e]=Screenshot_20260630_142128.png
-Name6[$e]=HMRPTUJaEAAHfAD.jpg
-Name7[$e]=Screenshot_20260703_160146.png
-Name8[$e]=Screenshot_20260703_160334.png
-Name9[$e]=Screenshot_20260703_160213.png
+File1[$e]=$HOME/Projects/Pickforge/branding-visual/assets/pickforge-studio/pickforge-studio-avatar-light-400.png
+File10[$e]=$HOME/Desktop/Untitled.jpg
+File2[$e]=$HOME/Projects/Pickforge/branding-visual/assets/pickforge-studio/pickforge-studio-og-1200x630.svg
+File3[$e]=$HOME/Projects/Pickforge/branding-visual/assets/pickforge-studio/pickforge-studio-og-1200x630.png
+File4[$e]=$HOME/Projects/Pickforge/branding-visual/assets/pickforge-studio/pickforge-studio-social-github-1280x640.svg
+File5[$e]=$HOME/Projects/Pickforge/branding-visual/assets/pickforge-studio/pickforge-studio-social-github-1280x640.png
+File6[$e]=$HOME/Projects/Pickforge/branding-visual/assets/pickforge-studio/pickforge-studio-banner-x-1500x500.svg
+File7[$e]=$HOME/Desktop/Screenshot_20260708_132656.png
+File8[$e]=$HOME/Desktop/Screenshot_20260708_152927.png
+File9[$e]=$HOME/Desktop/Screenshot_20260708_153555.png
+Name1[$e]=pickforge-studio-avatar-light-400.png
+Name10[$e]=Untitled.jpg
+Name2[$e]=pickforge-studio-og-1200x630.svg
+Name3[$e]=pickforge-studio-og-1200x630.png
+Name4[$e]=pickforge-studio-social-github-1280x640.svg
+Name5[$e]=pickforge-studio-social-github-1280x640.png
+Name6[$e]=pickforge-studio-banner-x-1500x500.svg
+Name7[$e]=Screenshot_20260708_132656.png
+Name8[$e]=Screenshot_20260708_152927.png
+Name9[$e]=Screenshot_20260708_153555.png
 
 [SideBar]
 InformationSplitterSizes=220,255

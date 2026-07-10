@@ -19,7 +19,7 @@ mkdir -p ~/.config/chezmoi
 chmod 0600 ~/.config/chezmoi/key.txt
 
 # 3. Initialize from this repo
-chezmoi init git@github.com:oElberte/dotfiles.git
+chezmoi init git@github.com:ElbertePlinio/dotfiles.git
 
 # 4. Preview what will change in $HOME
 chezmoi diff
@@ -238,7 +238,7 @@ Regenerable — don't back up, reinstall fresh:
 3. **Reinstall** the OS.
 4. **Packages** → pacman, AUR helper, flatpaks from the `.txt` lists.
 5. **Age identity** → restore `~/.config/chezmoi/key.txt` (0600) and recreate `~/.config/chezmoi/chezmoi.toml` — see [Secrets](#secrets-age-encryption).
-6. **Dotfiles** → `chezmoi init git@github.com:oElberte/dotfiles.git && chezmoi apply`.
+6. **Dotfiles** → `chezmoi init git@github.com:ElbertePlinio/dotfiles.git && chezmoi apply`.
 7. **SSH/GPG** → decrypt `secrets.tar.age` into `$HOME`.
 8. **Browsers** → extract tarballs (browsers closed).
 9. **AI state** → decrypt and extract if kept.

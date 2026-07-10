@@ -1,3 +1,8 @@
+# Strip NO_COLOR when it leaks in from a dumb/non-interactive launcher
+# (e.g. an IDE terminal that started the tmux server) — it makes color-aware
+# TUIs like Claude Code render entirely white.
+[[ -n $NO_COLOR ]] && unset NO_COLOR
+
 export PATH="$HOME/ProgramsDev/flutter/bin:$PATH"
 export PATH="/home/dev/fvm/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
