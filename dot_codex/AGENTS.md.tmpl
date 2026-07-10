@@ -44,6 +44,7 @@ I often dictate prompts with PickScribe. Words can come out wrong — especially
 - For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `$ship-pr`.
 - In clearly identified Pickforge or Personal projects, use `$ship-pr` automatically when pushing/opening a PR is the natural next step; outside those projects, ask first.
 - Triage every review finding: fix valid findings; reply briefly with rationale for false positives.
+- React on each Codex finding as model feedback: 👍 when it is correct and useful; 👎 when it is incorrect or not useful. React on the finding itself, not the `@codex review` trigger; reactions do not replace replies or fixes.
 - Let the automatic review on PR open run first; use `@codex review` only after fixes or when the opening trigger fails.
 - Normally cap review at 3 distinct HEADs. Use round 4 only to verify a fix for a new valid P1/P2 found in round 3. Do not run a fifth round.
 - Do not merge with a review round in flight, failing required checks, unanswered findings, or a HEAD that Codex has not reviewed.
