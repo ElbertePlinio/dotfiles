@@ -33,7 +33,7 @@ I often dictate prompts with PickScribe. Words can come out wrong — especially
 
 - Protect user work. Check status before staging, committing, merging, or cleaning.
 - Treat untracked files as user-owned.
-- Never push unless I explicitly ask.
+- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects. Those are paths under `~/Projects/Pickforge` or `~/Projects/Personal`, or remotes under `github.com/pickforge` or `github.com/ElbertePlinio`. Outside them, ask first.
 - Commit messages must be English Conventional Commits.
 - Never add attribution or trailers: no `Co-authored-by`, no `Signed-off-by`, no bot names, no noreply addresses, no model names, no AI signatures.
 - Never use the word "Claude" in commit messages.
@@ -41,10 +41,11 @@ I often dictate prompts with PickScribe. Words can come out wrong — especially
 ### Pull requests
 
 - My GitHub (personal + pickforge accounts) runs an automated **Codex PR review** (`chatgpt-codex-connector[bot]`).
+- In clearly identified Pickforge or Personal projects, use `$ship-pr` automatically when pushing/opening a PR is the natural next step; outside them, ask first.
 - It reviews on PR **open** and re-reviews on every `@codex review` comment (👀 = started, 👍 = clean pass with no review posted). The full loop is codified in the `ship-pr` skill — follow it.
 - Triage every finding: fix the **valid, correct** ones (not false positives); briefly reply why any finding is dismissed. Never silently ignore one.
-- **Max 5 review rounds** per PR (the open review + 4 re-reviews). From round 4 on, raise the bar: fix only what a real user would plausibly hit; dismiss-with-rationale the exotic edge cases. At the cap, answer any open findings (fix if genuinely severe, otherwise reply + file a follow-up) and merge — don't let the loop spawn round 6.
-- Don't merge with a review round in flight or findings unanswered.
+- Let the automatic opening review run before posting `@codex review`. Normally cap review at 3 distinct HEADs; use round 4 only to verify a fix for a new valid P1/P2 found in round 3. Never run a fifth round.
+- Don't merge with a review round in flight, failing required checks, findings unanswered, or a HEAD that Codex has not reviewed.
 
 ## Worktrees
 
@@ -86,52 +87,53 @@ Final coding reports should be compact:
 
 ## Picking the right models for workflows and subagents
 
-Rankings, higher = better. Cost reflects what I actually pay (Codex usage is the cheap pool), not list price. Intelligence is how hard a problem you can hand the model unsupervised. Taste covers UI/UX, code quality, API design, and copy. Effort is fixed per model — don't drift without a stated reason.
+Rankings, higher = better. Cost reflects what I actually pay, not list price. Intelligence is how hard a problem you can hand the model unsupervised. Taste covers UI/UX, code quality, API design, and copy. Effort values are starting points, not fixed rules.
 
-| model         | effort | cost | intelligence | taste | vision |
+| model         | start  | cost | intelligence | taste | vision |
 |---------------|--------|-----:|-------------:|------:|--------|
-| gpt-5.6-luna  | high   | 10   | 7            | 5     | yes    |
-| gpt-5.6-terra | xhigh  | 9    | 8            | 5     | yes    |
-| gpt-5.6-sol   | xhigh  | 8    | 9            | 6     | yes    |
+| gpt-5.6-luna  | medium | 10   | 7            | 5     | yes    |
+| gpt-5.6-terra | medium | 9    | 8            | 5     | yes    |
+| gpt-5.6-sol   | high   | 8    | 9            | 6     | yes    |
 | glm-5.2       | —      | 7    | 8            | 7     | no     |
 | grok-4.5      | high   | 6    | 8            | 7     | yes    |
 | sonnet-5      | high   | 5    | 5            | 7     | yes    |
-| opus-4.8      | xhigh  | 4    | 7            | 8     | yes    |
+| opus-4.8      | high   | 4    | 7            | 8     | yes    |
 | fable-5       | high   | 2    | 9            | 9     | yes    |
 
 Lanes:
 
-- gpt-5.6-luna — scouts: investigation, codebase analysis, computer use, UI/UX verification. Token-hungry in, small conclusion out.
-- gpt-5.6-terra — default Codex workhorse: backend, mechanical/clear-spec builds, correctness reviews. Replaces gpt-5.5 (same class, half the price).
-- gpt-5.6-sol — hard problems: gnarly debugging, architecture correctness, rescue after Terra misses the bar twice. Orchestrator-only escape hatch: sol at `max` effort for the rare near-impossible task. Skip Codex `ultra` mode — it spawns its own subagents, duplicating our orchestration without our control.
-- glm-5.2 — long-context review/dissent via Ollama Cloud. Text-only: never send it images; summarize visuals in text first.
-- grok-4.5 — fourth pool (grok.com): token-efficient correctness reviews, terminal/CLI-heavy work, vision second opinions.
+- gpt-5.6-luna — low-cost GPT scouting and high-volume analysis.
+- gpt-5.6-terra — balanced daily Codex work, implementation, and review.
+- gpt-5.6-sol — hard debugging and technical adjudication; use `max` only for exceptional problems and skip `ultra` because it duplicates orchestration.
+- glm-5.2 — cost-efficient text implementation, review, and dissent via Ollama Cloud. Never send it images; summarize visuals first.
+- grok-4.5 — first-class agentic builder/reviewer for terminal-heavy work, broad investigations, debugging, and vision.
 - sonnet-5 — Claude-side leaf worker: small/medium clear-spec implementation, tests, boilerplate. Not an orchestrator.
-- opus-4.8 / fable-5 — anything user-facing (UI, copy, API design) needs taste ≥ 7 and stays here. Fable main sessions orchestrate, review, judge, and accept; Fable does bulk implementation only when judgment/taste is the work.
+- opus-4.8 / fable-5 — taste-heavy UI, copy, API design, architecture, and difficult judgment. Fable main sessions can orchestrate and accept without becoming the default bulk coder.
 
 How to apply:
 
 - Defaults, not limits: if a cheaper model's output misses the bar, redo with a smarter one without asking. Judge the output, not the price tag.
 - Cost is a tie-breaker only; for anything that ships, intelligence > taste > cost.
+- Trust the orchestrator to choose the lightest sufficient path from task risk, uncertainty, domain, context size, and pool headroom. There is no mandatory model order or review lineup.
 - Two levels by default: the orchestrator plans, dispatches, and accepts; workers and reviewers are leaves. Modes: `simple`, `standard`, `serious` (review panel + anti-overengineering gate), `fanout` (isolated worktrees for genuinely independent work).
-- Serious reviews: gpt-5.6-terra + opus-4.8 + glm-5.2 panel; add fable-5 or grok-4.5 when they bring a missing angle. Reviewers are read-only.
+- Standard work gets one independent reviewer chosen for the task. Serious work gets 2-3 complementary reviewers; Grok and GLM are first-class choices, while Fable/Opus are added when taste or architectural judgment matters. Reviewers are read-only.
 - Balance the pools (Codex / Claude / Ollama / grok.com): drain by model advantage, not habit.
 - Quota-aware routing: before a multi-task wave, check pool headroom with the `pickgauge-usage` skill (`pickgauge usage --json`). A cheaper lane near its cap loses to a pricier lane with room. Check per wave, not per call; plan-only rows (null percent) are unknown, not empty.
-- Quota fallback: if a lane is blocked, substitute the closest useful one and say so (Fable → Opus/GPT, Opus → Fable/Sonnet/GPT, GPT → Opus/Fable/Sonnet, GLM → GPT/Opus/Fable). Stop if the missing lane was explicitly required or no substitute fits.
-- Parallelize by default. One active writer per file/worktree; parallel writers need isolated worktrees and patch handoff.
+- Quota fallback: if a lane is blocked, substitute the closest useful lane across GPT, Grok, GLM, Fable, Opus, and Sonnet, and report it. Stop if the missing lane was explicitly required or no substitute fits.
+- Parallelize when the speedup justifies the orchestration cost. One active writer per file/worktree; parallel writers need isolated worktrees and patch handoff.
 - Never use Haiku.
 - GPT-5.6 ratings are provisional (launched 2026-07-09; Terra/Luna have no independent benchmarks yet — vendor positioning plus early signal). Revisit when real evals land.
-- Mechanics: GPT-5.6 runs through the Codex CLI — the `codex` skill defines the lanes (scout = luna, build/review = terra via config defaults, hard = sol, fix via `codex exec resume <thread_id>`). GLM-5.2 runs through `~/.codex/skills/model-orchestration/scripts/ollama-delegate.mjs` (Codex OSS + Ollama Cloud, `glm-5.2:cloud`). Grok-4.5 runs through the `grok` CLI (`grok` skill). Defaults come from `~/.codex/config.toml` (gpt-5.6-terra, xhigh). Claude models (sonnet-5, opus-4.8, fable-5) run via the Agent/Workflow `model` param.
-- Multi-agent fan-outs (Workflow tool, Agent fleets): leaves inherit the session model unless overridden — NEVER let them default to Fable/Opus. The `model` param only reaches Claude models; to spread load across pools, make leaves thin CLI delegates: a sonnet agent at `effort: low` that runs the `codex exec` / `grok` / ollama-delegate command via Bash and returns the output verbatim (wrapper cost is negligible; the heavy tokens land in that pool). Small fan-outs (≤5 leaves) can stay sonnet-only; bigger ones split across Codex/GLM/Grok/Claude so no single quota drains. Verify/review panels should mix pools anyway (diversity beats redundancy). Fable/Opus leaves only for synthesis or genuinely hard judgment stages.
+- Mechanics: GPT-5.6 runs through the Codex CLI, GLM through Ollama Cloud, Grok through the `grok` CLI, and Claude models through the Agent/Workflow model parameter. The orchestrator chooses the lane and effort; `~/.codex/config.toml` defaults to Terra at medium.
+- Multi-agent fan-outs: leaves inherit the session model unless overridden, so select each lane intentionally. Thin CLI delegates can route work to Codex, Grok, or GLM when that pool fits better. Mix pools when diversity adds value, not by quota or panel symmetry alone.
 
 ### Delegation workflows
 
 For substantial tasks (features, refactors, multi-file changes), route by session model:
 
 - Fable 5 session → `codex-fable` skill (Fable plans and reviews; each task routed to the cheapest model that meets the bar).
-- Opus session → `codex-opus` skill (Opus writes all code, Codex plans/reviews backend).
+- Opus session → `codex-opus` skill (adaptive routing with Opus synthesis and acceptance).
 - Trivial edits and quick answers → skip the ceremony. The test: delegate only when the work costs more than the delegation overhead itself.
-- That call is provisional, not a license. Re-run the test when a task grows mid-flight (review findings, scope creep): once it's past a one-function change, stop absorbing it inline and hand the growth to the cheapest lane that meets the bar (usually gpt-5.6-terra for mechanical refactors).
+- That call is provisional, not a license. Re-run the test when a task grows mid-flight; once delegation adds value, choose the lightest sufficient lane for the new scope.
 
 @RTK.md
 
