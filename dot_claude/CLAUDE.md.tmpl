@@ -14,6 +14,10 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 - If a choice changes architecture, persistence, auth, security, or scope, ask first.
 - If unsure, ask — don't assume.
 
+## Dictated prompts (PickScribe)
+
+I often dictate prompts with PickScribe. Words can come out wrong — especially names, model IDs, and technical terms. If a request hinges on a word that looks off or contradicts what you know, ask me to confirm what I meant instead of running with the literal transcription.
+
 ## Tools
 
 - Use Bun (`bun`, `bunx`) as the default package manager and script runner when creating new JS/TS projects. In existing repos, follow whatever the lockfile says.
@@ -23,6 +27,7 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 - RTK (`rtk`) is a token-optimizing CLI proxy. If `frun` is unavailable but `rtk` exists, prefix noisy read-only commands with `rtk` (e.g. `rtk git status`, `rtk git diff`).
 - Use `rtk` directly for RTK meta commands like `rtk gain`, `rtk gain --history`, or `rtk discover`.
 - Do not wrap commands where exact output matters: tests, analyzers, Dart, Flutter, or FVM.
+- For X (Twitter) research — model reputations, AI tooling chatter, practitioner sentiment — use the `x-research` skill (Hermes Agent CLI with Grok-backed `x_search`).
 
 ## Git
 
@@ -81,30 +86,43 @@ Final coding reports should be compact:
 
 ## Picking the right models for workflows and subagents
 
-Rankings, higher = better. Cost reflects what I actually pay (Codex usage is the cheap pool), not list price. Intelligence is how hard a problem you can hand the model unsupervised. Taste covers UI/UX, code quality, API design, and copy.
+Rankings, higher = better. Cost reflects what I actually pay (Codex usage is the cheap pool), not list price. Intelligence is how hard a problem you can hand the model unsupervised. Taste covers UI/UX, code quality, API design, and copy. Effort is fixed per model — don't drift without a stated reason.
 
-| model    | cost | intelligence | taste | vision |
-|----------|-----:|-------------:|------:|--------|
-| gpt-5.5  | 9    | 8            | 5     | yes    |
-| glm-5.2  | 7    | 8            | 7     | no     |
-| sonnet-5 | 5    | 5            | 7     | yes    |
-| opus-4.8 | 4    | 7            | 8     | yes    |
-| fable-5  | 2    | 9            | 9     | yes    |
+| model         | effort | cost | intelligence | taste | vision |
+|---------------|--------|-----:|-------------:|------:|--------|
+| gpt-5.6-luna  | high   | 10   | 7            | 5     | yes    |
+| gpt-5.6-terra | xhigh  | 9    | 8            | 5     | yes    |
+| gpt-5.6-sol   | xhigh  | 8    | 9            | 6     | yes    |
+| glm-5.2       | —      | 7    | 8            | 7     | no     |
+| grok-4.5      | high   | 6    | 8            | 7     | yes    |
+| sonnet-5      | high   | 5    | 5            | 7     | yes    |
+| opus-4.8      | xhigh  | 4    | 7            | 8     | yes    |
+| fable-5       | high   | 2    | 9            | 9     | yes    |
+
+Lanes:
+
+- gpt-5.6-luna — scouts: investigation, codebase analysis, computer use, UI/UX verification. Token-hungry in, small conclusion out.
+- gpt-5.6-terra — default Codex workhorse: backend, mechanical/clear-spec builds, correctness reviews. Replaces gpt-5.5 (same class, half the price).
+- gpt-5.6-sol — hard problems: gnarly debugging, architecture correctness, rescue after Terra misses the bar twice. Orchestrator-only escape hatch: sol at `max` effort for the rare near-impossible task. Skip Codex `ultra` mode — it spawns its own subagents, duplicating our orchestration without our control.
+- glm-5.2 — long-context review/dissent via Ollama Cloud. Text-only: never send it images; summarize visuals in text first.
+- grok-4.5 — fourth pool (grok.com): token-efficient correctness reviews, terminal/CLI-heavy work, vision second opinions.
+- sonnet-5 — Claude-side leaf worker: small/medium clear-spec implementation, tests, boilerplate. Not an orchestrator.
+- opus-4.8 / fable-5 — anything user-facing (UI, copy, API design) needs taste ≥ 7 and stays here. Fable main sessions orchestrate, review, judge, and accept; Fable does bulk implementation only when judgment/taste is the work.
 
 How to apply:
 
-- These are defaults, not limits. You have standing permission to override them: if a cheaper model's output doesn't meet the bar, rerun or redo the work with a smarter model without asking. Judge the output, not the price tag. Escalating costs less than shipping mediocre work.
-- Cost is a tie-breaker only; when axes conflict for anything that ships, intelligence > taste > cost.
-- Bulk/mechanical work (clear-spec implementation, data analysis, migrations): gpt-5.5 — it's effectively free.
-- Things that are unnecessarily token hungry for Claude (computer use, codebase analysis, UI/UX verification): gpt-5.5 does them and reports results back.
-- Anything user-facing (UI, copy, API design) needs taste ≥ 7.
-- Reviews of plans/implementations: gpt-5.5 + opus-4.8 + glm-5.2 by default for maximum quality; add fable-5 for the riskiest gates when available.
-- **Balance the pools.** Claude, Codex, and Ollama are separate budgets — drain them by model advantage, not habit. Route frontend/UI/copy/taste to opus-4.8 xhigh; backend/mechanical/scouting to gpt-5.5 xhigh; long-context review/dissent to glm-5.2 via Ollama Cloud. For serious reviews, use the full gpt-5.5 + opus-4.8 + glm-5.2 panel unless the edit is tiny.
-- **Parallelize by default.** When work can be split safely, run scouts, builders, validation, and review lanes concurrently across Codex, Claude, and Ollama. For multiple independent issues/features, use isolated worktrees and separate branches; if the repo is eligible for `$ship-pr`, open multiple PRs in parallel and serialize only final triage/merge/conflict resolution.
-- GLM-5.2 is text-only: never send it image files/screenshots/diagrams/videos. The orchestrator must summarize visual attachments for GLM; Opus/GPT can inspect visuals directly when available.
+- Defaults, not limits: if a cheaper model's output misses the bar, redo with a smarter one without asking. Judge the output, not the price tag.
+- Cost is a tie-breaker only; for anything that ships, intelligence > taste > cost.
+- Two levels by default: the orchestrator plans, dispatches, and accepts; workers and reviewers are leaves. Modes: `simple`, `standard`, `serious` (review panel + anti-overengineering gate), `fanout` (isolated worktrees for genuinely independent work).
+- Serious reviews: gpt-5.6-terra + opus-4.8 + glm-5.2 panel; add fable-5 or grok-4.5 when they bring a missing angle. Reviewers are read-only.
+- Balance the pools (Codex / Claude / Ollama / grok.com): drain by model advantage, not habit.
+- Quota-aware routing: before a multi-task wave, check pool headroom with the `pickgauge-usage` skill (`pickgauge usage --json`). A cheaper lane near its cap loses to a pricier lane with room. Check per wave, not per call; plan-only rows (null percent) are unknown, not empty.
+- Quota fallback: if a lane is blocked, substitute the closest useful one and say so (Fable → Opus/GPT, Opus → Fable/Sonnet/GPT, GPT → Opus/Fable/Sonnet, GLM → GPT/Opus/Fable). Stop if the missing lane was explicitly required or no substitute fits.
+- Parallelize by default. One active writer per file/worktree; parallel writers need isolated worktrees and patch handoff.
 - Never use Haiku.
-- Fable effort: high at most; xhigh/max is a token furnace with no quality gain.
-- Mechanics: gpt-5.5 runs through the Codex CLI directly — the `codex` skill defines the lanes (scout read-only medium, build workspace-write xhigh, fix via `codex exec resume <thread_id>`, review via `codex exec review`). GLM-5.2 runs through `~/.codex/skills/model-orchestration/scripts/ollama-delegate.mjs` using Codex OSS + Ollama Cloud (`glm-5.2:cloud`). Defaults come from `~/.codex/config.toml` (gpt-5.5, xhigh). Claude models (sonnet-5, opus-4.8, fable-5) run via the Agent/Workflow `model` param.
+- GPT-5.6 ratings are provisional (launched 2026-07-09; Terra/Luna have no independent benchmarks yet — vendor positioning plus early signal). Revisit when real evals land.
+- Mechanics: GPT-5.6 runs through the Codex CLI — the `codex` skill defines the lanes (scout = luna, build/review = terra via config defaults, hard = sol, fix via `codex exec resume <thread_id>`). GLM-5.2 runs through `~/.codex/skills/model-orchestration/scripts/ollama-delegate.mjs` (Codex OSS + Ollama Cloud, `glm-5.2:cloud`). Grok-4.5 runs through the `grok` CLI (`grok` skill). Defaults come from `~/.codex/config.toml` (gpt-5.6-terra, xhigh). Claude models (sonnet-5, opus-4.8, fable-5) run via the Agent/Workflow `model` param.
+- Multi-agent fan-outs (Workflow tool, Agent fleets): leaves inherit the session model unless overridden — NEVER let them default to Fable/Opus. The `model` param only reaches Claude models; to spread load across pools, make leaves thin CLI delegates: a sonnet agent at `effort: low` that runs the `codex exec` / `grok` / ollama-delegate command via Bash and returns the output verbatim (wrapper cost is negligible; the heavy tokens land in that pool). Small fan-outs (≤5 leaves) can stay sonnet-only; bigger ones split across Codex/GLM/Grok/Claude so no single quota drains. Verify/review panels should mix pools anyway (diversity beats redundancy). Fable/Opus leaves only for synthesis or genuinely hard judgment stages.
 
 ### Delegation workflows
 
@@ -112,9 +130,15 @@ For substantial tasks (features, refactors, multi-file changes), route by sessio
 
 - Fable 5 session → `codex-fable` skill (Fable plans and reviews; each task routed to the cheapest model that meets the bar).
 - Opus session → `codex-opus` skill (Opus writes all code, Codex plans/reviews backend).
-- Trivial edits and quick answers → skip the ceremony.
+- Trivial edits and quick answers → skip the ceremony. The test: delegate only when the work costs more than the delegation overhead itself.
+- That call is provisional, not a license. Re-run the test when a task grows mid-flight (review findings, scope creep): once it's past a one-function change, stop absorbing it inline and hand the growth to the cheapest lane that meets the bar (usually gpt-5.6-terra for mechanical refactors).
 
 @RTK.md
+
+
+## Pickforge GitHub Issues as source of truth
+
+When working in any repo under `~/Projects/Pickforge`, prefer the workspace policy in `~/Projects/Pickforge/AGENTS.md` and the `plan-issue` workflow/skill. In short: use GitHub Issues as the canonical plan/progress tracker for substantial work, keep the issue checklist phone-friendly, link PRs to issues, and create/link follow-up issues for valid deferred review/CI problems.
 
 ## Shared Agent Memory
 
@@ -126,3 +150,14 @@ Before user-specific work, read relevant files from `/home/dev/AgentMemory`:
 - Project-specific: `projects/*.md`
 
 Do not read or import `/home/dev/AgentMemory/archive_raw/` unless explicitly scoped. Do not store secrets in memory.
+
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+
+- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it's listed but deferred, load it by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- CODEGRAPH_END -->

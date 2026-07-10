@@ -10,6 +10,9 @@ Seen=true
 [Applications][cursor]
 Seen=true
 
+[Applications][discord]
+Seen=true
+
 [Applications][google-chrome]
 Seen=true
 
@@ -24,9 +27,6 @@ Seen=true
 
 [Applications][zen]
 Seen=true
-
-[DoNotDisturb]
-NotificationSoundsMuted=true
 
 [Notifications]
 PopupPosition=BottomRight

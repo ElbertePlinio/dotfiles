@@ -15,6 +15,7 @@ x-scheme-handler/termius=termius.desktop
 x-scheme-handler/ssh=ktelnetservice6.desktop
 x-scheme-handler/antigravity=antigravity.desktop
 x-scheme-handler/t3code=t3code.desktop
+x-scheme-handler/pickforge=pickforge-tauri-handler.desktop
 
 [Added Associations]
 x-scheme-handler/http=zen.desktop;userapp-Zen-YO3IN3.desktop;
@@ -32,3 +33,4 @@ x-scheme-handler/termius=termius.desktop;Termius.desktop;
 x-scheme-handler/ssh=ktelnetservice6.desktop;Termius.desktop;
 x-scheme-handler/antigravity=antigravity.desktop
 x-scheme-handler/t3code=t3code.desktop;
+x-scheme-handler/pickforge=pickforge-tauri-handler.desktop

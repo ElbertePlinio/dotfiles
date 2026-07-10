@@ -15,6 +15,23 @@
       "headers": {
         "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
       }
+    },
+    "agentmemory-vault": {
+      "type": "local",
+      "command": [
+        "python3",
+        "/home/dev/AgentMemory/scripts/agent_memory_mcp.py"
+      ],
+      "enabled": true
+    },
+    "codegraph": {
+      "type": "local",
+      "command": [
+        "codegraph",
+        "serve",
+        "--mcp"
+      ],
+      "enabled": true
     }
   },
   "model": "ollama-cloud/kimi-k2.6:cloud",

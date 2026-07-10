@@ -8,5 +8,7 @@ Show Tab Bar=true
 Show Url Nav Bar=false
 
 [MainWindow]
+3072x1728 screen: Height=303
+3072x1728 screen: Width=586
 3840x2160 screen: Height=561
 3840x2160 screen: Width=793

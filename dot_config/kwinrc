@@ -30,7 +30,7 @@ tiles={"layoutDirection":"horizontal","tiles":[{"width":0.25},{"width":0.5},{"wi
 InputMethod[$e]=/usr/share/applications/org.fcitx.Fcitx5.desktop
 
 [Xwayland]
-Scale=2
+Scale=1.25
 XwaylandEisNoPromptApps=xdotool
 
 [org.kde.kdecoration2]
