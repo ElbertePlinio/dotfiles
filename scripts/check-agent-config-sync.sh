@@ -283,7 +283,8 @@ MARKERS=(
   '## How to work' '## Dictated prompts (PickScribe)' '## Tools' '## Git'
   '### Pull requests' '## Worktrees' '## Flutter' '## Writing Markdown'
   '## Before finishing' '## Shared Agent Memory' '## CodeGraph' '## Context7 usage'
-  '## Updating these rules' '/home/dev/AgentMemory' 'when available'
+  '## Updating these rules' '## UI and UX' 'design-director'
+  '/home/dev/AgentMemory' 'when available'
 )
 
 for f in "${SHARED[@]}"; do need "$f"; done
