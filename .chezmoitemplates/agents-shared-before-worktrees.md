@@ -31,6 +31,13 @@ I often dictate prompts with PickScribe. Words can come out wrong — especially
 - For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation. If the repo has a more specific design skill, use it as an overlay on the general workflow.
 - Tiny fixes already determined by the repo's existing tokens or components can use the skill's light path.
 
+## Personal project isolation
+
+- On machines with `~/Projects/Personal/.agent-safety`, project access defaults to `~/Projects/Personal` and its descendants. Do not list, read, search, modify, execute from, or index projects outside that tree unless the current request directly names the exact outside path and action.
+- Do not follow project symlinks that resolve outside `~/Projects/Personal`, or reuse company project context, credentials, caches, or configuration.
+- Inside `~/Projects/Personal`, GitHub operations must authenticate as `ElbertePlinio`. Run `~/Projects/Personal/.agent-safety/verify-personal-github` before any `gh` mutation or `git push`; stop if it fails and never switch accounts automatically.
+- Inside `~/Projects/Personal`, `claude-acorns` is company-only and forbidden. Use only a personal agent profile explicitly allowed by the user.
+
 ## Git
 
 - Protect user work. Check status before staging, committing, merging, or cleaning.
