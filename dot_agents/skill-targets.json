@@ -42,6 +42,7 @@
   "skills": {
     "agent-config-sync": ["claude", "codex", "grok", "pi", "factory", "hermes"],
     "context7-mcp": ["claude", "codex", "pi", "factory"],
+    "design-director": ["claude", "codex", "grok", "pi", "factory", "hermes"],
     "design-taste-frontend": ["claude", "codex", "grok", "pi", "factory", "hermes"],
     "improve": ["claude", "codex", "grok", "pi", "factory", "hermes"],
     "find-skills": ["claude", "codex", "grok", "pi", "factory"]

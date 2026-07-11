@@ -26,6 +26,11 @@ I often dictate prompts with PickScribe. Words can come out wrong — especially
 - Do not wrap commands where exact output matters: tests, analyzers, Dart, Flutter, or FVM.
 - For X (Twitter) research — model reputations, AI tooling chatter, practitioner sentiment — use the `x-research` skill when available; otherwise run its Hermes Agent CLI workflow directly. If Hermes is unavailable, say so.
 
+## UI and UX
+
+- For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation. If the repo has a more specific design skill, use it as an overlay on the general workflow.
+- Tiny fixes already determined by the repo's existing tokens or components can use the skill's light path.
+
 ## Git
 
 - Protect user work. Check status before staging, committing, merging, or cleaning.
