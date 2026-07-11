@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Config Sync"
+  short_description: "Sync agent rules and portable skills safely"
+  default_prompt: "Use $agent-config-sync to update and apply my shared agent configuration across harnesses."

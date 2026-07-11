@@ -1,0 +1,49 @@
+{
+  "canonical_root": "~/.agents/skills",
+  "canonical_source": "dot_agents/skills",
+  "harnesses": {
+    "claude": {
+      "skills_root": "~/.claude/skills",
+      "source_root": "dot_claude/skills",
+      "discovery": "symlink",
+      "relative_prefix": "../../.agents/skills"
+    },
+    "codex": {
+      "skills_root": "~/.agents/skills",
+      "source_root": "dot_agents/skills",
+      "discovery": "canonical",
+      "relative_prefix": null
+    },
+    "grok": {
+      "skills_root": "~/.grok/skills",
+      "source_root": "dot_grok/skills",
+      "discovery": "symlink",
+      "relative_prefix": "../../.agents/skills"
+    },
+    "pi": {
+      "skills_root": "~/.pi/agent/skills",
+      "source_root": "dot_pi/agent/skills",
+      "discovery": "symlink",
+      "relative_prefix": "../../../.agents/skills"
+    },
+    "factory": {
+      "skills_root": "~/.factory/skills",
+      "source_root": "private_dot_factory/skills",
+      "discovery": "symlink",
+      "relative_prefix": "../../.agents/skills"
+    },
+    "hermes": {
+      "skills_root": "~/.hermes/skills",
+      "source_root": "private_dot_hermes/private_skills",
+      "discovery": "symlink",
+      "relative_prefix": "../../.agents/skills"
+    }
+  },
+  "skills": {
+    "agent-config-sync": ["claude", "codex", "grok", "pi", "factory", "hermes"],
+    "context7-mcp": ["claude", "codex", "pi", "factory"],
+    "design-taste-frontend": ["claude", "codex", "grok", "pi", "factory", "hermes"],
+    "improve": ["claude", "codex", "grok", "pi", "factory", "hermes"],
+    "find-skills": ["claude", "codex", "grok", "pi", "factory"]
+  }
+}
