@@ -1,5 +1,6 @@
 README.md
 LICENSE
+scripts
 .factory/history.json
 .factory/sessions
 .factory/logs
@@ -8,9 +9,29 @@ LICENSE
 .factory/telemetry
 .factory/snapshots
 .factory/plugins/marketplaces/factory-plugins/.git
+.factory/background-processes.json
+.factory/background-tasks.json
+.factory/certs/system-certs-cache.json
+.factory/cli-hints.json
+.factory/host.json
+.factory/bin/.rg-version
+
+# Hermes generated skill state
+.hermes/skills/.bundled_manifest
+.hermes/skills/.curator_backups
+.hermes/skills/.curator_state
+.hermes/skills/.usage.json
+.hermes/skills/.usage.json.lock
+.hermes/skills/.hub/lock.json
 
 # pi session state — transient, regenerated every run
 .pi/context-mode/sessions
+.pi/agent/sessions
+.pi/agent/run-history.jsonl
+.pi/agent/mcp-cache.json
+.pi/agent/mcp-npx-cache.json
+.pi/agent/mcp-onboarding.json
+.pi/agent/pi-hermes-memory/.skills-migrated-to-extension-storage
 .pi/agent/pi-hermes-memory/sessions.db
 # SQLite write-ahead / shared-memory scratch — never version
 **/*.db-wal

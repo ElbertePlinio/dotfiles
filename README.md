@@ -49,8 +49,14 @@ chezmoi update             # git pull && chezmoi apply
 - **Defaults / environment**: `mimeapps.list`, `user-dirs.dirs`, `user-dirs.locale`, `trashrc`, `autostart/`, `environment.d/`, `cachyos/`, `cachyos-hello.json`, `libinput-gestures.conf`
 - **Fonts / input**: `~/.config/fontconfig/`, `.XCompose`
 - **AI tooling**:
-  - Plaintext config: `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, `~/.claude/rules/`, `~/.codex/AGENTS.md`, `~/.codex/rules/`
+  - Shared behavior: `.chezmoitemplates/agents-shared*.md` (included by harness adapters)
+  - Adapters: `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.grok/AGENTS.md`, `~/.pi/agent/AGENTS.md`, `~/.factory/AGENTS.md`, Hermes identity `~/.hermes/SOUL.md`
+  - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`. Harness-native/`encrypted_*.age` skills stay per-tool — do not migrate in the shared slice. Codex reads the canonical root; other harnesses use chezmoi symlinks.
+  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply`) — source at `dot_local/bin/executable_agent-config-sync`
+  - Plaintext extras: `~/.claude/settings.json`, `~/.claude/rules/`, `~/.codex/rules/`
   - **Encrypted** (age): `~/.codex/auth.json`, `~/.codex/config.toml`, `~/.context7/credentials.json`
+  - Check consolidation: `scripts/check-agent-config-sync.sh` (also via `agent-config-sync check`)
+  - Runtime state: sessions, histories, caches, usage/curator state, and background-process state are excluded; one-off encrypted archives live outside chezmoi under `~/Archives/agent-runtime-state/`
 
 ## Secrets (age encryption)
 

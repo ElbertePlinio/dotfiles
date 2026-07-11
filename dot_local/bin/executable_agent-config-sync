@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF' >&2
+Usage: agent-config-sync <check|check-live|apply>
+
+  check       Validate source templates and portable-skill symlink matrix
+  check-live  Read-only live migration / portable-link checks against $HOME
+  apply       Source check, live preflight, selective apply, then live check
+EOF
+  exit 1
+}
+
+[[ $# -ge 1 ]] || usage
+
+resolve_source() {
+  if [[ -n "${CHEZMOI_SOURCE_DIR:-}" && -d "${CHEZMOI_SOURCE_DIR}" ]]; then
+    printf '%s\n' "$CHEZMOI_SOURCE_DIR"
+    return
+  fi
+  if command -v chezmoi >/dev/null 2>&1; then
+    local s
+    if s="$(chezmoi source-path 2>/dev/null)" && [[ -n "$s" && -d "$s" ]]; then
+      printf '%s\n' "$s"
+      return
+    fi
+  fi
+  printf '%s\n' ''
+}
+
+SOURCE="$(resolve_source)"
+if [[ -z "$SOURCE" || ! -f "$SOURCE/scripts/check-agent-config-sync.sh" ]]; then
+  echo "agent-config-sync: cannot locate chezmoi source with scripts/check-agent-config-sync.sh" >&2
+  exit 1
+fi
+
+CHECK="$SOURCE/scripts/check-agent-config-sync.sh"
+MANIFEST="$SOURCE/dot_agents/skill-targets.json"
+SRC=(--source "$SOURCE")
+
+cmd_check() {
+  bash "$CHECK"
+}
+
+cmd_check_live() {
+  bash "$CHECK" --check-live-migration
+}
+
+cmd_strict_preflight() {
+  bash "$CHECK" --check-live-migration --strict-preflight
+}
+
+portable_link_targets() {
+  jq -r --arg home "$HOME" '
+    . as $root
+    | .skills | to_entries[]
+    | .key as $skill
+    | .value[] as $harness
+    | $root.harnesses[$harness] as $h
+    | select($h.discovery == "symlink")
+    | ($h.skills_root | if startswith("~/") then $home + .[1:] elif . == "~" then $home else . end) + "/" + $skill
+  ' "$MANIFEST"
+}
+
+cmd_apply() {
+  cmd_check
+  cmd_strict_preflight
+
+  local -a targets=(
+    "${HOME}/.claude/CLAUDE.md"
+    "${HOME}/.codex/AGENTS.md"
+    "${HOME}/.grok/AGENTS.md"
+    "${HOME}/.pi/agent/AGENTS.md"
+    "${HOME}/.factory/AGENTS.md"
+    "${HOME}/.hermes/SOUL.md"
+    "${HOME}/.agents/skills"
+    "${HOME}/.local/bin/agent-config-sync"
+  )
+
+  local link
+  while IFS= read -r link; do
+    [[ -n "$link" ]] && targets+=("$link")
+  done < <(portable_link_targets)
+
+  chezmoi "${SRC[@]}" apply "${targets[@]}"
+  bash "$CHECK" --check-live-migration --require-portable-links
+}
+
+case "${1}" in
+  check) cmd_check ;;
+  check-live) cmd_check_live ;;
+  apply) cmd_apply ;;
+  *) usage ;;
+esac

@@ -1,90 +1,6 @@
 # Personal Codex Notes
 
-I like short, practical work. Read the repo, make the smallest clean change, and show proof before calling something done.
-
-## How to work
-
-- Be direct. No filler, no ceremony.
-- Fix root causes, not symptoms.
-- No hacks, monkey patches, fake fixes, or "temporary" workarounds.
-- Follow the repo's style before my preferences.
-- Do not refactor unrelated code.
-- Never add comments explaining what the code does unless explicitly asked.
-- When suggesting fixes, show only the relevant changed code, not the entire file.
-- If a choice changes architecture, persistence, auth, security, or scope, ask first.
-- If unsure, ask — don't assume.
-
-## Dictated prompts (PickScribe)
-
-I often dictate prompts with PickScribe. Words can come out wrong — especially names, model IDs, and technical terms. If a request hinges on a word that looks off or contradicts what you know, ask me to confirm what I meant instead of running with the literal transcription.
-
-## Tools
-
-- Use Context7 when library/API details matter and it is available.
-- At the start of deeper repo work, check whether CodeGraph is available. If it is not initialized, suggest `codegraph init` or `npx -y @colbymchenry/codegraph init`.
-- Prefer `frun` for noisy shell commands when available. It uses RTK when available and falls back to the raw command.
-- RTK (`rtk`) is a token-optimizing CLI proxy. If `frun` is unavailable but `rtk` exists, prefix noisy read-only commands with `rtk` (e.g. `rtk git status`, `rtk git diff`).
-- Use `rtk` directly for RTK meta commands like `rtk gain`, `rtk gain --history`, or `rtk discover`.
-- Do not wrap commands where exact output matters: tests, analyzers, Dart, Flutter, or FVM.
-- For X (Twitter) research — model reputations, AI tooling chatter, practitioner sentiment — use the `x-research` skill (Hermes Agent CLI with Grok-backed `x_search`).
-
-## Git
-
-- Protect user work. Check status before staging, committing, merging, or cleaning.
-- Treat untracked files as user-owned.
-- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects.
-- Pickforge or Personal means the repo path or GitHub remote makes that ownership clear, such as `~/Projects/Pickforge/...`, `~/Projects/Personal/...`, `github.com/pickforge/...`, or `github.com/ElbertePlinio/...`. Outside those projects, explicit push permission is still required.
-- Commit messages must be English Conventional Commits.
-- Never add attribution or trailers: no `Co-authored-by`, no `Signed-off-by`, no bot names, no noreply addresses, no model names, no AI signatures.
-- Never use the word "Claude" in commit messages.
-
-### Pull requests
-
-- My GitHub repos use an automated Codex PR review (`chatgpt-codex-connector[bot]`).
-- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `$ship-pr`.
-- In clearly identified Pickforge or Personal projects, use `$ship-pr` automatically when pushing/opening a PR is the natural next step; outside those projects, ask first.
-- Triage every review finding: fix valid findings; reply briefly with rationale for false positives.
-- React on each Codex finding as model feedback: 👍 when it is correct and useful; 👎 when it is incorrect or not useful. React on the finding itself, not the `@codex review` trigger; reactions do not replace replies or fixes.
-- Let the automatic review on PR open run first; use `@codex review` only after fixes or when the opening trigger fails.
-- Normally cap review at 3 distinct HEADs. Use round 4 only to verify a fix for a new valid P1/P2 found in round 3. Do not run a fifth round.
-- Do not merge with a review round in flight, failing required checks, unanswered findings, or a HEAD that Codex has not reviewed.
-
-## Worktrees
-
-Use worktrees for risky or multi-step implementation. Create them in the centralized location, outside the repo:
-
-```text
-~/Projects/.worktrees/<repo-name>/<branch-name>
-```
-
-- Sanitize branch names for the directory: replace `/` with `-` (e.g. `feat/login` -> `feat-login`).
-- Discover existing worktrees with `git worktree list`.
-- Clean up with `git worktree remove` and `git worktree prune` when done.
-- Do not create worktrees inside the repo, as siblings of it, in `/tmp`, or in the home directory root.
-
-## Flutter
-
-- Repo patterns win.
-- If `.fvmrc` or `.fvm/` exists, use `fvm flutter` and `fvm dart`.
-- Keep business logic out of widgets.
-- Prefer small, composable, theme-aware widgets.
-- BLoC/Cubit is my default only when the repo does not already have a clear different pattern.
-- When codegen is involved, run codegen before analyze/tests.
-
-## Writing Markdown
-
-When creating `.md` files, keep them short, concise, and human-written. Make them feel like useful notes, not machine policy. Only write more when I ask or when clarity would suffer.
-
-## Before finishing
-
-Run the narrowest useful validation. If you cannot run it, say why and name the command I should run.
-
-Final coding reports should be compact:
-
-1. Changed
-2. Validated
-3. Risks/uncertainties
-4. Next action, only if needed
+{{ template "agents-shared.md" . }}
 
 ## Model orchestration
 
@@ -103,15 +19,15 @@ Effort values are starting points, not fixed rules. Use the lowest level that fi
 | opus-4.8      | high   | 4    | 7            | 8     | yes    |
 | fable-5       | high   | 2    | 9            | 9     | yes    |
 
-Model strengths: Luna is the low-cost GPT scout; Terra is the balanced daily Codex model; Sol is for hard debugging and technical adjudication; Grok is a first-class builder/reviewer for terminal-heavy, agentic, and vision work; GLM is a cost-efficient text implementation, review, and dissent lane; Sonnet handles small clear-spec work; Fable and Opus handle taste-heavy or difficult judgment.
+Use the table as comparative context, not as permanent role assignments. Do not map a model to scouting, architecture, UI, implementation, review, or any other task class by default. For each task, the active orchestrator selects any compatible model from the full table based on risk, uncertainty, context, tools and modalities, validation options, output quality, and pool headroom.
 
 - These are defaults, not limits. Judge output quality, not price; escalate freely when output misses the bar.
 - For anything that ships, prefer intelligence > taste > cost.
 - Trust the orchestrator to choose the lightest sufficient path from task risk, uncertainty, domain, context size, and pool headroom. Do not force a model sequence or call a lane only because it exists.
 - Default architecture is two levels: orchestrator dispatches/synthesizes/accepts; worker and reviewer agents are leaves. Subagents may recommend more delegation, but the orchestrator decides whether to spawn it.
 - Use modes: `simple` = one model; `standard` = orchestrator + one implementer + one reviewer; `serious` = review panel + anti-overengineering gate; `fanout` = isolated worktrees/parallel lanes only for genuinely independent work.
-- Fable 5 main sessions are orchestrator/reviewer/final acceptance, not bulk coders.
-- Standard work gets one independent reviewer chosen for the task. Serious work gets 2-3 complementary reviewers; Grok and GLM are first-class choices, while Fable/Opus are added when taste or architectural judgment matters. GLM is text-only: never send it images; summarize visuals in text first.
+- The active main session owns orchestration, synthesis, and final acceptance regardless of which model runs it.
+- Standard work gets one independent reviewer chosen for the task. Serious work gets 2-3 complementary reviewers selected from the full table for concrete failure modes. GLM is text-only: never send it images; summarize visuals in text first.
 - Serious/fanout work requires an anti-overengineering review before final acceptance: find speculative abstractions, unnecessary layers/config, premature generality, excessive files, and simpler equivalent designs. Simplify before accepting unless a concrete near-term requirement justifies the complexity.
 - Quota fallback is allowed when it makes sense. Use the closest useful lane across GPT, Grok, GLM, Fable, Opus, and Sonnet, and report the substitution. Stop instead if the user explicitly required that model or no substitute fits.
 - Parallelize independent work when the speedup justifies the orchestration cost; balance the Codex/Claude/Ollama/grok.com pools by model advantage, not habit. Keep one active writer per file/worktree; parallel writers require isolated worktrees and patch handoff. Review and dissent agents are read-only.
@@ -122,39 +38,3 @@ Model strengths: Luna is the low-cost GPT scout; Terra is the balanced daily Cod
 If a lane I explicitly required cannot run because its CLI is unauthenticated, missing, or otherwise unavailable, stop and tell me — no substitutions. Otherwise the quota-fallback rule above applies: substitute openly, never silently.
 
 Exception: when running non-interactively via `codex exec` under another orchestrator, skip delegation and implement directly yourself; the parent orchestrator owns planning and review.
-
-
-## Pickforge GitHub Issues as source of truth
-
-When working in any repo under `~/Projects/Pickforge`, prefer the workspace policy in `~/Projects/Pickforge/AGENTS.md` and the `plan-issue` workflow/skill. In short: use GitHub Issues as the canonical plan/progress tracker for substantial work, keep the issue checklist phone-friendly, link PRs to issues, and create/link follow-up issues for valid deferred review/CI problems.
-
-## Context7 usage
-
-Use Context7 MCP to fetch current documentation whenever the user asks about a library, framework, SDK, API, CLI tool, or cloud service -- even well-known ones. Use even when you think you know the answer -- your training data may not reflect recent changes. Prefer this over web search for library docs. Do not use for refactoring, writing scripts from scratch, debugging business logic, code review, or general programming concepts.
-
-1. Start with `resolve-library-id` using the library name and the user's question, unless given an exact `/org/project` ID.
-2. Pick the best match by name, relevance, snippet count, reputation, and benchmark score. Use version-specific IDs when a version is mentioned.
-3. `query-docs` with the selected library ID and the user's full question.
-4. Answer using the fetched docs.
-
-## Shared Agent Memory
-
-Before user-specific work, read relevant files from `/home/dev/AgentMemory`:
-
-- Always: `CORE_PROFILE.md`, `WRITING_STYLE.md`, `BOUNDARIES.md`
-- Coding: `CODING_AGENT_RULES.md`, `WORK_AND_PROJECTS.md`
-- Social/media: `SOCIAL_MEDIA.md`
-- Project-specific: `projects/*.md`
-
-Do not read or import `/home/dev/AgentMemory/archive_raw/` unless explicitly scoped. Do not store secrets in memory.
-
-<!-- CODEGRAPH_START -->
-## CodeGraph
-
-In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
-
-- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it's listed but deferred, load it by name via tool search.
-- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
-
-If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
-<!-- CODEGRAPH_END -->
