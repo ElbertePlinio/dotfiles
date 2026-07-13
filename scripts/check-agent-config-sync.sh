@@ -246,7 +246,7 @@ if [[ "$MODE" == live ]]; then
     err "live Hermes SOUL missing: $SOUL_LIVE"
   elif grep -q '^# Hermes' "$SOUL_LIVE" && grep -q '/home/dev/AgentMemory' "$SOUL_LIVE"; then
     pass 'live Hermes SOUL already rendered (managed identity)'
-  elif grep -Fq "$NOUS_DEFAULT" "$SOUL_LIVE" && ! grep -q '## How to work' "$SOUL_LIVE"; then
+  elif grep -Fq "$NOUS_DEFAULT" "$SOUL_LIVE" && ! grep -Fq 'I like short, practical work' "$SOUL_LIVE"; then
     pass 'live Hermes SOUL is known Nous default one-line identity'
   else
     err 'live Hermes SOUL is neither Nous default nor rendered managed SOUL'
@@ -279,13 +279,36 @@ HARNESS=(
   'private_dot_factory/AGENTS.md.tmpl|# Personal Droid Notes|# Personal Codex Notes'
 )
 SOUL=private_dot_hermes/SOUL.md.tmpl
-MARKERS=(
-  '## How to work' '## Dictated prompts (PickScribe)' '## Tools' '## Git'
-  '### Pull requests' '## Worktrees' '## Flutter' '## Writing Markdown'
-  '## Before finishing' '## Shared Agent Memory' '## CodeGraph' '## Context7 usage'
-  '## Updating these rules' '## UI and UX' 'design-director'
-  '/home/dev/AgentMemory' 'when available'
+SHARED_MAX_BYTES=6100
+REQUIRED_SHARED_INVARIANTS=(
+  'I like short, practical work. Read the repo, make the smallest clean change, and show proof before calling something done.'
+  '- Be direct: no filler or ceremony. Fix root causes, not symptoms.'
+  '- No hacks, monkey patches, fake fixes, temporary workarounds, or unrelated refactors.'
+  'Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious or contradictory wording instead of following it literally.'
+  '- Never expose, print, commit, or send secrets or private production data.'
+  '- Destructive filesystem, Git, account, or external-service actions require explicit confirmation.'
+  '- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.'
+  '- Never use Anthropic Haiku, directly, indirectly, or as a fallback.'
+  'verify-personal-github` to verify `ElbertePlinio`'
+  '- Protect user work: check status before staging, committing, merging, or cleaning; untracked files are user-owned.'
+  '- Push only when asked, except in clearly identified Pickforge or Personal repos'
+  '- Use English Conventional Commits. No attribution, trailers, bot/noreply/model names, AI signatures, or `Claude`.'
+  '`$local-review` is the shipping review source. GitHub-hosted Codex review is optional escalation, not a default prerequisite'
+  'Never merge with failing or in-flight required checks, unanswered valid findings, or an unreviewed current HEAD.'
+  '~/Projects/.worktrees/<repo-name>/<branch-name>'
+  'Run the narrowest behavioral validation that proves the change.'
+  '/home/dev/AgentMemory'
+  'Never store secrets in memory.'
+  'never edit only a rendered `$HOME` file'
+  '- Use `context7-mcp` or native Context7 when current library/API docs matter.'
+  '- Use `design-director` for material UI/UX work, plus any repo-specific design skill.'
+  '- For ship/open-PR/review-and-merge requests, use `ship-pr` where available'
 )
+
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync.XXXXXX")"
+DEST="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-dest.XXXXXX")"
+trap 'rm -rf "$TMP" "$DEST"' EXIT
+render() { chezmoi "${SRC[@]}" execute-template --file "$1" >"$2"; }
 
 for f in "${SHARED[@]}"; do need "$f"; done
 [[ -f .chezmoitemplates/agents-shared.md ]] && \
@@ -293,16 +316,38 @@ for f in "${SHARED[@]}"; do need "$f"; done
   grep -q 'agents-shared-after-git.md' .chezmoitemplates/agents-shared.md && \
   pass 'agents-shared.md composes parts' || err 'agents-shared.md must include before/after parts'
 
-shared_blob="$(cat .chezmoitemplates/agents-shared-before-worktrees.md .chezmoitemplates/agents-shared-after-git.md)"
-for m in "${MARKERS[@]}"; do
-  grep -Fq "$m" <<<"$shared_blob" && pass "shared has: $m" || err "shared missing: $m"
-done
+shared_source_bytes=$((
+  $(wc -c <.chezmoitemplates/agents-shared-before-worktrees.md) +
+  $(wc -c <.chezmoitemplates/agents-shared-after-git.md)
+))
+if ((shared_source_bytes <= SHARED_MAX_BYTES)); then
+  pass "shared source size ${shared_source_bytes} bytes (budget ${SHARED_MAX_BYTES})"
+else
+  err "shared source size ${shared_source_bytes} bytes exceeds ${SHARED_MAX_BYTES}-byte regression budget (recorded baseline: 11400)"
+fi
+
+if render .chezmoitemplates/agents-shared.md "$TMP/agents-shared.md"; then
+  shared_output_bytes="$(wc -c <"$TMP/agents-shared.md")"
+  if ((shared_output_bytes <= SHARED_MAX_BYTES)); then
+    pass "shared rendered size ${shared_output_bytes} bytes (budget ${SHARED_MAX_BYTES})"
+  else
+    err "shared rendered size ${shared_output_bytes} bytes exceeds ${SHARED_MAX_BYTES}-byte regression budget"
+  fi
+  for invariant in "${REQUIRED_SHARED_INVARIANTS[@]}"; do
+    grep -Fq -- "$invariant" "$TMP/agents-shared.md" \
+      && pass "shared output invariant: $invariant" || err "shared output invariant missing: $invariant"
+  done
+else
+  err 'shared template render failed'
+fi
+
 
 need "$SOUL"
 grep -q '/home/dev/AgentMemory' "$SOUL" || err 'Hermes SOUL missing AgentMemory'
 grep -qi 'public' "$SOUL" || err 'Hermes SOUL missing public-action boundary'
 grep -qi 'memory' "$SOUL" || err 'Hermes SOUL missing memory boundary'
-grep -qE '## How to work|## Worktrees' "$SOUL" && err 'Hermes SOUL must not dump full coding policy' || pass 'Hermes SOUL identity-oriented'
+grep -qE 'I like short, practical work|Fix root causes, not symptoms' "$SOUL" \
+  && err 'Hermes SOUL must not dump full coding policy' || pass 'Hermes SOUL identity-oriented'
 
 [[ -L dot_grok/AGENTS.md.tmpl || -L dot_grok/AGENTS.md ]] && err 'Grok AGENTS must not be a symlink'
 need dot_grok/AGENTS.md.tmpl
@@ -318,18 +363,14 @@ fi
 check_manifest_and_sources
 check_runtime_exclusions
 
-TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync.XXXXXX")"
-DEST="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-dest.XXXXXX")"
-trap 'rm -rf "$TMP" "$DEST"' EXIT
-render() { chezmoi "${SRC[@]}" execute-template --file "$1" >"$2"; }
 
 for entry in "${HARNESS[@]}"; do
   IFS='|' read -r path want forbid <<<"$entry"
   if [[ ! -f "$path" ]]; then err "missing: $path"; continue; fi
   grep -Eq 'template "(agents-shared\.md|agents-shared-before-worktrees\.md)"' "$path" \
     || err "missing shared include: $path"
-  for bad in '## How to work' '## Dictated prompts (PickScribe)' '## Shared Agent Memory'; do
-    grep -Fq "$bad" "$path" && err "duplicate shared block in $path: $bad"
+  for bad in 'I like short, practical work' 'names, model IDs, and technical terms' '/home/dev/AgentMemory'; do
+    grep -Fq "$bad" "$path" && err "duplicate shared policy in $path: $bad"
   done
   out="$TMP/$(echo "$path" | tr '/' '_')"
   if ! render "$path" "$out"; then err "render failed: $path"; continue; fi
