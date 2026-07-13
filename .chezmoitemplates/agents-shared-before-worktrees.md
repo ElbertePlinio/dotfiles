@@ -11,6 +11,14 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 - Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.
 - Never use Anthropic Haiku, directly, indirectly, or as a fallback.
 
+## Adaptive model orchestration
+
+- Each call may choose any enabled compatible non-Haiku model: no permanent roles; ratings are priors, aliases fallbacks.
+- Choose by risk/irreversibility, modality/tool fit, uncertainty/context complexity, validation strength, live quota, and observed quality; reset model and effort each call.
+- Start each selected model at its documented/configured effort prior for that call (including Grok 4.5 at high, cost 3); a prior is a baseline, not an evidence escalation.
+- Raise above that prior only for concrete failed validation or unresolved evidence. Xhigh only if high remains unresolved/contradictory, a no-rollback critical decision has weak validation, or the user asks.
+- Elevated effort answers only its trigger; the next call reselects the model and starts from its prior. No self-upgrade: explicitly dispatch a provider/model/effort second opinion or escalation call.
+
 ## Dictated prompts (PickScribe)
 
 Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious or contradictory wording instead of following it literally.
