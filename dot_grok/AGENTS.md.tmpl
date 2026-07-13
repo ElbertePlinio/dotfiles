@@ -4,9 +4,6 @@
 
 ## Model orchestration
 
-For substantial or risky multi-model work, use the `model-orchestration` skill when available. Otherwise act directly as a leaf: plan, implement, validate, and report in this session.
+For substantial or risky multi-model work, use the `model-orchestration` skill when available. It owns the current catalog, capability differences, scoring, quota fallback, and explicit-required-model stop rules. Otherwise act directly in this session.
 
-- Prefer intelligence over taste over cost for anything that ships.
-- Quota fallback is fine when a lane is blocked: substitute openly and say so. Stop if I required that lane specifically or no substitute fits.
-- GLM is text-only: never send it images; summarize visuals in text first.
-- When running as a leaf under another orchestrator, skip re-delegation; the parent owns planning and review.
+When running as a leaf under another orchestrator, do the assigned work directly and do not re-delegate; the parent owns planning and review.
