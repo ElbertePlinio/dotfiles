@@ -38,6 +38,8 @@ dirs_identical() {
 }
 
 MANIFEST="$ROOT/dot_agents/skill-targets.json"
+MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"
+OMP_MCP="$ROOT/dot_omp/agent/mcp.json"
 
 RUNTIME_SOURCE_PATHS=(
   private_dot_hermes/private_skills/dot_curator_backups
@@ -52,6 +54,19 @@ RUNTIME_SOURCE_PATHS=(
   dot_pi/agent/encrypted_mcp-npx-cache.json.age
   dot_pi/agent/encrypted_mcp-onboarding.json.age
   dot_pi/agent/pi-hermes-memory/encrypted_dot_skills-migrated-to-extension-storage.age
+  dot_omp/agent/sessions
+  dot_omp/agent/terminal-sessions
+  dot_omp/agent/blobs
+  dot_omp/agent/cache
+  dot_omp/agent/last-changelog-version
+  dot_omp/autoqa.db
+  dot_omp/autoqa.db-wal
+  dot_omp/autoqa.db-shm
+  dot_omp/agent/agent.db
+  dot_omp/agent/history.db
+  dot_omp/agent/models.db
+  dot_omp/logs
+  dot_omp/puppeteer
   private_dot_factory/private_background-processes.json
   private_dot_factory/private_background-tasks.json
   private_dot_factory/certs/system-certs-cache.json
@@ -73,6 +88,20 @@ RUNTIME_IGNORE_PATHS=(
   .pi/agent/mcp-npx-cache.json
   .pi/agent/mcp-onboarding.json
   .pi/agent/pi-hermes-memory/.skills-migrated-to-extension-storage
+  .omp/agent/sessions
+  .omp/agent/terminal-sessions
+  .omp/agent/blobs
+  .omp/agent/cache
+  .omp/agent/last-changelog-version
+  .omp/autoqa.db
+  .omp/autoqa.db-wal
+  .omp/autoqa.db-shm
+  .omp/agent/*.db
+  .omp/logs
+  .omp/cache
+  .omp/install-id
+  .omp/gpu_cache.json
+  .omp/puppeteer
   .factory/background-processes.json
   .factory/background-tasks.json
   .factory/certs/system-certs-cache.json
@@ -163,6 +192,224 @@ check_manifest_and_sources() {
   done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
 }
 
+validate_omp_mcp_credentials() {
+  local config="$1"
+  jq -e '
+    def credential_key:
+      ascii_downcase
+      | test("(^|[_-])(token|secret|api[_-]?key|access[_-]?key)($|[_-])");
+    ([.. | objects | to_entries[]
+      | select(
+          (.key | credential_key)
+          and (.value | type == "string")
+          and (.value | length > 0)
+          and ((.value | startswith("!")) | not)
+        )]
+      | length == 0)
+    and
+    ([paths(strings) as $path
+      | select(getpath($path) | startswith("!"))
+      | $path] == [["mcpServers", "sentry", "env", "SENTRY_ACCESS_TOKEN"]])
+    and .mcpServers.sentry.env.SENTRY_ACCESS_TOKEN == "!cat ~/.pickforge-keys/sentry-token"
+    and
+    ([.. | strings
+      | select(test(
+          "^(bearer[[:space:]]+|sk_(live|test)_|sk-(proj-)?|gh[pousr]_|xox[baprs]-|eyJ[A-Za-z0-9_-]+\\\\.)";
+          "i"
+        ))]
+      | length == 0)
+  ' "$config" >/dev/null
+}
+
+check_mcp_registry_and_config() {
+  need "$MCP_REGISTRY"
+  need "$OMP_MCP"
+  [[ -f "$MCP_REGISTRY" && -f "$OMP_MCP" ]] || return
+
+  if jq -e . "$MCP_REGISTRY" >/dev/null 2>&1; then
+    pass 'MCP target registry JSON valid'
+  else
+    err "MCP target registry is not valid JSON: $MCP_REGISTRY"
+    return
+  fi
+  if jq -e . "$OMP_MCP" >/dev/null 2>&1; then
+    pass 'OMP MCP config JSON valid'
+  else
+    err "OMP MCP config is not valid JSON: $OMP_MCP"
+    return
+  fi
+
+  if jq -e '
+    def unique_nonempty_strings:
+      type == "array"
+      and all(.[]; type == "string" and length > 0)
+      and (length == (unique | length));
+
+    type == "object"
+    and keys == ["omp", "version"]
+    and .version == 1
+    and (.omp
+      | type == "object"
+      and keys == ["externallyImported", "native", "pluginRetained", "suppressed"]
+      and all(
+        .native,
+        .externallyImported,
+        .pluginRetained,
+        .suppressed;
+        unique_nonempty_strings)
+      and all(.native[], .externallyImported[]; contains(":") | not))
+  ' "$MCP_REGISTRY" >/dev/null; then
+    pass 'MCP target registry shape valid'
+  else
+    err 'MCP target registry shape invalid'
+  fi
+
+  if jq -e '
+    def optional_type($key; $kind):
+      (has($key) | not) or (getpath([$key]) | type == $kind);
+    def string_map:
+      type == "object" and all(to_entries[]; .value | type == "string");
+    def string_array:
+      type == "array" and all(.[]; type == "string");
+    def unique_nonempty_strings:
+      string_array
+      and all(.[]; length > 0)
+      and (length == (unique | length));
+    def allowed_keys($allowed):
+      ((keys - $allowed) | length == 0);
+    def shared_fields:
+      optional_type("enabled"; "boolean")
+      and ((has("timeout") | not) or (.timeout | type == "number" and . >= 0));
+    def stdio_server:
+      type == "object"
+      and allowed_keys(["args", "command", "cwd", "enabled", "env", "timeout", "type"])
+      and ((has("type") | not) or .type == "stdio")
+      and (.command | type == "string" and length > 0)
+      and (has("url") | not)
+      and ((has("args") | not) or (.args | string_array))
+      and ((has("env") | not) or (.env | string_map))
+      and optional_type("cwd"; "string")
+      and shared_fields;
+    def remote_server:
+      type == "object"
+      and allowed_keys(["enabled", "headers", "oauth", "timeout", "type", "url"])
+      and (.type == "http" or .type == "sse")
+      and (.url | type == "string" and length > 0)
+      and (has("command") | not)
+      and ((has("headers") | not) or (.headers | string_map))
+      and shared_fields;
+    def valid_server:
+      stdio_server or remote_server;
+    def optional_unique_names($key):
+      (has($key) | not) or (getpath([$key]) | unique_nonempty_strings);
+
+    type == "object"
+    and ((keys - ["$schema", "disabledServers", "enabledServers", "mcpServers"]) | length == 0)
+    and optional_type("$schema"; "string")
+    and (.mcpServers | type == "object")
+    and all(.mcpServers | keys[]; test("^[a-zA-Z0-9_.-]{1,100}$"))
+    and all(.mcpServers[]; valid_server)
+    and optional_unique_names("disabledServers")
+    and optional_unique_names("enabledServers")
+  ' "$OMP_MCP" >/dev/null; then
+    pass 'OMP MCP documented schema subset valid'
+  else
+    err 'OMP MCP has an invalid top-level key or transport shape'
+  fi
+
+  if jq -e '
+    [.. | objects | to_entries[]
+      | select((.key | ascii_downcase) == "auth")]
+    | length == 0
+  ' "$OMP_MCP" >/dev/null; then
+    pass 'OMP MCP has no auth blocks'
+  else
+    err 'OMP MCP must not contain auth blocks'
+  fi
+
+  if jq -e '
+    ([paths as $path
+      | select(
+          ($path | length) > 0
+          and ($path[-1] | type) == "string"
+          and ($path[-1] | ascii_downcase) == "oauth"
+        )
+      | $path] == [["mcpServers", "stripe", "oauth"]])
+    and (.mcpServers.stripe.oauth
+      | type == "object"
+      and keys == ["callbackPath", "callbackPort", "clientId", "redirectUri"]
+      and .clientId == "oacli_UsBlZ6jiucaNw9"
+      and (.clientId | test("^oacli_[A-Za-z0-9]+$"))
+      and .redirectUri == "http://127.0.0.1:3000/callback"
+      and .callbackPort == 3000
+      and .callbackPath == "/callback")
+  ' "$OMP_MCP" >/dev/null; then
+    pass 'OMP MCP OAuth is restricted to the approved Stripe public client'
+  else
+    err 'OMP MCP OAuth must be exactly the approved Stripe public client configuration'
+  fi
+
+  if jq -e '
+    [.. | objects | to_entries[]
+      | select((.key | ascii_downcase) == "clientsecret")]
+    | length == 0
+  ' "$OMP_MCP" >/dev/null; then
+    pass 'OMP MCP has no clientSecret fields'
+  else
+    err 'OMP MCP must not contain clientSecret fields'
+  fi
+
+  if jq -e '
+    [.. | objects | to_entries[]
+      | select((.key | ascii_downcase) == "authorization")]
+    | length == 0
+  ' "$OMP_MCP" >/dev/null; then
+    pass 'OMP MCP has no literal Authorization header'
+  else
+    err 'OMP MCP must not contain a literal Authorization header'
+  fi
+
+  if validate_omp_mcp_credentials "$OMP_MCP"; then
+    pass 'OMP MCP has no suspicious literals and only the approved Sentry credential command'
+  else
+    err 'OMP MCP contains a suspicious literal or unapproved credential command'
+  fi
+
+  local credential_probe
+  credential_probe="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-mcp-probe.XXXXXX")"
+  if jq '.mcpServers.sentry.env.SENTRY_ACCESS_TOKEN = "!cat /tmp/unapproved-token"' \
+    "$OMP_MCP" >"$credential_probe"; then
+    if validate_omp_mcp_credentials "$credential_probe"; then
+      err 'OMP MCP negative probe accepted an unapproved credential command'
+    else
+      pass 'OMP MCP credential validator rejects a mutated unapproved command'
+    fi
+  else
+    err 'OMP MCP negative probe could not create the mutated config'
+  fi
+  rm -f "$credential_probe"
+
+  if jq -e -n --slurpfile registry "$MCP_REGISTRY" --slurpfile config "$OMP_MCP" '
+    ($registry[0].omp.native | sort)
+    ==
+    ($config[0].mcpServers | keys | sort)
+  ' >/dev/null; then
+    pass 'registry native OMP names match mcpServers'
+  else
+    err 'registry native OMP names do not match mcpServers'
+  fi
+
+  if jq -e -n --slurpfile registry "$MCP_REGISTRY" --slurpfile config "$OMP_MCP" '
+    ($registry[0].omp.suppressed | sort)
+    ==
+    ($config[0].disabledServers | sort)
+  ' >/dev/null; then
+    pass 'registry suppressed names match disabledServers'
+  else
+    err 'registry suppressed names do not match disabledServers'
+  fi
+}
+
 check_live_portable_links() {
   local skill harness root link target expected_prefix canon
   canon_root="$(expand_home "$(jq -r '.canonical_root' "$MANIFEST")")"
@@ -224,6 +471,10 @@ if [[ "$MODE" == live ]]; then
     echo "== agent-config-sync live migration (read-only) =="
   fi
   GROK_LIVE="${HOME}/.grok/AGENTS.md"
+  OMP_AGENTS_LIVE="${HOME}/.omp/agent/AGENTS.md"
+  OMP_CONFIG_LIVE="${HOME}/.omp/agent/config.yml"
+  OMP_MCP_LIVE="${HOME}/.omp/agent/mcp.json"
+  OPENCODE_LIVE="${HOME}/.config/opencode/AGENTS.md"
   SOUL_LIVE="${HOME}/.hermes/SOUL.md"
   NOUS_DEFAULT='You are Hermes Agent, an intelligent AI assistant created by Nous Research.'
 
@@ -242,6 +493,64 @@ if [[ "$MODE" == live ]]; then
     err 'live Grok AGENTS is neither Codex symlink nor rendered Grok adapter'
   fi
 
+  if [[ ! -e "$OMP_AGENTS_LIVE" ]]; then
+    pass "live OMP AGENTS not yet applied: $OMP_AGENTS_LIVE"
+  elif [[ -L "$OMP_AGENTS_LIVE" ]]; then
+    err "live OMP AGENTS must be a managed regular file: $OMP_AGENTS_LIVE"
+  elif grep -q '^# Personal OMP Notes' "$OMP_AGENTS_LIVE"; then
+    pass 'live OMP AGENTS is a managed adapter'
+  else
+    err 'live OMP AGENTS is not a recognized managed adapter'
+  fi
+
+  if [[ ! -e "$OMP_CONFIG_LIVE" ]]; then
+    pass "live OMP config not yet applied: $OMP_CONFIG_LIVE"
+  elif [[ -L "$OMP_CONFIG_LIVE" ]]; then
+    err "live OMP config must be a managed regular file: $OMP_CONFIG_LIVE"
+  elif cmp -s "$OMP_CONFIG_LIVE" "$ROOT/dot_omp/agent/config.yml"; then
+    pass 'live OMP config matches canonical source'
+  elif ! grep -q '^providers:' "$OMP_CONFIG_LIVE" || ! grep -q '^modelRoles:' "$OMP_CONFIG_LIVE"; then
+    err 'live OMP config is not a recognized managed file'
+  elif [[ "$REQUIRE_PORTABLE_LINKS" -eq 1 ]]; then
+    err 'live OMP config differs from canonical source after apply'
+  else
+    pass 'live OMP config has managed runtime drift pending the authorized cutover'
+  fi
+
+  if [[ ! -e "$OMP_MCP_LIVE" ]]; then
+    pass "live OMP MCP config not yet applied: $OMP_MCP_LIVE"
+  elif [[ -L "$OMP_MCP_LIVE" ]]; then
+    err "live OMP MCP config must be a managed regular file: $OMP_MCP_LIVE"
+  elif ! jq -e . "$OMP_MCP_LIVE" >/dev/null 2>&1; then
+    err 'live OMP MCP config is not valid JSON'
+  elif cmp -s "$OMP_MCP_LIVE" "$OMP_MCP"; then
+    pass 'live OMP MCP config matches canonical source'
+  else
+    err 'live OMP MCP config differs from canonical source; refusing an implicit overwrite'
+  fi
+
+  if [[ ! -e "$OPENCODE_LIVE" ]]; then
+    pass "live OpenCode AGENTS not yet applied: $OPENCODE_LIVE"
+  elif [[ -L "$OPENCODE_LIVE" ]]; then
+    err "live OpenCode AGENTS must be a managed regular file: $OPENCODE_LIVE"
+  elif ! grep -Fq '## Shared Agent Memory' "$OPENCODE_LIVE"; then
+    err 'live OpenCode AGENTS is not a recognized managed file'
+  else
+    for invariant in CORE_PROFILE.md WRITING_STYLE.md BOUNDARIES.md WORK_AND_PROJECTS.md 'projects/*.md'; do
+      grep -Fq "$invariant" "$OPENCODE_LIVE" \
+        || err "live OpenCode memory invariant missing: $invariant"
+    done
+    if grep -Fq 'CODING_AGENT_RULES.md' "$OPENCODE_LIVE"; then
+      if [[ "$REQUIRE_PORTABLE_LINKS" -eq 1 ]]; then
+        err 'live OpenCode still auto-loads CODING_AGENT_RULES after apply'
+      else
+        pass 'live OpenCode is managed and pending the authorized memory cutover'
+      fi
+    else
+      pass 'live OpenCode excludes CODING_AGENT_RULES'
+    fi
+  fi
+
   if [[ ! -f "$SOUL_LIVE" ]]; then
     err "live Hermes SOUL missing: $SOUL_LIVE"
   elif grep -q '^# Hermes' "$SOUL_LIVE" && grep -q '/home/dev/AgentMemory' "$SOUL_LIVE"; then
@@ -251,6 +560,8 @@ if [[ "$MODE" == live ]]; then
   else
     err 'live Hermes SOUL is neither Nous default nor rendered managed SOUL'
   fi
+
+  check_mcp_registry_and_config
 
   if [[ -f "$MANIFEST" ]]; then
     check_live_portable_links
@@ -276,9 +587,11 @@ HARNESS=(
   'dot_codex/AGENTS.md.tmpl|# Personal Codex Notes|# Global Claude Rules'
   'dot_grok/AGENTS.md.tmpl|# Personal Grok Notes|# Personal Codex Notes'
   'dot_pi/agent/AGENTS.md.tmpl|# Personal Pi Notes|# Personal Codex Notes'
+  'dot_omp/agent/AGENTS.md.tmpl|# Personal OMP Notes|# Personal Codex Notes'
   'private_dot_factory/AGENTS.md.tmpl|# Personal Droid Notes|# Personal Codex Notes'
 )
 SOUL=private_dot_hermes/SOUL.md.tmpl
+OPENCODE=dot_config/opencode/AGENTS.md
 SHARED_MAX_BYTES=6100
 REQUIRED_SHARED_INVARIANTS=(
   'I like short, practical work. Read the repo, make the smallest clean change, and show proof before calling something done.'
@@ -298,6 +611,11 @@ REQUIRED_SHARED_INVARIANTS=(
   '~/Projects/.worktrees/<repo-name>/<branch-name>'
   'Run the narrowest behavioral validation that proves the change.'
   '/home/dev/AgentMemory'
+  'CORE_PROFILE.md'
+  'WRITING_STYLE.md'
+  'BOUNDARIES.md'
+  'WORK_AND_PROJECTS.md'
+  'projects/*.md'
   'Never store secrets in memory.'
   'never edit only a rendered `$HOME` file'
   '- Use `context7-mcp` or native Context7 when current library/API docs matter.'
@@ -310,6 +628,7 @@ ADAPTER_BUDGETS=(
   'dot_codex/AGENTS.md.tmpl|1200'
   'dot_grok/AGENTS.md.tmpl|700'
   'dot_pi/agent/AGENTS.md.tmpl|900'
+  'dot_omp/agent/AGENTS.md.tmpl|1200'
   'private_dot_factory/AGENTS.md.tmpl|1000'
 )
 
@@ -365,6 +684,22 @@ else
   err 'shared template render failed'
 fi
 
+if grep -Fq 'CODING_AGENT_RULES.md' "$TMP/agents-shared.md"; then
+  err 'shared global harness loader must not auto-load CODING_AGENT_RULES'
+else
+  pass 'shared global harness loader excludes CODING_AGENT_RULES'
+fi
+
+need "$OPENCODE"
+for invariant in CORE_PROFILE.md WRITING_STYLE.md BOUNDARIES.md WORK_AND_PROJECTS.md 'projects/*.md'; do
+  grep -Fq "$invariant" "$OPENCODE" \
+    && pass "OpenCode memory invariant: $invariant" \
+    || err "OpenCode memory invariant missing: $invariant"
+done
+grep -Fq 'CODING_AGENT_RULES.md' "$OPENCODE" \
+  && err 'OpenCode global harness loader must not auto-load CODING_AGENT_RULES' \
+  || pass 'OpenCode global harness loader excludes CODING_AGENT_RULES'
+
 
 need "$SOUL"
 grep -q '/home/dev/AgentMemory' "$SOUL" || err 'Hermes SOUL missing AgentMemory'
@@ -372,6 +707,9 @@ grep -qi 'public' "$SOUL" || err 'Hermes SOUL missing public-action boundary'
 grep -qi 'memory' "$SOUL" || err 'Hermes SOUL missing memory boundary'
 grep -qE 'I like short, practical work|Fix root causes, not symptoms' "$SOUL" \
   && err 'Hermes SOUL must not dump full coding policy' || pass 'Hermes SOUL identity-oriented'
+grep -Fq 'CODING_AGENT_RULES.md' "$SOUL" \
+  && pass 'Hermes remains the explicit standalone CODING_AGENT_RULES exception' \
+  || err 'Hermes standalone memory exception missing CODING_AGENT_RULES'
 
 [[ -L dot_grok/AGENTS.md.tmpl || -L dot_grok/AGENTS.md ]] && err 'Grok AGENTS must not be a symlink'
 need dot_grok/AGENTS.md.tmpl
@@ -391,7 +729,7 @@ for entry in "${ADAPTER_BUDGETS[@]}"; do
 done
 
 for path in dot_claude/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl \
-  dot_pi/agent/AGENTS.md.tmpl private_dot_factory/AGENTS.md.tmpl; do
+  dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl private_dot_factory/AGENTS.md.tmpl; do
   grep -qiE '^\|.*cost.*intelligence.*taste.*vision.*\|$' "$path" \
     && err "adapter embeds a full model scoring table: $path" \
     || pass "adapter has no full model scoring table: $path"
@@ -402,6 +740,7 @@ ADAPTER_OWNER_POINTERS=(
   'dot_codex/AGENTS.md.tmpl|$model-orchestration|Codex'
   'dot_grok/AGENTS.md.tmpl|model-orchestration|Grok'
   'dot_pi/agent/AGENTS.md.tmpl|runtime model pool|Pi'
+  'dot_omp/agent/AGENTS.md.tmpl|runtime model pool|OMP'
   'private_dot_factory/AGENTS.md.tmpl|runtime model pool|Factory'
 )
 for entry in "${ADAPTER_OWNER_POINTERS[@]}"; do
@@ -410,6 +749,14 @@ for entry in "${ADAPTER_OWNER_POINTERS[@]}"; do
     && pass "$harness adapter points to its routing owner" \
     || err "$harness adapter missing routing owner pointer: $pointer"
 done
+
+if grep -Fq '`agent()`' dot_omp/agent/AGENTS.md.tmpl \
+  && grep -Fq '`parallel()`' dot_omp/agent/AGENTS.md.tmpl \
+  && grep -Fq 'is a leaf' dot_omp/agent/AGENTS.md.tmpl; then
+  pass 'OMP adapter uses native agent/parallel mechanics and leaf behavior'
+else
+  err 'OMP adapter missing native agent/parallel mechanics or leaf behavior'
+fi
 
 for path in "${STALE_PI_FLOW_PATHS[@]}"; do
   [[ ! -e "$path" ]] \
@@ -496,6 +843,7 @@ done
 unset decrypted
 
 check_manifest_and_sources
+check_mcp_registry_and_config
 check_runtime_exclusions
 
 
@@ -515,17 +863,24 @@ for entry in "${HARNESS[@]}"; do
   [[ "$(grep -c 'I like short, practical work' "$out" || true)" -eq 1 ]] || err "shared intro count != 1 in $path"
   grep -q PickScribe "$out" || err "missing PickScribe in $path"
   grep -q '/home/dev/AgentMemory' "$out" || err "missing AgentMemory in $path"
+  grep -Fq 'CODING_AGENT_RULES.md' "$out" \
+    && err "global harness auto-loads CODING_AGENT_RULES: $path" \
+    || pass "global harness excludes CODING_AGENT_RULES: $path"
 done
 
 render "$SOUL" "$TMP/SOUL.md" && pass 'rendered Hermes SOUL' || err 'Hermes SOUL render failed'
 
 TARGETS=(
   "$DEST/.claude/CLAUDE.md" "$DEST/.codex/AGENTS.md" "$DEST/.grok/AGENTS.md"
-  "$DEST/.pi/agent/AGENTS.md" "$DEST/.factory/AGENTS.md" "$DEST/.hermes/SOUL.md"
+  "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
+  "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json"
+  "$DEST/.factory/AGENTS.md" "$DEST/.config/opencode/AGENTS.md" "$DEST/.hermes/SOUL.md"
 )
 EXPECTED=(
   dot_claude/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl
-  dot_pi/agent/AGENTS.md.tmpl private_dot_factory/AGENTS.md.tmpl private_dot_hermes/SOUL.md.tmpl
+  dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
+  dot_omp/agent/config.yml dot_omp/agent/mcp.json
+  private_dot_factory/AGENTS.md.tmpl dot_config/opencode/AGENTS.md private_dot_hermes/SOUL.md.tmpl
 )
 if chezmoi "${SRC[@]}" --destination "$DEST" source-path "${TARGETS[@]}" >"$TMP/sp.txt" 2>"$TMP/sp.err"; then
   for e in "${EXPECTED[@]}"; do
@@ -537,20 +892,33 @@ fi
 chezmoi "${SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TMP/st.err" \
   && pass 'dry-run status (temp dest)' || err "dry-run status failed: $(tr '\n' ' ' <"$TMP/st.err")"
 
-mkdir -p "$DEST/.grok" "$DEST/.hermes" \
-  "$DEST/.claude/skills" "$DEST/.pi/agent/skills" "$DEST/.factory/skills" \
-  "$DEST/.grok/skills" "$DEST/.hermes/skills" "$DEST/.agents/skills"
+mkdir -p "$DEST/.grok" "$DEST/.hermes" "$DEST/.config/opencode" \
+  "$DEST/.claude/skills" "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
+  "$DEST/.factory/skills" "$DEST/.grok/skills" "$DEST/.hermes/skills" "$DEST/.agents/skills"
 ln -s ../.codex/AGENTS.md "$DEST/.grok/AGENTS.md"
 printf '%s\n' 'You are Hermes Agent, an intelligent AI assistant created by Nous Research.' >"$DEST/.hermes/SOUL.md"
 
 if ! chezmoi "${SRC[@]}" --destination "$DEST" apply "$DEST/.agents/skills" \
-  "$DEST/.grok/AGENTS.md" "$DEST/.hermes/SOUL.md"; then
+  "$DEST/.omp/agent/AGENTS.md" "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json" \
+  "$DEST/.config/opencode/AGENTS.md" "$DEST/.grok/AGENTS.md" "$DEST/.hermes/SOUL.md"; then
   err 'temp seed apply (canonical skills / adapters) failed'
 else
   [[ ! -L "$DEST/.grok/AGENTS.md" ]] && grep -q '^# Personal Grok Notes' "$DEST/.grok/AGENTS.md" \
     && pass 'temp migration replaces Grok symlink safely' || err 'temp Grok symlink migration failed'
   grep -q '^# Hermes' "$DEST/.hermes/SOUL.md" && grep -q '/home/dev/AgentMemory' "$DEST/.hermes/SOUL.md" \
     && pass 'temp migration replaces default Hermes SOUL safely' || err 'temp Hermes SOUL migration failed'
+  grep -q '^# Personal OMP Notes' "$DEST/.omp/agent/AGENTS.md" \
+    && ! grep -Fq 'CODING_AGENT_RULES.md' "$DEST/.omp/agent/AGENTS.md" \
+    && pass 'temp OMP adapter applied without global CODING_AGENT_RULES load' \
+    || err 'temp OMP adapter apply mismatch'
+  cmp -s "$DEST/.omp/agent/config.yml" "$ROOT/dot_omp/agent/config.yml" \
+    && pass 'temp OMP runtime config applied' || err 'temp OMP runtime config apply mismatch'
+  cmp -s "$DEST/.omp/agent/mcp.json" "$OMP_MCP" \
+    && pass 'temp OMP MCP config applied' || err 'temp OMP MCP config apply mismatch'
+  cmp -s "$DEST/.config/opencode/AGENTS.md" "$ROOT/dot_config/opencode/AGENTS.md" \
+    && ! grep -Fq 'CODING_AGENT_RULES.md' "$DEST/.config/opencode/AGENTS.md" \
+    && pass 'temp OpenCode memory cutover applied' \
+    || err 'temp OpenCode memory cutover apply mismatch'
 fi
 
 if [[ -d "$DEST/.agents/skills/context7-mcp" ]]; then
