@@ -36,10 +36,101 @@ dirs_identical() {
   [[ -d "$a" && -d "$b" ]] || return 1
   diff -rq "$a" "$b" >/dev/null 2>&1
 }
+validate_omp_agent_override() {
+  local role="$1" path="$2"
+
+  if [[ ! -f "$path" ]]; then
+    err "OMP ${role} override missing: $path"
+    return
+  fi
+
+  if grep -Eq '^[[:space:]]*model:[[:space:]]*\[[[:space:]]*pi/task[[:space:]]*\][[:space:]]*$' "$path"; then
+    pass "OMP ${role} override uses pi/task"
+  else
+    err "OMP ${role} override must use model: [pi/task]"
+  fi
+
+  if grep -Eq '^[[:space:]]*thinkingLevel:[[:space:]]*medium[[:space:]]*$' "$path"; then
+    pass "OMP ${role} override uses medium thinking"
+  else
+    err "OMP ${role} override must set thinkingLevel: medium"
+  fi
+
+  if [[ "$role" == reviewer ]]; then
+    if grep -Fq 'output:' "$path" \
+      && grep -Fq 'overall_correctness:' "$path" \
+      && grep -Fq 'findings:' "$path"; then
+      pass 'OMP reviewer override retains structured output'
+    else
+      err 'OMP reviewer override missing structured output schema'
+    fi
+    if grep -Fq 'Bash is read-only:' "$path" \
+      && grep -Fq 'You NEVER make file edits or trigger builds.' "$path" \
+      && grep -Fq 'Every finding MUST be patch-anchored and evidence-backed.' "$path"; then
+      pass 'OMP reviewer override retains read-only review contract'
+    else
+      err 'OMP reviewer override missing read-only review contract'
+    fi
+  fi
+}
+
+check_omp_agent_override_sources() {
+  validate_omp_agent_override task "$OMP_TASK_OVERRIDE"
+  validate_omp_agent_override reviewer "$OMP_REVIEWER_OVERRIDE"
+}
+
+check_live_omp_agent_overrides() {
+  local live_dir="${HOME}/.omp/agent/agents"
+  local role live_override canonical_override
+
+  if [[ ! -e "$live_dir" ]]; then
+    if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
+      pass "live OMP agent overrides not yet applied: $live_dir"
+    else
+      err "live OMP agent overrides missing: $live_dir"
+    fi
+    return
+  fi
+  if [[ ! -d "$live_dir" || -L "$live_dir" ]]; then
+    err "live OMP agent overrides must be a managed regular directory: $live_dir"
+    return
+  fi
+
+  for role in task reviewer; do
+    live_override="$live_dir/${role}.md"
+    canonical_override="$OMP_AGENT_OVERRIDES_DIR/${role}.md"
+
+    if [[ -L "$live_override" ]]; then
+      err "live OMP ${role} override must be a managed regular file: $live_override"
+      continue
+    fi
+    if [[ ! -f "$live_override" ]]; then
+      err "live OMP ${role} override missing or not a regular file: $live_override"
+      continue
+    fi
+    if [[ ! -f "$canonical_override" ]]; then
+      err "canonical OMP ${role} override missing: $canonical_override"
+      continue
+    fi
+
+    if cmp -s "$live_override" "$canonical_override"; then
+      validate_omp_agent_override "$role" "$live_override"
+      pass "live OMP ${role} override matches canonical source"
+      continue
+    fi
+
+    err "live OMP ${role} override differs from canonical source"
+  done
+}
+
 
 MANIFEST="$ROOT/dot_agents/skill-targets.json"
 MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"
 OMP_MCP="$ROOT/dot_omp/agent/mcp.json"
+OMP_AGENT_OVERRIDES_DIR="$ROOT/dot_omp/agent/agents"
+OMP_TASK_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/task.md"
+OMP_REVIEWER_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/reviewer.md"
+
 
 RUNTIME_SOURCE_PATHS=(
   private_dot_hermes/private_skills/dot_curator_backups
@@ -464,6 +555,73 @@ check_live_portable_links() {
   done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
 }
 
+check_live_native_routing_ancestors() {
+  local live="$1" relative ancestor component
+  local -a components
+
+  relative="${live#"${HOME}/"}"
+  if [[ "$relative" == "$live" ]]; then
+    err "live native routing file is not beneath HOME: $live"
+    return 1
+  fi
+
+  ancestor="$HOME"
+  IFS='/' read -r -a components <<<"${relative%/*}"
+  for component in "${components[@]}"; do
+    [[ -n "$component" ]] || continue
+    ancestor="${ancestor}/${component}"
+    if [[ -L "$ancestor" ]]; then
+      err "live native routing ancestor must not be a symlink: $ancestor"
+      return 1
+    elif [[ -e "$ancestor" && ! -d "$ancestor" ]]; then
+      err "live native routing ancestor is not a directory: $ancestor"
+      return 1
+    elif [[ ! -e "$ancestor" ]]; then
+      return 0
+    fi
+  done
+}
+
+check_live_native_routing_files() {
+  local live rendered
+  local -a files=(
+    "${HOME}/.claude/skills/codex-fable/SKILL.md"
+    "${HOME}/.claude/skills/codex-opus/SKILL.md"
+    "${HOME}/.claude/skills/kickoff/SKILL.md"
+    "${HOME}/.codex/skills/model-orchestration/SKILL.md"
+    "${HOME}/.codex/skills/model-orchestration/references/model-routing.md"
+  )
+
+  rendered="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-native-routing.XXXXXX")"
+  for live in "${files[@]}"; do
+    if ! check_live_native_routing_ancestors "$live"; then
+      continue
+    fi
+    if ! chezmoi "${SRC[@]}" cat "$live" >"$rendered"; then
+      err "native routing source cannot be rendered: $live"
+      continue
+    fi
+    if [[ -L "$live" ]]; then
+      err "live native routing file must be a managed regular file: $live"
+    elif [[ ! -e "$live" ]]; then
+      if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
+        pass "live native routing file not yet applied: $live"
+      else
+        err "live native routing file missing: $live"
+      fi
+    elif [[ ! -f "$live" ]]; then
+      err "live native routing path is not a regular file: $live"
+    elif cmp -s "$rendered" "$live"; then
+      pass "live native routing file matches rendered source: $live"
+    elif [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
+      pass "live native routing file has managed pending drift: $live"
+    else
+      err "live native routing file differs from rendered source: $live"
+    fi
+  done
+  rm -f "$rendered"
+}
+
 if [[ "$MODE" == live ]]; then
   if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
     echo "== agent-config-sync strict live preflight (read-only) =="
@@ -477,6 +635,7 @@ if [[ "$MODE" == live ]]; then
   OPENCODE_LIVE="${HOME}/.config/opencode/AGENTS.md"
   SOUL_LIVE="${HOME}/.hermes/SOUL.md"
   NOUS_DEFAULT='You are Hermes Agent, an intelligent AI assistant created by Nous Research.'
+  check_omp_agent_override_sources
 
   if [[ ! -e "$GROK_LIVE" ]]; then
     err "live Grok AGENTS missing: $GROK_LIVE"
@@ -528,6 +687,9 @@ if [[ "$MODE" == live ]]; then
   else
     err 'live OMP MCP config differs from canonical source; refusing an implicit overwrite'
   fi
+  check_live_omp_agent_overrides
+  check_live_native_routing_files
+
 
   if [[ ! -e "$OPENCODE_LIVE" ]]; then
     pass "live OpenCode AGENTS not yet applied: $OPENCODE_LIVE"
@@ -843,6 +1005,8 @@ done
 unset decrypted
 
 check_manifest_and_sources
+check_omp_agent_override_sources
+
 check_mcp_registry_and_config
 check_runtime_exclusions
 
@@ -874,11 +1038,13 @@ TARGETS=(
   "$DEST/.claude/CLAUDE.md" "$DEST/.codex/AGENTS.md" "$DEST/.grok/AGENTS.md"
   "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json"
+  "$DEST/.omp/agent/agents"
   "$DEST/.factory/AGENTS.md" "$DEST/.config/opencode/AGENTS.md" "$DEST/.hermes/SOUL.md"
 )
 EXPECTED=(
   dot_claude/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl
   dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
+  dot_omp/agent/agents
   dot_omp/agent/config.yml dot_omp/agent/mcp.json
   private_dot_factory/AGENTS.md.tmpl dot_config/opencode/AGENTS.md private_dot_hermes/SOUL.md.tmpl
 )
@@ -900,7 +1066,8 @@ printf '%s\n' 'You are Hermes Agent, an intelligent AI assistant created by Nous
 
 if ! chezmoi "${SRC[@]}" --destination "$DEST" apply "$DEST/.agents/skills" \
   "$DEST/.omp/agent/AGENTS.md" "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json" \
-  "$DEST/.config/opencode/AGENTS.md" "$DEST/.grok/AGENTS.md" "$DEST/.hermes/SOUL.md"; then
+  "$DEST/.omp/agent/agents" "$DEST/.config/opencode/AGENTS.md" "$DEST/.grok/AGENTS.md" \
+  "$DEST/.hermes/SOUL.md"; then
   err 'temp seed apply (canonical skills / adapters) failed'
 else
   [[ ! -L "$DEST/.grok/AGENTS.md" ]] && grep -q '^# Personal Grok Notes' "$DEST/.grok/AGENTS.md" \
@@ -915,6 +1082,20 @@ else
     && pass 'temp OMP runtime config applied' || err 'temp OMP runtime config apply mismatch'
   cmp -s "$DEST/.omp/agent/mcp.json" "$OMP_MCP" \
     && pass 'temp OMP MCP config applied' || err 'temp OMP MCP config apply mismatch'
+  if [[ -d "$DEST/.omp/agent/agents" && ! -L "$DEST/.omp/agent/agents" ]]; then
+    pass 'temp OMP agent override directory applied'
+  else
+    err 'temp OMP agent override directory apply mismatch'
+  fi
+  for role in task reviewer; do
+    validate_omp_agent_override "$role" "$DEST/.omp/agent/agents/${role}.md"
+    if [[ -f "$DEST/.omp/agent/agents/${role}.md" ]] \
+      && cmp -s "$DEST/.omp/agent/agents/${role}.md" "$OMP_AGENT_OVERRIDES_DIR/${role}.md"; then
+      pass "temp OMP ${role} override matches canonical source"
+    else
+      err "temp OMP ${role} override apply mismatch"
+    fi
+  done
   cmp -s "$DEST/.config/opencode/AGENTS.md" "$ROOT/dot_config/opencode/AGENTS.md" \
     && ! grep -Fq 'CODING_AGENT_RULES.md' "$DEST/.config/opencode/AGENTS.md" \
     && pass 'temp OpenCode memory cutover applied' \
