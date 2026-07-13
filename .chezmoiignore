@@ -33,6 +33,22 @@ scripts
 .pi/agent/mcp-onboarding.json
 .pi/agent/pi-hermes-memory/.skills-migrated-to-extension-storage
 .pi/agent/pi-hermes-memory/sessions.db
+
+# OMP runtime and credential state — config and portable skills only
+.omp/agent/sessions
+.omp/agent/terminal-sessions
+.omp/agent/blobs
+.omp/agent/cache
+.omp/agent/last-changelog-version
+.omp/autoqa.db
+.omp/autoqa.db-wal
+.omp/autoqa.db-shm
+.omp/agent/*.db
+.omp/logs
+.omp/cache
+.omp/install-id
+.omp/gpu_cache.json
+.omp/puppeteer
 # SQLite write-ahead / shared-memory scratch — never version
 **/*.db-wal
 **/*.db-shm

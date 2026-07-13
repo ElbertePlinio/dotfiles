@@ -159,7 +159,7 @@ No previous sessions found.
 Before user-specific work, read relevant files from `/home/dev/AgentMemory`:
 
 - Always: `CORE_PROFILE.md`, `WRITING_STYLE.md`, `BOUNDARIES.md`
-- Coding: `CODING_AGENT_RULES.md`, `WORK_AND_PROJECTS.md`
+- Coding: `WORK_AND_PROJECTS.md`
 - Social/media: `SOCIAL_MEDIA.md`
 - Project-specific: `projects/*.md`
 

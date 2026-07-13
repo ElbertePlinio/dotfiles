@@ -1,0 +1,14 @@
+# Personal OMP Notes
+
+{{ template "agents-shared.md" . }}
+
+## OMP response style
+
+Keep ordinary replies under about 200 words unless detail is requested or a real safety, architecture, or blocking issue requires explanation.
+
+## Native model orchestration
+
+- Prefer OMP's eval bridge when independent work materially helps: call `agent()` with a per-call model and effort, and wrap only independent calls in `parallel()`.
+- Choose prompt, model, and effort independently. The runtime model pool owns the catalog, capability differences, scoring, and fallbacks; do not duplicate them here.
+- The main session owns scope, synthesis, validation, and acceptance. A subagent under another orchestrator is a leaf: do the assignment directly and do not re-delegate.
+- If an explicitly required model is unavailable, stop and report it. Otherwise use only a compatible runtime substitute and disclose it.
