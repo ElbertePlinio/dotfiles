@@ -4,37 +4,8 @@
 
 ## Model orchestration
 
-For substantial, risky, frontend, backend, architecture, full-stack, multi-agent, fan-out review, or explicit Fable/Opus/Sonnet routing tasks, use `$model-orchestration`.
+For substantial or risky multi-model work, use `$model-orchestration`. Its `model-routing.md` reference owns the current catalog, scores, capability differences, and fallback doctrine; its delegation contract owns writer isolation and orchestration depth.
 
-Effort values are starting points, not fixed rules. Use the lowest level that fits the task and raise it when the work proves harder.
-
-| model         | start  | cost | intelligence | taste | vision |
-|---------------|--------|-----:|-------------:|------:|--------|
-| gpt-5.6-luna  | medium | 10   | 7            | 5     | yes    |
-| gpt-5.6-terra | medium | 9    | 8            | 5     | yes    |
-| gpt-5.6-sol   | high   | 8    | 9            | 6     | yes    |
-| glm-5.2       | —      | 7    | 8            | 7     | no     |
-| grok-4.5      | high   | 6    | 8            | 7     | yes    |
-| sonnet-5      | high   | 5    | 5            | 7     | yes    |
-| opus-4.8      | high   | 4    | 7            | 8     | yes    |
-| fable-5       | high   | 2    | 9            | 9     | yes    |
-
-Use the table as comparative context, not as permanent role assignments. Do not map a model to scouting, architecture, UI, implementation, review, or any other task class by default. For each task, the active orchestrator selects any compatible model from the full table based on risk, uncertainty, context, tools and modalities, validation options, output quality, and pool headroom.
-
-- These are defaults, not limits. Judge output quality, not price; escalate freely when output misses the bar.
-- For anything that ships, prefer intelligence > taste > cost.
-- Trust the orchestrator to choose the lightest sufficient path from task risk, uncertainty, domain, context size, and pool headroom. Do not force a model sequence or call a lane only because it exists.
-- Default architecture is two levels: orchestrator dispatches/synthesizes/accepts; worker and reviewer agents are leaves. Subagents may recommend more delegation, but the orchestrator decides whether to spawn it.
-- Use modes: `simple` = one model; `standard` = orchestrator + one implementer + one reviewer; `serious` = review panel + anti-overengineering gate; `fanout` = isolated worktrees/parallel lanes only for genuinely independent work.
-- The active main session owns orchestration, synthesis, and final acceptance regardless of which model runs it.
-- Standard work gets one independent reviewer chosen for the task. Serious work gets 2-3 complementary reviewers selected from the full table for concrete failure modes. GLM is text-only: never send it images; summarize visuals in text first.
-- Serious/fanout work requires an anti-overengineering review before final acceptance: find speculative abstractions, unnecessary layers/config, premature generality, excessive files, and simpler equivalent designs. Simplify before accepting unless a concrete near-term requirement justifies the complexity.
-- Quota fallback is allowed when it makes sense. Use the closest useful lane across GPT, Grok, GLM, Fable, Opus, and Sonnet, and report the substitution. Stop instead if the user explicitly required that model or no substitute fits.
-- Parallelize independent work when the speedup justifies the orchestration cost; balance the Codex/Claude/Ollama/grok.com pools by model advantage, not habit. Keep one active writer per file/worktree; parallel writers require isolated worktrees and patch handoff. Review and dissent agents are read-only.
-- Quota-aware routing: before a multi-task wave, check pool headroom with the `pickgauge-usage` skill (`pickgauge usage --json`). A cheaper lane near its cap loses to a pricier lane with room. Check per wave, not per call; plan-only rows (null percent) are unknown, not empty.
-- Never use Haiku.
-- GPT-5.6 ratings are provisional (launched 2026-07-09; Terra/Luna have no independent benchmarks yet). Revisit when real evals land.
-
-If a lane I explicitly required cannot run because its CLI is unauthenticated, missing, or otherwise unavailable, stop and tell me — no substitutions. Otherwise the quota-fallback rule above applies: substitute openly, never silently.
-
-Exception: when running non-interactively via `codex exec` under another orchestrator, skip delegation and implement directly yourself; the parent orchestrator owns planning and review.
+- Use the skill's native wrappers and selectors rather than reproducing routing policy here.
+- The current session owns scope, synthesis, validation, and acceptance. Workers and reviewers are leaves unless it explicitly authorizes fan-out.
+- When running non-interactively through `codex exec` under another orchestrator, implement the assigned task directly and do not re-delegate; the parent owns planning and review.
