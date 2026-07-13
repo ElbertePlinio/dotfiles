@@ -305,6 +305,30 @@ REQUIRED_SHARED_INVARIANTS=(
   '- For ship/open-PR/review-and-merge requests, use `ship-pr` where available'
 )
 
+ADAPTER_BUDGETS=(
+  'dot_claude/CLAUDE.md.tmpl|2600'
+  'dot_codex/AGENTS.md.tmpl|1200'
+  'dot_grok/AGENTS.md.tmpl|700'
+  'dot_pi/agent/AGENTS.md.tmpl|900'
+  'private_dot_factory/AGENTS.md.tmpl|1000'
+)
+
+STALE_PI_FLOW_PATHS=(
+  dot_pi/agent/extensions/model-flow.ts
+  dot_pi/agent/agents/encrypted_coder.md.age
+  dot_pi/agent/agents/encrypted_git.md.age
+  dot_pi/agent/agents/encrypted_planner.md.age
+  dot_pi/agent/agents/encrypted_reviewer.md.age
+)
+
+ROUTING_SKILL_TARGETS=(
+  "$HOME/.claude/skills/codex-fable/SKILL.md"
+  "$HOME/.claude/skills/codex-opus/SKILL.md"
+  "$HOME/.claude/skills/kickoff/SKILL.md"
+  "$HOME/.codex/skills/model-orchestration/SKILL.md"
+  "$HOME/.codex/skills/model-orchestration/references/model-routing.md"
+)
+
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync.XXXXXX")"
 DEST="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-dest.XXXXXX")"
 trap 'rm -rf "$TMP" "$DEST"' EXIT
@@ -354,11 +378,122 @@ need dot_grok/AGENTS.md.tmpl
 if [[ -f dot_grok/AGENTS.md.tmpl ]]; then
   grep -qE 'codex/AGENTS|\.\./\.codex|Personal Codex Notes' dot_grok/AGENTS.md.tmpl \
     && err 'Grok adapter links to or reuses Codex' || pass 'Grok adapter not Codex-linked'
-  grep -q 'gpt-5.6-luna' dot_grok/AGENTS.md.tmpl \
-    && err 'Grok adapter still embeds full model table' || pass 'Grok has no full model table'
-  grep -q 'model-orchestration' dot_grok/AGENTS.md.tmpl \
-    && pass 'Grok references model-orchestration skill' || err 'Grok missing model-orchestration reference'
 fi
+
+for entry in "${ADAPTER_BUDGETS[@]}"; do
+  IFS='|' read -r path budget <<<"$entry"
+  bytes="$(wc -c <"$path")"
+  if ((bytes <= budget)); then
+    pass "adapter source size ${path}: ${bytes} bytes (budget ${budget})"
+  else
+    err "adapter source size ${path}: ${bytes} bytes exceeds ${budget}-byte regression budget"
+  fi
+done
+
+for path in dot_claude/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl \
+  dot_pi/agent/AGENTS.md.tmpl private_dot_factory/AGENTS.md.tmpl; do
+  grep -qiE '^\|.*cost.*intelligence.*taste.*vision.*\|$' "$path" \
+    && err "adapter embeds a full model scoring table: $path" \
+    || pass "adapter has no full model scoring table: $path"
+done
+
+ADAPTER_OWNER_POINTERS=(
+  'dot_claude/CLAUDE.md.tmpl|model-routing.md|Claude'
+  'dot_codex/AGENTS.md.tmpl|$model-orchestration|Codex'
+  'dot_grok/AGENTS.md.tmpl|model-orchestration|Grok'
+  'dot_pi/agent/AGENTS.md.tmpl|runtime model pool|Pi'
+  'private_dot_factory/AGENTS.md.tmpl|runtime model pool|Factory'
+)
+for entry in "${ADAPTER_OWNER_POINTERS[@]}"; do
+  IFS='|' read -r path pointer harness <<<"$entry"
+  grep -Fq "$pointer" "$path" \
+    && pass "$harness adapter points to its routing owner" \
+    || err "$harness adapter missing routing owner pointer: $pointer"
+done
+
+for path in "${STALE_PI_FLOW_PATHS[@]}"; do
+  [[ ! -e "$path" ]] \
+    && pass "stale Pi flow source absent: $path" \
+    || err "stale Pi flow source remains: $path"
+done
+
+pi_settings=''
+if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; then
+  if jq -e . >/dev/null 2>&1 <<<"$pi_settings"; then
+    pass 'Pi settings JSON valid'
+    jq -e 'any(.. | strings; contains("pi-subagents"))' >/dev/null <<<"$pi_settings" \
+      && pass 'Pi runtime enables native subagents' \
+      || err 'Pi runtime missing native subagents'
+    jq -e 'any(.. | strings; ascii_downcase | contains("haiku"))' >/dev/null <<<"$pi_settings" \
+      && err 'Pi settings contain a forbidden Haiku selector' \
+      || pass 'Pi settings contain no Haiku selector'
+  else
+    err 'Pi settings JSON invalid'
+  fi
+else
+  err 'could not decrypt Pi settings for runtime checks'
+fi
+unset pi_settings
+
+pi_models=''
+if pi_models="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/models.json")"; then
+  if jq -e . >/dev/null 2>&1 <<<"$pi_models"; then
+    pass 'Pi models JSON valid'
+    jq -e '.providers.ollama.models | any(.id == "glm-5.2:cloud")' >/dev/null <<<"$pi_models" \
+      && pass 'Pi models include Ollama GLM-5.2 Cloud' \
+      || err 'Pi models missing Ollama GLM-5.2 Cloud'
+    jq -e '(.providers | has("local-llama")) or any(.. | strings; ascii_downcase | contains("local-llama"))' >/dev/null <<<"$pi_models" \
+      && err 'Pi models still contain removed local-llama provider or model' \
+      || pass 'Pi models omit removed local-llama provider and model'
+  else
+    err 'Pi models JSON invalid'
+  fi
+else
+  err 'could not decrypt Pi models for runtime checks'
+fi
+unset pi_models
+
+FACTORY_FLOW_HOOK=private_dot_factory/hooks/executable_model-flow-reminder.sh
+need "$FACTORY_FLOW_HOOK"
+grep -Fq 'lightest sufficient path' "$FACTORY_FLOW_HOOK" \
+  && grep -Fq '$local-review' "$FACTORY_FLOW_HOOK" \
+  && pass 'Factory runtime injects adaptive local-review reminder' \
+  || err 'Factory runtime missing adaptive local-review reminder'
+grep -qiE '(planner|coder|reviewer|git) droid|plan -> code -> review' "$FACTORY_FLOW_HOOK" \
+  && err 'Factory runtime still injects named model flow' \
+  || pass 'Factory runtime avoids named model flow'
+
+for target in "${ROUTING_SKILL_TARGETS[@]}"; do
+  decrypted=''
+  if ! decrypted="$(chezmoi "${SRC[@]}" cat "$target")"; then
+    err "could not decrypt routing skill for checks: $target"
+    continue
+  fi
+
+  grep -qiE 'CLAUDE\.md([^[:alnum:]]+model)?[^[:alnum:]]+table' <<<"$decrypted" \
+    && err "routing skill contains stale CLAUDE.md table reference: $target" \
+    || pass "routing skill avoids stale CLAUDE.md table reference: $target"
+
+  case "$target" in
+    */codex-fable/SKILL.md|*/codex-opus/SKILL.md)
+      grep -Fq 'Before routing or casting any worker or reviewer, read `~/.codex/skills/model-orchestration/references/model-routing.md` completely.' <<<"$decrypted" \
+        && pass 'Claude workflow requires the model-routing owner before routing' \
+        || err 'Claude workflow missing required pre-routing model-routing read'
+      ;;
+    */references/model-routing.md)
+      grep -Fq '$pickgauge-usage' <<<"$decrypted" \
+        && grep -Fq 'intelligence > taste > cost' <<<"$decrypted" \
+        && pass 'model-routing owns wave headroom and shipping preference' \
+        || err 'model-routing missing wave headroom or shipping preference'
+      ;;
+    */kickoff/SKILL.md)
+      grep -Fq 'model-routing.md' <<<"$decrypted" \
+        && pass 'kickoff fallback routing points to model-routing owner' \
+        || err 'kickoff fallback routing missing model-routing owner'
+      ;;
+  esac
+done
+unset decrypted
 
 check_manifest_and_sources
 check_runtime_exclusions
