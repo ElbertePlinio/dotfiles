@@ -15,8 +15,8 @@
 
 ## Model orchestration
 
-- For substantial work, use `codex-fable` from Fable sessions and `codex-opus` from Opus sessions. Those workflows own delegation doctrine; the current catalog, scores, capability notes, and fallback policy live in `~/.codex/skills/model-orchestration/references/model-routing.md`.
-- Claude subagents are selected with the Agent/Workflow model parameter. The main session owns scope, synthesis, validation, and acceptance; workers and reviewers are leaves unless the main session explicitly authorizes fan-out.
+- For substantial or risky work, use `codex-fable` from Fable sessions and `codex-opus` from Opus sessions. Their routing owner at `~/.codex/skills/model-orchestration/references/model-routing.md` selects every compatible, enabled non-Haiku model per call; it does not assign durable task roles or provider sequences.
+- Use its evidence-based selection axes and bounded review policy; ratings and bootstrap efforts are priors, not assignments. The main session owns scope, synthesis, validation, and acceptance; workers and reviewers are leaves unless the main session explicitly authorizes fan-out.
 - When Claude is invoked non-interactively as a worker under another orchestrator, do the assigned work directly and do not re-delegate.
 
 @RTK.md
