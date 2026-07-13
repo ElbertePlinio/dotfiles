@@ -15,6 +15,9 @@ default_reasoning_effort = "high"
 [skills]
 disabled = ["grok"]
 
+[harness]
+disable_codebase_upload = true
+
 [compat.claude]
 agents = false
 
