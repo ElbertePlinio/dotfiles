@@ -1,60 +1,41 @@
 I like short, practical work. Read the repo, make the smallest clean change, and show proof before calling something done.
 
-## How to work
+## Core behavior
 
-- Be direct. No filler, no ceremony.
-- Fix root causes, not symptoms.
-- No hacks, monkey patches, fake fixes, or "temporary" workarounds.
-- Follow the repo's style before my preferences.
-- Do not refactor unrelated code.
-- Never add comments explaining what the code does unless explicitly asked.
-- When suggesting fixes, show only the relevant changed code, not the entire file.
-- If a choice changes architecture, persistence, auth, security, or scope, ask first.
-- If unsure, ask — don't assume.
+- Be direct: no filler or ceremony. Fix root causes, not symptoms.
+- No hacks, monkey patches, fake fixes, temporary workarounds, or unrelated refactors.
+- Follow repo conventions; add explanatory comments only when asked.
+- Ask before changing architecture, persistence, auth, security, or scope; ask rather than assume when uncertainty affects the result.
+- Never expose, print, commit, or send secrets or private production data.
+- Destructive filesystem, Git, account, or external-service actions require explicit confirmation.
+- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.
+- Never use Anthropic Haiku, directly, indirectly, or as a fallback.
 
 ## Dictated prompts (PickScribe)
 
-I often dictate prompts with PickScribe. Words can come out wrong — especially names, model IDs, and technical terms. If a request hinges on a word that looks off or contradicts what you know, ask me to confirm what I meant instead of running with the literal transcription.
+Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious or contradictory wording instead of following it literally.
 
-## Tools
+## Tool and workflow triggers
 
-- Use Context7 when library/API details matter and it is available.
-- At the start of deeper repo work, check whether CodeGraph is available. If it is not initialized, suggest `codegraph init` or `npx -y @colbymchenry/codegraph init`.
-- Prefer `frun` for noisy shell commands when available. It uses RTK when available and falls back to the raw command.
-- RTK (`rtk`) is a token-optimizing CLI proxy. If `frun` is unavailable but `rtk` exists, prefix noisy read-only commands with `rtk` (e.g. `rtk git status`, `rtk git diff`).
-- Use `rtk` directly for RTK meta commands like `rtk gain`, `rtk gain --history`, or `rtk discover`.
-- Do not wrap commands where exact output matters: tests, analyzers, Dart, Flutter, or FVM.
-- For X (Twitter) research — model reputations, AI tooling chatter, practitioner sentiment — use the `x-research` skill when available; otherwise run its Hermes Agent CLI workflow directly. If Hermes is unavailable, say so.
-
-## UI and UX
-
-- For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation. If the repo has a more specific design skill, use it as an overlay on the general workflow.
-- Tiny fixes already determined by the repo's existing tokens or components can use the skill's light path.
+- Use `context7-mcp` or native Context7 when current library/API docs matter.
+- In repos with `.codegraph/`, use native CodeGraph before text search or file reads for code discovery; otherwise skip it.
+- Prefer `frun` for noisy commands, or `rtk` for noisy read-only/meta commands. Never wrap tests, analyzers, Dart, Flutter, FVM, or exact-output commands.
+- Use `x-research` for X/Twitter signal; otherwise use its Hermes workflow or report Hermes unavailable.
+- Use `design-director` for material UI/UX work, plus any repo-specific design skill. Tiny token/component-determined fixes may use its light path.
 
 ## Personal project isolation
 
-- On machines with `~/Projects/Personal/.agent-safety`, project access defaults to `~/Projects/Personal` and its descendants. Do not list, read, search, modify, execute from, or index projects outside that tree unless the current request directly names the exact outside path and action.
-- Do not follow project symlinks that resolve outside `~/Projects/Personal`, or reuse company project context, credentials, caches, or configuration.
-- Inside `~/Projects/Personal`, GitHub operations must authenticate as `ElbertePlinio`. Run `~/Projects/Personal/.agent-safety/verify-personal-github` before any `gh` mutation or `git push`; stop if it fails and never switch accounts automatically.
-- Inside `~/Projects/Personal`, `claude-work` is company-only and forbidden. Use only a personal agent profile explicitly allowed by the user.
+- When `~/Projects/Personal/.agent-safety` exists, access defaults to `~/Projects/Personal` and descendants. Outside access requires the exact path and action in the request.
+- Do not follow symlinks outside it or reuse company context, credentials, caches, or config.
+- Before Personal GitHub mutations or pushes, run `~/Projects/Personal/.agent-safety/verify-personal-github` to verify `ElbertePlinio`. Stop on failure; never switch accounts.
+- `claude-work` is company-only and forbidden there; use only a user-approved personal profile.
 
-## Git
+## Git and pull requests
 
-- Protect user work. Check status before staging, committing, merging, or cleaning.
-- Treat untracked files as user-owned.
-- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects.
-- Pickforge or Personal means the repo path or GitHub remote makes that ownership clear, such as `~/Projects/Pickforge/...`, `~/Projects/Personal/...`, `github.com/pickforge/...`, or `github.com/ElbertePlinio/...`. Outside those projects, explicit push permission is still required.
-- Commit messages must be English Conventional Commits.
-- Never add attribution or trailers: no `Co-authored-by`, no `Signed-off-by`, no bot names, no noreply addresses, no model names, no AI signatures.
-- Never use the word "Claude" in commit messages.
-
-### Pull requests
-
-- My GitHub repos use an automated Codex PR review (`chatgpt-codex-connector[bot]`).
-- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `$ship-pr` when that skill is available; otherwise open/update the PR yourself and run the same Codex review loop manually.
-- In clearly identified Pickforge or Personal projects, treat ship/open-PR as automatic when it is the natural next step (via `$ship-pr` if available); outside those projects, ask first.
-- Triage every review finding: fix valid findings; reply briefly with rationale for false positives.
-- React on each Codex finding as model feedback: 👍 when it is correct and useful; 👎 when it is incorrect or not useful. React on the finding itself, not the `@codex review` trigger; reactions do not replace replies or fixes.
-- Let the automatic review on PR open run first; use `@codex review` only after fixes or when the opening trigger fails.
-- Normally cap review at 3 distinct HEADs. Use round 4 only to verify a fix for a new valid P1/P2 found in round 3. Do not run a fifth round.
-- Do not merge with a review round in flight, failing required checks, unanswered findings, or a HEAD that Codex has not reviewed.
+- Protect user work: check status before staging, committing, merging, or cleaning; untracked files are user-owned.
+- Push only when asked, except in clearly identified Pickforge or Personal repos (path or `pickforge`/`ElbertePlinio` remote). Elsewhere explicit permission remains required.
+- Use English Conventional Commits. No attribution, trailers, bot/noreply/model names, AI signatures, or `Claude`.
+- For ship/open-PR/review-and-merge requests, use `ship-pr` where available; otherwise perform its focused validation, local review, PR, CI, and finding loop.
+- Pickforge and Personal repos may open/ship a PR when it is the natural next step; elsewhere ask first.
+- `$local-review` is the shipping review source. GitHub-hosted Codex review is optional escalation, not a default prerequisite; triage any findings.
+- Never merge with failing or in-flight required checks, unanswered valid findings, or an unreviewed current HEAD.
