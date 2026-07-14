@@ -1,0 +1,41 @@
+#!/bin/sh
+set -eu
+
+safety_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+personal_root=$(CDPATH= cd -- "$safety_dir/.." && pwd -P)
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+git_common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+
+if [ -z "$repo_root" ]; then
+  echo "Blocked: run this command inside a Git repository." >&2
+  exit 1
+fi
+
+repo_root=$(CDPATH= cd -- "$repo_root" && pwd -P)
+case "$repo_root/" in
+  "$personal_root/"*) ;;
+  *)
+    case "$git_common/" in
+      "$personal_root/"*) ;;
+      *)
+        echo "Blocked: repository is not a Personal project or its worktree." >&2
+        exit 1
+        ;;
+    esac
+    ;;
+esac
+
+existing=$(git config --local --get core.hooksPath 2>/dev/null || true)
+if [ -n "$existing" ] && [ "$existing" != "$safety_dir/hooks" ]; then
+  echo "Blocked: repository already has core.hooksPath=$existing; review it manually." >&2
+  exit 1
+fi
+
+default_hook=$(git rev-parse --git-path hooks/pre-push)
+if [ -z "$existing" ] && [ -e "$default_hook" ]; then
+  echo "Blocked: repository already has a pre-push hook; review it manually." >&2
+  exit 1
+fi
+
+git config --local core.hooksPath "$safety_dir/hooks"
+echo "Installed Personal pre-push safeguard in $repo_root"

@@ -1,9 +1,14 @@
 _agent_personal_context() {
-  local current personal_root
+  local current personal_root git_common
   current="${PWD:A}"
-  personal_root="$HOME/Projects/Personal"
+  personal_root="${HOME}/Projects/Personal"
   personal_root="${personal_root:A}"
-  [[ "$current" == "$personal_root" || "$current" == "$personal_root"/* ]]
+  if [[ "$current" == "$personal_root" || "$current" == "$personal_root"/* ]]; then
+    return 0
+  fi
+  git_common="$(command git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  git_common="${git_common:A}"
+  [[ "$git_common" == "$personal_root" || "$git_common" == "$personal_root"/* ]]
 }
 
 claude() {
@@ -11,35 +16,37 @@ claude() {
     "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
     return
   fi
-
   local gh_bin token
+  local -a clean_env
   gh_bin="$(command -v gh 2>/dev/null)"
   if [[ -n "$gh_bin" ]]; then
     token="$(GH_CONFIG_DIR="$HOME/Projects/Personal/.agent-safety/gh" "$gh_bin" auth token 2>/dev/null)"
   fi
+  clean_env=(
+    env
+    -u CLAUDE_CODE_USE_BEDROCK
+    -u AWS_ACCESS_KEY_ID
+    -u AWS_SECRET_ACCESS_KEY
+    -u AWS_SESSION_TOKEN
+    -u AWS_SECURITY_TOKEN
+    -u AWS_PROFILE
+    -u AWS_REGION
+    -u AWS_DEFAULT_REGION
+    -u AWS_ROLE_ARN
+    -u AWS_ROLE_SESSION_NAME
+    -u AWS_WEB_IDENTITY_TOKEN_FILE
+    -u AWS_SHARED_CREDENTIALS_FILE
+    -u AWS_CONFIG_FILE
+    -u AWS_CONTAINER_CREDENTIALS_FULL_URI
+    -u AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
+  )
   if [[ -n "$token" ]]; then
     CLAUDE_CONFIG_DIR="$HOME/.claude-personal" \
     GITHUB_PERSONAL_ACCESS_TOKEN="$token" \
-      env -u CLAUDE_CODE_USE_BEDROCK \
-        -u AWS_PROFILE \
-        -u AWS_REGION \
-        -u AWS_DEFAULT_REGION \
-        -u ANTHROPIC_MODEL \
-        -u ANTHROPIC_DEFAULT_OPUS_MODEL \
-        -u ANTHROPIC_DEFAULT_SONNET_MODEL \
-        -u ANTHROPIC_DEFAULT_HAIKU_MODEL \
-        "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
+      "${clean_env[@]}" "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
   else
     CLAUDE_CONFIG_DIR="$HOME/.claude-personal" \
-      env -u CLAUDE_CODE_USE_BEDROCK \
-        -u AWS_PROFILE \
-        -u AWS_REGION \
-        -u AWS_DEFAULT_REGION \
-        -u ANTHROPIC_MODEL \
-        -u ANTHROPIC_DEFAULT_OPUS_MODEL \
-        -u ANTHROPIC_DEFAULT_SONNET_MODEL \
-        -u ANTHROPIC_DEFAULT_HAIKU_MODEL \
-        "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
+      "${clean_env[@]}" "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
   fi
 }
 

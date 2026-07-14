@@ -67,9 +67,23 @@ cmd_apply() {
   cmd_check
   cmd_strict_preflight
 
-  mkdir -p "${HOME}/.claude-personal/skills" "${HOME}/Projects/Personal/.codex"
+  mkdir -p \
+    "${HOME}/.claude-personal/rules" \
+    "${HOME}/.claude-personal/skills/codex-fable" \
+    "${HOME}/.claude-personal/skills/codex-opus" \
+    "${HOME}/.claude-personal/skills/kickoff" \
+    "${HOME}/.claude-personal/skills/codex" \
+    "${HOME}/.claude-personal/skills/ship-pr" \
+    "${HOME}/.codex/skills/model-orchestration/references" \
+    "${HOME}/.codex/skills/ship-pr" \
+    "${HOME}/.grok/skills/model-orchestration" \
+    "${HOME}/Projects/Personal/.codex" \
+    "${HOME}/Projects/Personal/.agent-safety/bin" \
+    "${HOME}/Projects/Personal/.agent-safety/hooks"
 
   local -a targets=(
+    "${HOME}/.zshrc"
+    "${HOME}/.bashrc"
     "${HOME}/.claude-personal/CLAUDE.md"
     "${HOME}/.claude-personal/RTK.md"
     "${HOME}/.claude-personal/codex-opus-workflow.html"
@@ -83,6 +97,13 @@ cmd_apply() {
     "${HOME}/.codex/skills/model-orchestration/SKILL.md"
     "${HOME}/.codex/skills/model-orchestration/references/model-routing.md"
     "${HOME}/Projects/Personal/.codex/config.toml"
+    "${HOME}/Projects/Personal/.codex/AGENTS.md"
+    "${HOME}/Projects/Personal/.codex/skills"
+    "${HOME}/Projects/Personal/.agent-safety/bin/gh"
+    "${HOME}/Projects/Personal/.agent-safety/bin/gh-credential"
+    "${HOME}/Projects/Personal/.agent-safety/verify-personal-github"
+    "${HOME}/Projects/Personal/.agent-safety/install-repo-hook"
+    "${HOME}/Projects/Personal/.agent-safety/hooks/pre-push"
     "${HOME}/.grok/AGENTS.md"
     "${HOME}/.pi/agent/AGENTS.md"
     "${HOME}/.omp/agent/AGENTS.md"
@@ -114,7 +135,7 @@ cmd_apply() {
     [[ -n "$link" ]] && targets+=("$link")
   done < <(portable_link_targets)
 
-  chezmoi "${SRC[@]}" apply --force "${targets[@]}"
+  chezmoi "${SRC[@]}" apply --no-tty "${targets[@]}"
   bash "$CHECK" --check-live-migration --require-portable-links
 }
 

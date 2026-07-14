@@ -56,6 +56,8 @@ dot_codex/sqlite/
 dot_codex/tmp/
 dot_codex/*.sqlite*
 
-# Personal Codex stores only its managed config in this source tree.
+# Personal Codex stores only managed config and shared-profile links.
 Projects/Personal/dot_codex/*
 !Projects/Personal/dot_codex/config.toml
+!Projects/Personal/dot_codex/symlink_AGENTS.md
+!Projects/Personal/dot_codex/symlink_skills
