@@ -63,6 +63,53 @@ portable_link_targets() {
   ' "$MANIFEST"
 }
 
+bootstrap_real_gh() {
+  local safety_dir real_gh candidate
+  safety_dir="${HOME}/Projects/Personal/.agent-safety"
+  real_gh="${safety_dir}/real-gh"
+
+  if [[ -e "$real_gh" || -L "$real_gh" ]]; then
+    [[ -x "$real_gh" ]] || {
+      echo "agent-config-sync: Personal GitHub real-gh exists but is not executable: $real_gh" >&2
+      return 1
+    }
+    return
+  fi
+
+  for candidate in /usr/bin/gh /usr/local/bin/gh /opt/homebrew/bin/gh /opt/local/bin/gh; do
+    if [[ -x "$candidate" ]]; then
+      ln -s "$candidate" "$real_gh"
+      return
+    fi
+  done
+
+  echo 'agent-config-sync: cannot find a system GitHub CLI for Personal real-gh' >&2
+  return 1
+}
+
+preflight_unmanaged_targets() {
+  local target state
+  local -a managed_targets
+  mapfile -d '' -t managed_targets < <(
+    chezmoi "${SRC[@]}" managed \
+      --include=files,symlinks \
+      --path-style=absolute \
+      --nul-path-separator \
+      "$@"
+  )
+
+  for target in "${managed_targets[@]}"; do
+    [[ -e "$target" || -L "$target" ]] || continue
+    state="$(chezmoi state get --bucket=entryState --key="$target" 2>/dev/null || true)"
+    [[ -n "$state" ]] && continue
+    if chezmoi "${SRC[@]}" verify "$target" >/dev/null 2>&1; then
+      continue
+    fi
+    echo "agent-config-sync: refusing to overwrite pre-existing unmanaged target: $target" >&2
+    return 1
+  done
+}
+
 cmd_apply() {
   cmd_check
   cmd_strict_preflight
@@ -134,6 +181,9 @@ cmd_apply() {
   while IFS= read -r link; do
     [[ -n "$link" ]] && targets+=("$link")
   done < <(portable_link_targets)
+
+  preflight_unmanaged_targets "${targets[@]}"
+  bootstrap_real_gh
 
   chezmoi "${SRC[@]}" apply --no-tty "${targets[@]}"
   bash "$CHECK" --check-live-migration --require-portable-links
