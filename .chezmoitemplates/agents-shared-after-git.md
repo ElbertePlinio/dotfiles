@@ -10,7 +10,26 @@ Repo patterns win. With `.fvmrc` or `.fvm/`, use `fvm flutter`/`fvm dart`. Keep 
 
 Keep Markdown short, useful, and human-written unless the user asks for more or clarity requires it.
 
-## Validation and reporting
+## HTML readability artifacts
+
+For substantial brainstorms, plans, architecture diagrams, comparisons, or
+reports, offer an optional standalone HTML page when visual structure would make
+the material easier to understand.
+
+- Never create the HTML page automatically. Ask first and wait for my explicit
+  approval.
+- If I explicitly request an HTML page, that request is approval; do not ask a
+  second time.
+- Keep the normal chat explanation understandable on its own. HTML improves the
+  presentation; it does not replace a clear answer.
+- Once approved, make the page responsive and self-contained, avoid remote
+  dependencies or telemetry unless requested, and verify both desktop and mobile
+  rendering.
+- Save every standalone HTML artifact under `~/Projects/Boards`, never inside the active project repository.
+- Use `~/Projects/Boards/<project-slug>/` for project-specific boards and `~/Projects/Boards/_global/<topic>/` for cross-project or system-wide boards. Use concise kebab-case filenames.
+- This storage rule applies to generated reports, plans, diagrams, comparisons, and other presentation artifacts. HTML files that are required source code for a repository or application stay in that repository.
+
+## Before finishing
 
 Run the narrowest behavioral validation that proves the change. If blocked, say why and name the command. Final coding reports are evidence-based: changed, validated, risks/uncertainties, and next action only if needed.
 

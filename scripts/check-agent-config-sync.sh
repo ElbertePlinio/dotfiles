@@ -44,10 +44,10 @@ validate_omp_agent_override() {
     return
   fi
 
-  if grep -Eq '^[[:space:]]*model:[[:space:]]*\[[[:space:]]*pi/task[[:space:]]*\][[:space:]]*$' "$path"; then
-    pass "OMP ${role} override uses pi/task"
+  if grep -Fq '  - openai-codex/gpt-5.6-terra' "$path"; then
+    pass "OMP ${role} override uses GPT-5.6 Terra"
   else
-    err "OMP ${role} override must use model: [pi/task]"
+    err "OMP ${role} override must use GPT-5.6 Terra"
   fi
 
   if grep -Eq '^[[:space:]]*thinkingLevel:[[:space:]]*medium[[:space:]]*$' "$path"; then
@@ -131,7 +131,6 @@ OMP_AGENT_OVERRIDES_DIR="$ROOT/dot_omp/agent/agents"
 OMP_TASK_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/task.md"
 OMP_REVIEWER_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/reviewer.md"
 
-
 RUNTIME_SOURCE_PATHS=(
   private_dot_hermes/private_skills/dot_curator_backups
   private_dot_hermes/private_skills/encrypted_empty_dot_usage.json.lock.age
@@ -145,6 +144,20 @@ RUNTIME_SOURCE_PATHS=(
   dot_pi/agent/encrypted_mcp-npx-cache.json.age
   dot_pi/agent/encrypted_mcp-onboarding.json.age
   dot_pi/agent/pi-hermes-memory/encrypted_dot_skills-migrated-to-extension-storage.age
+  dot_codex/encrypted_private_auth.json.age
+  dot_codex/encrypted_private_config.toml.age
+  dot_codex/rules
+  dot_codex/version.json
+  dot_codex/archived_sessions
+  dot_codex/cache
+  dot_codex/history.jsonl
+  dot_codex/log
+  dot_codex/memories
+  dot_codex/sessions
+  dot_codex/shell_snapshots
+  dot_codex/sqlite
+  dot_codex/tmp
+  'dot_codex/*.sqlite*'
   dot_omp/agent/sessions
   dot_omp/agent/terminal-sessions
   dot_omp/agent/blobs
@@ -179,6 +192,20 @@ RUNTIME_IGNORE_PATHS=(
   .pi/agent/mcp-npx-cache.json
   .pi/agent/mcp-onboarding.json
   .pi/agent/pi-hermes-memory/.skills-migrated-to-extension-storage
+  .codex/auth.json
+  .codex/config.toml
+  .codex/rules
+  .codex/version.json
+  .codex/archived_sessions
+  .codex/cache
+  .codex/history.jsonl
+  .codex/log
+  .codex/memories
+  .codex/sessions
+  .codex/shell_snapshots
+  .codex/sqlite
+  .codex/tmp
+  '.codex/*.sqlite*'
   .omp/agent/sessions
   .omp/agent/terminal-sessions
   .omp/agent/blobs
@@ -204,7 +231,7 @@ RUNTIME_IGNORE_PATHS=(
 check_runtime_exclusions() {
   local path
   for path in "${RUNTIME_SOURCE_PATHS[@]}"; do
-    [[ ! -e "$ROOT/$path" ]] || err "runtime state still tracked: $path"
+    compgen -G "$ROOT/$path" >/dev/null && err "runtime state still tracked: $path"
   done
   for path in "${RUNTIME_IGNORE_PATHS[@]}"; do
     grep -Fxq "$path" "$ROOT/.chezmoiignore" || err "runtime ignore missing: $path"
@@ -251,7 +278,7 @@ check_manifest_and_sources() {
     fi
   done
 
-  if [[ -e "$ROOT/dot_claude/skills/context7-mcp" ]]; then
+  if [[ -e "$ROOT/dot_claude-personal/skills/context7-mcp" ]]; then
     err 'duplicate Claude context7 source still present (expected symlink only)'
   else
     pass 'no duplicate Claude context7 source directory'
@@ -311,7 +338,6 @@ validate_omp_mcp_credentials() {
       | length == 0)
   ' "$config" >/dev/null
 }
-
 check_mcp_registry_and_config() {
   need "$MCP_REGISTRY"
   need "$OMP_MCP"
@@ -480,6 +506,30 @@ check_mcp_registry_and_config() {
   fi
   rm -f "$credential_probe"
 
+  if jq -e '
+    def credential_key:
+      ascii_downcase
+      | test("(^|[_-])(token|secret|api[_-]?key|access[_-]?key)($|[_-])");
+    ([.. | objects | to_entries[]
+      | select(
+          (.key | credential_key)
+          and (.value | type == "string")
+          and (.value | length > 0)
+          and ((.value | startswith("!")) | not)
+        )]
+      | length == 0)
+    and
+    ([.. | strings
+      | select(test(
+          "^(bearer[[:space:]]+|sk_(live|test)_|sk-(proj-)?|gh[pousr]_|xox[baprs]-|eyJ[A-Za-z0-9_-]+\\\\.)";
+          "i"
+        ))]
+      | length == 0)
+  ' "$OMP_MCP" >/dev/null; then
+    pass 'OMP MCP has no suspicious literal credential values'
+  else
+    err 'OMP MCP contains a suspicious literal token, secret, or key value'
+  fi
   if jq -e -n --slurpfile registry "$MCP_REGISTRY" --slurpfile config "$OMP_MCP" '
     ($registry[0].omp.native | sort)
     ==
@@ -585,9 +635,9 @@ check_live_native_routing_ancestors() {
 check_live_native_routing_files() {
   local live rendered
   local -a files=(
-    "${HOME}/.claude/skills/codex-fable/SKILL.md"
-    "${HOME}/.claude/skills/codex-opus/SKILL.md"
-    "${HOME}/.claude/skills/kickoff/SKILL.md"
+    "${HOME}/.claude-personal/skills/codex-fable/SKILL.md"
+    "${HOME}/.claude-personal/skills/codex-opus/SKILL.md"
+    "${HOME}/.claude-personal/skills/kickoff/SKILL.md"
     "${HOME}/.codex/skills/model-orchestration/SKILL.md"
     "${HOME}/.codex/skills/model-orchestration/references/model-routing.md"
   )
@@ -745,7 +795,7 @@ SHARED=(
   .chezmoitemplates/agents-shared-after-git.md
 )
 HARNESS=(
-  'dot_claude/CLAUDE.md.tmpl|# Global Claude Rules|# Personal Codex Notes'
+  'dot_claude-personal/CLAUDE.md.tmpl|# Global Claude Rules|# Personal Codex Notes'
   'dot_codex/AGENTS.md.tmpl|# Personal Codex Notes|# Global Claude Rules'
   'dot_grok/AGENTS.md.tmpl|# Personal Grok Notes|# Personal Codex Notes'
   'dot_pi/agent/AGENTS.md.tmpl|# Personal Pi Notes|# Personal Codex Notes'
@@ -754,7 +804,7 @@ HARNESS=(
 )
 SOUL=private_dot_hermes/SOUL.md.tmpl
 OPENCODE=dot_config/opencode/AGENTS.md
-SHARED_MAX_BYTES=6100
+SHARED_MAX_BYTES=12500
 REQUIRED_SHARED_INVARIANTS=(
   'I like short, practical work. Read the repo, make the smallest clean change, and show proof before calling something done.'
   '- Be direct: no filler or ceremony. Fix root causes, not symptoms.'
@@ -765,11 +815,13 @@ REQUIRED_SHARED_INVARIANTS=(
   '- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.'
   '- Never use Anthropic Haiku, directly, indirectly, or as a fallback.'
   'verify-personal-github` to verify `ElbertePlinio`'
-  '- Protect user work: check status before staging, committing, merging, or cleaning; untracked files are user-owned.'
-  '- Push only when asked, except in clearly identified Pickforge or Personal repos'
-  '- Use English Conventional Commits. No attribution, trailers, bot/noreply/model names, AI signatures, or `Claude`.'
-  '`$local-review` is the shipping review source. GitHub-hosted Codex review is optional escalation, not a default prerequisite'
-  'Never merge with failing or in-flight required checks, unanswered valid findings, or an unreviewed current HEAD.'
+  '- Protect user work. Check status before staging, committing, merging, or cleaning.'
+  '- Treat untracked files as user-owned.'
+  '- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects.'
+  '- Commit messages must be English Conventional Commits.'
+  '- Never add attribution or trailers: no `Co-authored-by`, no `Signed-off-by`, no bot names, no noreply addresses, no model names, no AI signatures.'
+  '- `$local-review` is the review-policy source of truth; do not restate its profiles, model composition, findings, or round rules elsewhere.'
+  '- Do not merge with failing required checks, unanswered valid findings, or an incomplete review required by the change'
   '~/Projects/.worktrees/<repo-name>/<branch-name>'
   'Run the narrowest behavioral validation that proves the change.'
   '/home/dev/AgentMemory'
@@ -780,17 +832,17 @@ REQUIRED_SHARED_INVARIANTS=(
   'projects/*.md'
   'Never store secrets in memory.'
   'never edit only a rendered `$HOME` file'
-  '- Use `context7-mcp` or native Context7 when current library/API docs matter.'
-  '- Use `design-director` for material UI/UX work, plus any repo-specific design skill.'
-  '- For ship/open-PR/review-and-merge requests, use `ship-pr` where available'
+  '- Use Context7 when library/API details matter and it is available.'
+  '- For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation.'
+  '- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `$ship-pr` when available.'
 )
 
 ADAPTER_BUDGETS=(
-  'dot_claude/CLAUDE.md.tmpl|2600'
-  'dot_codex/AGENTS.md.tmpl|1200'
+  'dot_claude-personal/CLAUDE.md.tmpl|3000'
+  'dot_codex/AGENTS.md.tmpl|2000'
   'dot_grok/AGENTS.md.tmpl|700'
-  'dot_pi/agent/AGENTS.md.tmpl|900'
-  'dot_omp/agent/AGENTS.md.tmpl|1200'
+  'dot_pi/agent/AGENTS.md.tmpl|1800'
+  'dot_omp/agent/AGENTS.md.tmpl|2800'
   'private_dot_factory/AGENTS.md.tmpl|1000'
 )
 
@@ -803,9 +855,9 @@ STALE_PI_FLOW_PATHS=(
 )
 
 ROUTING_SKILL_TARGETS=(
-  "$HOME/.claude/skills/codex-fable/SKILL.md"
-  "$HOME/.claude/skills/codex-opus/SKILL.md"
-  "$HOME/.claude/skills/kickoff/SKILL.md"
+  "$HOME/.claude-personal/skills/codex-fable/SKILL.md"
+  "$HOME/.claude-personal/skills/codex-opus/SKILL.md"
+  "$HOME/.claude-personal/skills/kickoff/SKILL.md"
   "$HOME/.codex/skills/model-orchestration/SKILL.md"
   "$HOME/.codex/skills/model-orchestration/references/model-routing.md"
 )
@@ -890,19 +942,19 @@ for entry in "${ADAPTER_BUDGETS[@]}"; do
   fi
 done
 
-for path in dot_claude/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl \
-  dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl private_dot_factory/AGENTS.md.tmpl; do
+for path in dot_claude-personal/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl \
+  dot_grok/AGENTS.md.tmpl private_dot_factory/AGENTS.md.tmpl; do
   grep -qiE '^\|.*cost.*intelligence.*taste.*vision.*\|$' "$path" \
     && err "adapter embeds a full model scoring table: $path" \
     || pass "adapter has no full model scoring table: $path"
 done
 
 ADAPTER_OWNER_POINTERS=(
-  'dot_claude/CLAUDE.md.tmpl|model-routing.md|Claude'
+  'dot_claude-personal/CLAUDE.md.tmpl|model-routing.md|Claude'
   'dot_codex/AGENTS.md.tmpl|$model-orchestration|Codex'
   'dot_grok/AGENTS.md.tmpl|model-orchestration|Grok'
-  'dot_pi/agent/AGENTS.md.tmpl|runtime model pool|Pi'
-  'dot_omp/agent/AGENTS.md.tmpl|runtime model pool|OMP'
+  'dot_pi/agent/AGENTS.md.tmpl|Available managed pool|Pi'
+  'dot_omp/agent/AGENTS.md.tmpl|Available managed pool|OMP'
   'private_dot_factory/AGENTS.md.tmpl|runtime model pool|Factory'
 )
 for entry in "${ADAPTER_OWNER_POINTERS[@]}"; do
@@ -912,12 +964,12 @@ for entry in "${ADAPTER_OWNER_POINTERS[@]}"; do
     || err "$harness adapter missing routing owner pointer: $pointer"
 done
 
-if grep -Fq '`agent()`' dot_omp/agent/AGENTS.md.tmpl \
+if grep -Fq 'await agent(prompt' dot_omp/agent/AGENTS.md.tmpl \
   && grep -Fq '`parallel()`' dot_omp/agent/AGENTS.md.tmpl \
-  && grep -Fq 'is a leaf' dot_omp/agent/AGENTS.md.tmpl; then
-  pass 'OMP adapter uses native agent/parallel mechanics and leaf behavior'
+  && grep -Fq 'The main model owns scope' dot_omp/agent/AGENTS.md.tmpl; then
+  pass 'OMP adapter uses native agent/parallel mechanics and main-session ownership'
 else
-  err 'OMP adapter missing native agent/parallel mechanics or leaf behavior'
+  err 'OMP adapter missing native agent/parallel mechanics or main-session ownership'
 fi
 
 for path in "${STALE_PI_FLOW_PATHS[@]}"; do
@@ -985,7 +1037,7 @@ for target in "${ROUTING_SKILL_TARGETS[@]}"; do
 
   case "$target" in
     */codex-fable/SKILL.md|*/codex-opus/SKILL.md)
-      grep -Fq 'Before routing or casting any worker or reviewer, read `~/.codex/skills/model-orchestration/references/model-routing.md` completely.' <<<"$decrypted" \
+      grep -Fq 'Before selecting any worker or reviewer, read `~/.codex/skills/model-orchestration/references/model-routing.md` completely.' <<<"$decrypted" \
         && pass 'Claude workflow requires the model-routing owner before routing' \
         || err 'Claude workflow missing required pre-routing model-routing read'
       ;;
@@ -1006,7 +1058,6 @@ unset decrypted
 
 check_manifest_and_sources
 check_omp_agent_override_sources
-
 check_mcp_registry_and_config
 check_runtime_exclusions
 
@@ -1035,14 +1086,14 @@ done
 render "$SOUL" "$TMP/SOUL.md" && pass 'rendered Hermes SOUL' || err 'Hermes SOUL render failed'
 
 TARGETS=(
-  "$DEST/.claude/CLAUDE.md" "$DEST/.codex/AGENTS.md" "$DEST/.grok/AGENTS.md"
+  "$DEST/.claude-personal/CLAUDE.md" "$DEST/.codex/AGENTS.md" "$DEST/.grok/AGENTS.md"
   "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json"
   "$DEST/.omp/agent/agents"
   "$DEST/.factory/AGENTS.md" "$DEST/.config/opencode/AGENTS.md" "$DEST/.hermes/SOUL.md"
 )
 EXPECTED=(
-  dot_claude/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl
+  dot_claude-personal/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl
   dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/agents
   dot_omp/agent/config.yml dot_omp/agent/mcp.json
@@ -1059,7 +1110,7 @@ chezmoi "${SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TMP/st
   && pass 'dry-run status (temp dest)' || err "dry-run status failed: $(tr '\n' ' ' <"$TMP/st.err")"
 
 mkdir -p "$DEST/.grok" "$DEST/.hermes" "$DEST/.config/opencode" \
-  "$DEST/.claude/skills" "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
+  "$DEST/.claude-personal/skills" "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
   "$DEST/.factory/skills" "$DEST/.grok/skills" "$DEST/.hermes/skills" "$DEST/.agents/skills"
 ln -s ../.codex/AGENTS.md "$DEST/.grok/AGENTS.md"
 printf '%s\n' 'You are Hermes Agent, an intelligent AI assistant created by Nous Research.' >"$DEST/.hermes/SOUL.md"
@@ -1103,9 +1154,9 @@ else
 fi
 
 if [[ -d "$DEST/.agents/skills/context7-mcp" ]]; then
-  rm -rf "$DEST/.claude/skills/context7-mcp"
-  cp -a "$DEST/.agents/skills/context7-mcp" "$DEST/.claude/skills/context7-mcp"
-  if dirs_identical "$DEST/.claude/skills/context7-mcp" "$DEST/.agents/skills/context7-mcp"; then
+  rm -rf "$DEST/.claude-personal/skills/context7-mcp"
+  cp -a "$DEST/.agents/skills/context7-mcp" "$DEST/.claude-personal/skills/context7-mcp"
+  if dirs_identical "$DEST/.claude-personal/skills/context7-mcp" "$DEST/.agents/skills/context7-mcp"; then
     pass 'seeded Claude context7 as identical regular directory'
   else
     err 'failed to seed identical Claude context7 directory'

@@ -3,8 +3,8 @@
   "canonical_source": "dot_agents/skills",
   "harnesses": {
     "claude": {
-      "skills_root": "~/.claude/skills",
-      "source_root": "dot_claude/skills",
+      "skills_root": "~/.claude-personal/skills",
+      "source_root": "dot_claude-personal/skills",
       "discovery": "symlink",
       "relative_prefix": "../../.agents/skills"
     },

@@ -14,8 +14,8 @@ Keep the current Grok session as orchestrator. It owns scope, contracts, routing
 3. Reconsider the full table for every task using risk, uncertainty, context size, tools and modalities, validation options, output quality, and pool headroom.
 4. Use the lightest sufficient mode:
    - `simple`: the current session completes and validates the task.
-   - `standard`: one implementer and one independent reviewer.
-   - `serious`: 2-3 complementary reviewers plus anti-overengineering review.
+   - `standard`: one implementation lane, then `$local-review`.
+   - `serious`: risk-targeted orchestration, then `$local-review`.
    - `fanout`: isolated worktrees only for genuinely independent scopes.
 5. Before a multi-task wave, use `$pickgauge-usage` to check pool headroom.
 
@@ -67,8 +67,8 @@ Pass self-contained prompts with repo rules, scope, contracts, file ownership, n
 - Keep scouts, reviewers, and dissenters read-only.
 - GLM is text-only. Convert visual evidence to text before routing it there.
 - Do not route secrets, credentials, or private production data to external model prompts.
-- If an explicitly required model is unavailable, stop. Otherwise use the closest compatible substitute and report it.
+- Report every substitution. If Fable 5 is unavailable, use Opus 4.8 at xhigh, then Grok 4.5 at high. If GPT-5.6 Sol is unavailable, use GPT-5.6 Terra at xhigh. For other unavailable models, use the closest compatible substitute. Stop when the user explicitly requires the unavailable model or no substitute fits.
 - If this Grok session was launched as a leaf by another orchestrator, do the assigned task directly and do not re-delegate.
-- Serious and fan-out work must include an anti-overengineering pass before acceptance.
+- After behavioral validation, follow `$local-review`; it owns review models, profiles, provider diversity, critical adjudication, overengineering, findings, and rounds.
 
 Synthesize every worker result in the main session. Reject weak or contradictory output, run the narrowest useful validation, and report changes, proof, and residual risk.

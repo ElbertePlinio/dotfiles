@@ -1,19 +1,31 @@
 ---
 name: reviewer
-description: "Code review specialist for quality/security analysis"
-tools: read, grep, glob, bash, lsp, web_search, ast_grep
-spawns: scout
-model: [pi/task]
+description: Code review specialist for quality/security analysis
+tools:
+  - read
+  - grep
+  - glob
+  - bash
+  - lsp
+  - web_search
+  - ast_grep
+  - yield
+spawns:
+  - scout
+model:
+  - openai-codex/gpt-5.6-terra
 thinkingLevel: medium
 output:
   properties:
     overall_correctness:
       metadata:
         description: Whether change correct (no bugs/blockers)
-      enum: [correct, incorrect]
+      enum:
+        - correct
+        - incorrect
     explanation:
       metadata:
-        description: Plain-text verdict summary, 1-3 sentences
+        description: "Plain-text verdict summary, 1-3 sentences"
       type: string
     confidence:
       metadata:
@@ -27,7 +39,7 @@ output:
         properties:
           title:
             metadata:
-              description: Imperative, ≤80 chars
+              description: "Imperative, ≤80 chars"
             type: string
           body:
             metadata:
@@ -39,7 +51,7 @@ output:
             type: number
           confidence:
             metadata:
-              description: Confidence it's real bug (0.0-1.0)
+              description: "Confidence it's real bug (0.0-1.0)"
             type: number
           file_path:
             metadata:
@@ -51,7 +63,7 @@ output:
             type: number
           line_end:
             metadata:
-              description: Last line (1-indexed, ≤10 lines)
+              description: "Last line (1-indexed, ≤10 lines)"
             type: number
 ---
 
@@ -107,7 +119,7 @@ routing logic is the single most common source of missed integration bugs in rev
 
 <example name="finding">
 <title>Validate input length before buffer copy</title>
-<body>When `data.length > BUFFER_SIZE`, `memcpy` writes past buffer boundary. Occurs if API returns oversized payload, causing heap corruption.</body>
+<body>When `data.length > BUFFER_SIZE`, `memcpy` writes past buffer boundary. Occurs if API returns oversized payloads, causing heap corruption.</body>
 ```suggestion
 if (data.length > BUFFER_SIZE) return -EINVAL;
 memcpy(buf, data.ptr, data.length);
