@@ -1,8 +1,9 @@
 ---
 name: task
-description: "General-purpose subagent with full capabilities for delegated multi-step tasks"
+description: General-purpose subagent with full capabilities for delegated multi-step tasks
 spawns: "*"
-model: [pi/task]
+model:
+  - openai-codex/gpt-5.6-terra
 thinkingLevel: medium
 ---
 

@@ -35,14 +35,7 @@ export CHROME_EXECUTABLE=/usr/bin/google-chrome-stable
 
 alias claude-mem='bun "/home/dev/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
 
-# Feed the gh CLI token to Claude Code's github MCP plugin, scoped to this process only.
-claude() {
-  GITHUB_PERSONAL_ACCESS_TOKEN="$(command gh auth token 2>/dev/null)" command claude --dangerously-skip-permissions "$@"
-}
-
-codex() {
-  command codex --yolo "$@"
-}
+{{ template "zshrc-common" . -}}
 export PATH="$HOME/.opencode/bin:$PATH"
 # Factory API keys (NOT chezmoi-managed, keep local)
 [ -f "$HOME/.config/factory-keys.env" ] && source "$HOME/.config/factory-keys.env"
@@ -284,6 +277,26 @@ pi-fable-traces() {
   OPENAI_API_KEY="none" \
   OPENAI_BASE_URL="http://127.0.0.1:8080/v1" \
   pi --provider openai --model fable-traces "$@"
+}
+
+# Claude Code on the GPT-5.6 Codex subscription via cli-proxy-api.
+claude-codex() {
+  local model="${CLAUDE_CODEX_MODEL:-gpt-5.6-terra}"
+  CLAUDE_CONFIG_DIR="$HOME/.claude-personal" \
+  ANTHROPIC_BASE_URL="http://127.0.0.1:8317" \
+  ANTHROPIC_AUTH_TOKEN="$CLIPROXY_API_KEY" \
+  ANTHROPIC_MODEL="$model" \
+  ANTHROPIC_SMALL_FAST_MODEL="gpt-5.6-luna" \
+    "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
+}
+claude-terra() { CLAUDE_CODEX_MODEL="gpt-5.6-terra" claude-codex "$@"; }
+claude-sol()   { CLAUDE_CODEX_MODEL="gpt-5.6-sol"   claude-codex "$@"; }
+claude-luna()  { CLAUDE_CODEX_MODEL="gpt-5.6-luna"  claude-codex "$@"; }
+
+claudex() {
+  CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1 \
+  ENABLE_TOOL_SEARCH=auto \
+    claude-sol "$@"
 }
 
 # >>> grok installer >>>

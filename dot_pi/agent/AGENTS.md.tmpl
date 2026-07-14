@@ -4,7 +4,33 @@
 
 ## Native model orchestration
 
-- Prefer Pi-native subagents when independent execution or review materially improves the result. `pi-subagents` accepts a per-call model override; the runtime model pool owns available selectors and capability differences.
-- Choose the agent prompt, model, and reasoning effort independently rather than assigning permanent model roles. The main session owns scope, synthesis, validation, and final acceptance.
-- A subagent running under another orchestrator is a leaf: do the assigned work directly and do not re-delegate.
-- If an explicitly required model is unavailable, stop and report it. Otherwise use only a compatible runtime substitute and disclose it.
+Outside the shared Grok effort and review rules, choose the agent prompt, model, and
+reasoning effort independently. Do not map models permanently to roles such as
+scout, architect, or coder.
+
+`pi-subagents` accepts a per-call `model` override. Pass the full selector with
+an effort suffix when useful, for example
+`openai-codex/gpt-5.5:high` or `anthropic/claude-fable-5:medium`.
+
+Available managed pool:
+
+| Model | Selector | Start | Cost | Intelligence | Taste | Vision |
+|---|---|---:|---:|---:|---:|---|
+| GPT-5.5 | `openai-codex/gpt-5.5` | high | — | — | — | yes |
+| Fable 5 | `anthropic/claude-fable-5` | high | 2 | 9 | 9 | yes |
+| Opus 4.8 | `anthropic/claude-opus-4-8` | xhigh | 4 | 7 | 8 | yes |
+| Sonnet 4.6 | `anthropic/claude-sonnet-4-6` | high | — | — | — | yes |
+| GLM-5.2 | `ollama/glm-5.2:cloud` | provider default | 7 | 8 | 7 | no |
+
+The `Start` column is only an initial reasoning-effort prior. Opus 4.8 is the
+exception and always runs at xhigh effort. Adjust other models for the task's
+uncertainty and validation surface. The comparative ratings are selection
+context, not permanent role assignments. Pi's installed catalog does not
+currently expose GPT-5.6 or native xAI OAuth; OMP has the expanded pool.
+
+Prefer Pi-native subagents over launching `claude`, `codex`, `grok`, or
+`ollama` CLIs from inside Pi. Keep the CLIs for provider-native features or
+when operating from another harness.
+
+The main model owns scope, model selection, synthesis, validation, and the
+final answer. Use parallel subagents only for genuinely independent work.
