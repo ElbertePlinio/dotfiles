@@ -672,6 +672,28 @@ check_live_native_routing_files() {
   rm -f "$rendered"
 }
 
+check_live_split_profile_targets() {
+  local -a targets=(
+    "${HOME}/.zshrc"
+    "${HOME}/.bashrc"
+    "${HOME}/.claude-personal"
+    "${HOME}/Projects/Personal/.codex/config.toml"
+    "${HOME}/Projects/Personal/.codex/AGENTS.md"
+    "${HOME}/Projects/Personal/.codex/skills"
+    "${HOME}/Projects/Personal/.agent-safety/bin/gh"
+    "${HOME}/Projects/Personal/.agent-safety/bin/gh-credential"
+    "${HOME}/Projects/Personal/.agent-safety/verify-personal-github"
+    "${HOME}/Projects/Personal/.agent-safety/install-repo-hook"
+    "${HOME}/Projects/Personal/.agent-safety/hooks/pre-push"
+  )
+
+  if chezmoi "${SRC[@]}" verify "${targets[@]}" >/dev/null 2>&1; then
+    pass 'live Personal/work split profile matches managed target state'
+  else
+    err 'live Personal/work split profile differs from managed target state'
+  fi
+}
+
 if [[ "$MODE" == live ]]; then
   if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
     echo "== agent-config-sync strict live preflight (read-only) =="
@@ -779,6 +801,10 @@ if [[ "$MODE" == live ]]; then
     check_live_portable_links
   else
     err "manifest missing for live portable checks: $MANIFEST"
+  fi
+
+  if [[ "$STRICT_PREFLIGHT" -eq 0 ]]; then
+    check_live_split_profile_targets
   fi
 
   echo
@@ -1086,17 +1112,49 @@ done
 render "$SOUL" "$TMP/SOUL.md" && pass 'rendered Hermes SOUL' || err 'Hermes SOUL render failed'
 
 TARGETS=(
-  "$DEST/.claude-personal/CLAUDE.md" "$DEST/.codex/AGENTS.md" "$DEST/.grok/AGENTS.md"
-  "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
-  "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json"
-  "$DEST/.omp/agent/agents"
+  "$DEST/.zshrc" "$DEST/.bashrc"
+  "$DEST/.claude-personal/CLAUDE.md" "$DEST/.claude-personal/RTK.md"
+  "$DEST/.claude-personal/codex-opus-workflow.html"
+  "$DEST/.claude-personal/rules/context7.md" "$DEST/.claude-personal/settings.json"
+  "$DEST/.claude-personal/skills/codex-fable/SKILL.md"
+  "$DEST/.claude-personal/skills/codex-opus/SKILL.md"
+  "$DEST/.claude-personal/skills/kickoff/SKILL.md"
+  "$DEST/.claude-personal/skills/codex/SKILL.md"
+  "$DEST/.claude-personal/skills/ship-pr/SKILL.md"
+  "$DEST/.codex/AGENTS.md"
+  "$DEST/Projects/Personal/.codex/config.toml"
+  "$DEST/Projects/Personal/.codex/AGENTS.md"
+  "$DEST/Projects/Personal/.codex/skills"
+  "$DEST/Projects/Personal/.agent-safety/bin/gh"
+  "$DEST/Projects/Personal/.agent-safety/bin/gh-credential"
+  "$DEST/Projects/Personal/.agent-safety/verify-personal-github"
+  "$DEST/Projects/Personal/.agent-safety/install-repo-hook"
+  "$DEST/Projects/Personal/.agent-safety/hooks/pre-push"
+  "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
+  "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json" "$DEST/.omp/agent/agents"
   "$DEST/.factory/AGENTS.md" "$DEST/.config/opencode/AGENTS.md" "$DEST/.hermes/SOUL.md"
 )
 EXPECTED=(
-  dot_claude-personal/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl
-  dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
-  dot_omp/agent/agents
-  dot_omp/agent/config.yml dot_omp/agent/mcp.json
+  dot_zshrc.tmpl dot_bashrc
+  dot_claude-personal/CLAUDE.md.tmpl dot_claude-personal/private_RTK.md
+  dot_claude-personal/codex-opus-workflow.html
+  dot_claude-personal/rules/context7.md dot_claude-personal/encrypted_settings.json.age
+  dot_claude-personal/skills/codex-fable/encrypted_SKILL.md.age
+  dot_claude-personal/skills/codex-opus/encrypted_SKILL.md.age
+  dot_claude-personal/skills/kickoff/encrypted_SKILL.md.age
+  dot_claude-personal/skills/codex/encrypted_SKILL.md.age
+  dot_claude-personal/skills/ship-pr/encrypted_SKILL.md.age
+  dot_codex/AGENTS.md.tmpl
+  Projects/Personal/dot_codex/config.toml
+  Projects/Personal/dot_codex/symlink_AGENTS.md
+  Projects/Personal/dot_codex/symlink_skills
+  Projects/Personal/private_dot_agent-safety/bin/executable_gh
+  Projects/Personal/private_dot_agent-safety/bin/executable_gh-credential
+  Projects/Personal/private_dot_agent-safety/executable_verify-personal-github
+  Projects/Personal/private_dot_agent-safety/executable_install-repo-hook
+  Projects/Personal/private_dot_agent-safety/hooks/executable_pre-push
+  dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
+  dot_omp/agent/config.yml dot_omp/agent/mcp.json dot_omp/agent/agents
   private_dot_factory/AGENTS.md.tmpl dot_config/opencode/AGENTS.md private_dot_hermes/SOUL.md.tmpl
 )
 if chezmoi "${SRC[@]}" --destination "$DEST" source-path "${TARGETS[@]}" >"$TMP/sp.txt" 2>"$TMP/sp.err"; then
@@ -1110,17 +1168,55 @@ chezmoi "${SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TMP/st
   && pass 'dry-run status (temp dest)' || err "dry-run status failed: $(tr '\n' ' ' <"$TMP/st.err")"
 
 mkdir -p "$DEST/.grok" "$DEST/.hermes" "$DEST/.config/opencode" \
-  "$DEST/.claude-personal/skills" "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
-  "$DEST/.factory/skills" "$DEST/.grok/skills" "$DEST/.hermes/skills" "$DEST/.agents/skills"
+  "$DEST/.claude-personal/rules" \
+  "$DEST/.claude-personal/skills/codex-fable" \
+  "$DEST/.claude-personal/skills/codex-opus" \
+  "$DEST/.claude-personal/skills/kickoff" \
+  "$DEST/.claude-personal/skills/codex" \
+  "$DEST/.claude-personal/skills/ship-pr" \
+  "$DEST/.codex/skills/model-orchestration/references" \
+  "$DEST/.codex/skills/ship-pr" \
+  "$DEST/.grok/skills/model-orchestration" \
+  "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
+  "$DEST/.factory/skills" "$DEST/.hermes/skills" "$DEST/.agents/skills" \
+  "$DEST/Projects/Personal/.codex" "$DEST/Projects/Personal/.agent-safety/bin" \
+  "$DEST/Projects/Personal/.agent-safety/hooks"
 ln -s ../.codex/AGENTS.md "$DEST/.grok/AGENTS.md"
 printf '%s\n' 'You are Hermes Agent, an intelligent AI assistant created by Nous Research.' >"$DEST/.hermes/SOUL.md"
 
-if ! chezmoi "${SRC[@]}" --destination "$DEST" apply "$DEST/.agents/skills" \
-  "$DEST/.omp/agent/AGENTS.md" "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json" \
-  "$DEST/.omp/agent/agents" "$DEST/.config/opencode/AGENTS.md" "$DEST/.grok/AGENTS.md" \
-  "$DEST/.hermes/SOUL.md"; then
+if ! chezmoi "${SRC[@]}" --destination "$DEST" apply "$DEST/.agents/skills" "${TARGETS[@]}"; then
   err 'temp seed apply (canonical skills / adapters) failed'
 else
+  grep -Fq 'git rev-parse --path-format=absolute --git-common-dir' "$DEST/.zshrc" \
+    && pass 'temp zsh profile detects Personal worktrees' \
+    || err 'temp zsh profile missing Personal worktree detection'
+  grep -Fq 'CLAUDE_CONFIG_DIR="$HOME/.claude-personal"' "$DEST/.zshrc" \
+    && pass 'temp zsh profile routes Personal Claude state' \
+    || err 'temp zsh profile missing Personal Claude route'
+  if [[ -L "$DEST/Projects/Personal/.codex/AGENTS.md" ]] \
+    && [[ "$(readlink "$DEST/Projects/Personal/.codex/AGENTS.md")" == '../../../.codex/AGENTS.md' ]]; then
+    pass 'temp Personal Codex AGENTS link applied'
+  else
+    err 'temp Personal Codex AGENTS link mismatch'
+  fi
+  if [[ -L "$DEST/Projects/Personal/.codex/skills" ]] \
+    && [[ "$(readlink "$DEST/Projects/Personal/.codex/skills")" == '../../../.codex/skills' ]]; then
+    pass 'temp Personal Codex skills link applied'
+  else
+    err 'temp Personal Codex skills link mismatch'
+  fi
+  for script in \
+    "$DEST/Projects/Personal/.agent-safety/bin/gh" \
+    "$DEST/Projects/Personal/.agent-safety/bin/gh-credential" \
+    "$DEST/Projects/Personal/.agent-safety/verify-personal-github" \
+    "$DEST/Projects/Personal/.agent-safety/install-repo-hook" \
+    "$DEST/Projects/Personal/.agent-safety/hooks/pre-push"; do
+    if [[ -x "$script" ]] && sh -n "$script"; then
+      pass "temp Personal safety script applied: ${script#"$DEST/"}"
+    else
+      err "temp Personal safety script invalid: ${script#"$DEST/"}"
+    fi
+  done
   [[ ! -L "$DEST/.grok/AGENTS.md" ]] && grep -q '^# Personal Grok Notes' "$DEST/.grok/AGENTS.md" \
     && pass 'temp migration replaces Grok symlink safely' || err 'temp Grok symlink migration failed'
   grep -q '^# Hermes' "$DEST/.hermes/SOUL.md" && grep -q '/home/dev/AgentMemory' "$DEST/.hermes/SOUL.md" \
