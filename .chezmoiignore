@@ -135,6 +135,11 @@ Projects/Personal/.codex/vendor_imports
 Projects/Personal/.codex/version.json
 Projects/Personal/.codex/visualizations
 
+# Personal GitHub credentials and machine launcher stay unmanaged.
+Projects/Personal/.agent-safety/real-gh
+Projects/Personal/.agent-safety/use-isolated-gh
+Projects/Personal/.agent-safety/gh
+
 # OMP runtime and credential state — config and portable skills only
 .omp/agent/sessions
 .omp/agent/terminal-sessions
