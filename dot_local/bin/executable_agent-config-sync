@@ -67,6 +67,8 @@ cmd_apply() {
   cmd_check
   cmd_strict_preflight
 
+  mkdir -p "${HOME}/.claude-personal/skills" "${HOME}/Projects/Personal/.codex"
+
   local -a targets=(
     "${HOME}/.claude-personal/CLAUDE.md"
     "${HOME}/.codex/AGENTS.md"
@@ -75,6 +77,7 @@ cmd_apply() {
     "${HOME}/.claude-personal/skills/kickoff/SKILL.md"
     "${HOME}/.codex/skills/model-orchestration/SKILL.md"
     "${HOME}/.codex/skills/model-orchestration/references/model-routing.md"
+    "${HOME}/Projects/Personal/.codex/config.toml"
     "${HOME}/.grok/AGENTS.md"
     "${HOME}/.pi/agent/AGENTS.md"
     "${HOME}/.omp/agent/AGENTS.md"
@@ -104,7 +107,7 @@ cmd_apply() {
     [[ -n "$link" ]] && targets+=("$link")
   done < <(portable_link_targets)
 
-  chezmoi "${SRC[@]}" apply "${targets[@]}"
+  chezmoi "${SRC[@]}" apply --force "${targets[@]}"
   bash "$CHECK" --check-live-migration --require-portable-links
 }
 
