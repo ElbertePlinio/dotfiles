@@ -158,6 +158,9 @@ RUNTIME_SOURCE_PATHS=(
   dot_codex/sqlite
   dot_codex/tmp
   'dot_codex/*.sqlite*'
+  Projects/Personal/private_dot_agent-safety/symlink_real-gh
+  Projects/Personal/private_dot_agent-safety/private_use-isolated-gh
+  Projects/Personal/private_dot_agent-safety/private_gh
   dot_omp/agent/sessions
   dot_omp/agent/terminal-sessions
   dot_omp/agent/blobs
@@ -206,6 +209,9 @@ RUNTIME_IGNORE_PATHS=(
   .codex/sqlite
   .codex/tmp
   '.codex/*.sqlite*'
+  Projects/Personal/.agent-safety/real-gh
+  Projects/Personal/.agent-safety/use-isolated-gh
+  Projects/Personal/.agent-safety/gh
   .omp/agent/sessions
   .omp/agent/terminal-sessions
   .omp/agent/blobs
@@ -890,6 +896,7 @@ ROUTING_SKILL_TARGETS=(
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync.XXXXXX")"
 DEST="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-dest.XXXXXX")"
+TMP_SRC=("${SRC[@]}" --persistent-state "$TMP/chezmoi-state.boltdb")
 trap 'rm -rf "$TMP" "$DEST"' EXIT
 render() { chezmoi "${SRC[@]}" execute-template --file "$1" >"$2"; }
 
@@ -1184,12 +1191,15 @@ mkdir -p "$DEST/.grok" "$DEST/.hermes" "$DEST/.config/opencode" \
 ln -s ../.codex/AGENTS.md "$DEST/.grok/AGENTS.md"
 printf '%s\n' 'You are Hermes Agent, an intelligent AI assistant created by Nous Research.' >"$DEST/.hermes/SOUL.md"
 
-if ! chezmoi "${SRC[@]}" --destination "$DEST" apply "$DEST/.agents/skills" "${TARGETS[@]}"; then
+if ! chezmoi "${TMP_SRC[@]}" --destination "$DEST" apply "$DEST/.agents/skills" "${TARGETS[@]}"; then
   err 'temp seed apply (canonical skills / adapters) failed'
 else
   grep -Fq 'git rev-parse --path-format=absolute --git-common-dir' "$DEST/.zshrc" \
     && pass 'temp zsh profile detects Personal worktrees' \
     || err 'temp zsh profile missing Personal worktree detection'
+  grep -Fq 'Projects/Personal/.agent-safety/bin:$PATH' "$DEST/.zshrc" \
+    && pass 'temp zsh profile enables Personal GitHub guard' \
+    || err 'temp zsh profile missing Personal GitHub guard PATH'
   grep -Fq 'CLAUDE_CONFIG_DIR="$HOME/.claude-personal"' "$DEST/.zshrc" \
     && pass 'temp zsh profile routes Personal Claude state' \
     || err 'temp zsh profile missing Personal Claude route'
@@ -1272,7 +1282,7 @@ mapfile -t PORTABLE_TARGETS < <(jq -r --arg dest "$DEST" '
 ' "$MANIFEST")
 
 if ((${#PORTABLE_TARGETS[@]})); then
-  if chezmoi "${SRC[@]}" --destination "$DEST" apply "${PORTABLE_TARGETS[@]}"; then
+  if chezmoi "${TMP_SRC[@]}" --destination "$DEST" apply "${PORTABLE_TARGETS[@]}"; then
     pass "temp applied ${#PORTABLE_TARGETS[@]} portable skill links"
   else
     err 'temp portable skill apply failed'
@@ -1311,6 +1321,12 @@ bash -n "$ROOT/scripts/check-agent-config-sync.sh" && pass 'bash -n' || err 'bas
 if [[ -f "$ROOT/dot_local/bin/executable_agent-config-sync" ]]; then
   bash -n "$ROOT/dot_local/bin/executable_agent-config-sync" && pass 'bash -n agent-config-sync' \
     || err 'bash -n agent-config-sync failed'
+  grep -Fq 'bootstrap_real_gh' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    && pass 'agent-config-sync bootstraps Personal real-gh' \
+    || err 'agent-config-sync missing Personal real-gh bootstrap'
+  grep -Fq 'preflight_unmanaged_targets' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    && pass 'agent-config-sync protects unmanaged first-apply targets' \
+    || err 'agent-config-sync missing unmanaged-target preflight'
 fi
 
 echo
