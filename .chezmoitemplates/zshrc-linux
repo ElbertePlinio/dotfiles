@@ -295,8 +295,20 @@ claude-luna()  { CLAUDE_CODEX_MODEL="gpt-5.6-luna"  claude-codex "$@"; }
 
 claudex() {
   CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1 \
+  CLAUDE_CODE_AUTO_COMPACT_WINDOW=180000 \
   ENABLE_TOOL_SEARCH=auto \
     claude-sol "$@"
+}
+
+# Start OMP in a Pickforge child repo while retaining workspace instructions.
+ompp() {
+  local repo="$HOME/Projects/Pickforge/${1:?project name required}"
+  shift
+
+  omp \
+    --cwd "$repo" \
+    --append-system-prompt "$HOME/Projects/Pickforge/AGENTS.md" \
+    "$@"
 }
 
 # >>> grok installer >>>
