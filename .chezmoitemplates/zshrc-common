@@ -1,0 +1,58 @@
+_agent_personal_context() {
+  local current personal_root
+  current="${PWD:A}"
+  personal_root="$HOME/Projects/Personal"
+  personal_root="${personal_root:A}"
+  [[ "$current" == "$personal_root" || "$current" == "$personal_root"/* ]]
+}
+
+claude() {
+  if ! _agent_personal_context; then
+    "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
+    return
+  fi
+
+  local gh_bin token
+  gh_bin="$(command -v gh 2>/dev/null)"
+  if [[ -n "$gh_bin" ]]; then
+    token="$(GH_CONFIG_DIR="$HOME/Projects/Personal/.agent-safety/gh" "$gh_bin" auth token 2>/dev/null)"
+  fi
+  if [[ -n "$token" ]]; then
+    CLAUDE_CONFIG_DIR="$HOME/.claude-personal" \
+    GITHUB_PERSONAL_ACCESS_TOKEN="$token" \
+      env -u CLAUDE_CODE_USE_BEDROCK \
+        -u AWS_PROFILE \
+        -u AWS_REGION \
+        -u AWS_DEFAULT_REGION \
+        -u ANTHROPIC_MODEL \
+        -u ANTHROPIC_DEFAULT_OPUS_MODEL \
+        -u ANTHROPIC_DEFAULT_SONNET_MODEL \
+        -u ANTHROPIC_DEFAULT_HAIKU_MODEL \
+        "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
+  else
+    CLAUDE_CONFIG_DIR="$HOME/.claude-personal" \
+      env -u CLAUDE_CODE_USE_BEDROCK \
+        -u AWS_PROFILE \
+        -u AWS_REGION \
+        -u AWS_DEFAULT_REGION \
+        -u ANTHROPIC_MODEL \
+        -u ANTHROPIC_DEFAULT_OPUS_MODEL \
+        -u ANTHROPIC_DEFAULT_SONNET_MODEL \
+        -u ANTHROPIC_DEFAULT_HAIKU_MODEL \
+        "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
+  fi
+}
+
+codex() {
+  if _agent_personal_context; then
+    CODEX_HOME="$HOME/Projects/Personal/.codex" command codex --yolo "$@"
+  else
+    command codex --yolo "$@"
+  fi
+}
+
+alias ccu='bunx ccusage --compact'
+
+if [[ -r "$HOME/.config/chezmoi-work/shell.zsh" ]]; then
+  source "$HOME/.config/chezmoi-work/shell.zsh"
+fi

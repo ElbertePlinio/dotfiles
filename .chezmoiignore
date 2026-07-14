@@ -34,6 +34,44 @@ scripts
 .pi/agent/pi-hermes-memory/.skills-migrated-to-extension-storage
 .pi/agent/pi-hermes-memory/sessions.db
 
+# Codex work profile and generated state stay machine-owned.
+.codex/.app-server-state-reconciled-v1
+.codex/.codex-global-state.json
+.codex/.codex-global-state.json.bak
+.codex/.personality_migration
+.codex/.tmp
+.codex/ambient-suggestions
+.codex/archived_sessions
+.codex/auth.json
+.codex/browser
+.codex/cache
+.codex/chrome-native-hosts-v2.json
+.codex/computer-use
+.codex/config.toml
+.codex/external_agent_session_imports.json
+.codex/*.sqlite*
+.codex/history.jsonl
+.codex/hooks.json
+.codex/installation_id
+.codex/log
+.codex/mcp-oauth-locks
+.codex/memories
+.codex/models_cache.json
+.codex/node_repl
+.codex/pets
+.codex/plugins
+.codex/process_manager
+.codex/rules
+.codex/session_index.jsonl
+.codex/sessions
+.codex/shell_snapshots
+.codex/skills/.system
+.codex/sqlite
+.codex/tmp
+.codex/vendor_imports
+.codex/version.json
+.codex/visualizations
+
 # OMP runtime and credential state — config and portable skills only
 .omp/agent/sessions
 .omp/agent/terminal-sessions

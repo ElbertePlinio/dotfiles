@@ -1,0 +1,7 @@
+{{- if eq .chezmoi.os "darwin" -}}
+{{ template "zshrc-darwin" . }}
+{{- else if eq .chezmoi.os "linux" -}}
+{{ template "zshrc-linux" . }}
+{{- else -}}
+{{ fail (printf "unsupported OS for .zshrc: %s" .chezmoi.os) }}
+{{- end -}}
