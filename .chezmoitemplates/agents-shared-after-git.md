@@ -24,6 +24,25 @@ Use worktrees for risky or multi-step implementation. Create them in the central
 
 When creating `.md` files, keep them short, concise, and human-written. Make them feel like useful notes, not machine policy. Only write more when I ask or when clarity would suffer.
 
+## HTML readability artifacts
+
+For substantial brainstorms, plans, architecture diagrams, comparisons, or
+reports, offer an optional standalone HTML page when visual structure would make
+the material easier to understand.
+
+- Never create the HTML page automatically. Ask first and wait for my explicit
+  approval.
+- If I explicitly request an HTML page, that request is approval; do not ask a
+  second time.
+- Keep the normal chat explanation understandable on its own. HTML improves the
+  presentation; it does not replace a clear answer.
+- Once approved, make the page responsive and self-contained, avoid remote
+  dependencies or telemetry unless requested, and verify both desktop and mobile
+  rendering.
+- Save every standalone HTML artifact under `~/Projects/Boards`, never inside the active project repository.
+- Use `~/Projects/Boards/<project-slug>/` for project-specific boards and `~/Projects/Boards/_global/<topic>/` for cross-project or system-wide boards. Use concise kebab-case filenames.
+- This storage rule applies to generated reports, plans, diagrams, comparisons, and other presentation artifacts. HTML files that are required source code for a repository or application stay in that repository.
+
 ## Before finishing
 
 Run the narrowest useful validation. If you cannot run it, say why and name the command I should run.

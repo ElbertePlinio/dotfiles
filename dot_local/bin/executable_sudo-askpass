@@ -1,0 +1,13 @@
+#!/bin/sh
+
+prompt=${1:-Authentication required}
+
+if command -v kdialog >/dev/null 2>&1; then
+  exec kdialog --title "Administrator authentication" --password "$prompt"
+fi
+
+if command -v zenity >/dev/null 2>&1; then
+  exec zenity --title="Administrator authentication" --password
+fi
+
+exit 1

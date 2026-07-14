@@ -13,47 +13,13 @@
 
 - Use Bun (`bun`, `bunx`) as the default package manager and script runner when creating new JS/TS projects. In existing repos, follow whatever the lockfile says.
 
-## Picking the right models for workflows and subagents
+## Model orchestration
 
-Rankings, higher = better. Cost reflects what I actually pay, not list price. Intelligence is how hard a problem you can hand the model unsupervised. Taste covers UI/UX, code quality, API design, and copy. Effort values are starting points, not fixed rules.
-
-| model         | start  | cost | intelligence | taste | vision |
-|---------------|--------|-----:|-------------:|------:|--------|
-| gpt-5.6-luna  | medium | 10   | 7            | 5     | yes    |
-| gpt-5.6-terra | medium | 9    | 8            | 5     | yes    |
-| gpt-5.6-sol   | high   | 8    | 9            | 6     | yes    |
-| glm-5.2       | —      | 7    | 8            | 7     | no     |
-| grok-4.5      | high   | 6    | 8            | 7     | yes    |
-| sonnet-5      | high   | 5    | 5            | 7     | yes    |
-| opus-4.8      | high   | 4    | 7            | 8     | yes    |
-| fable-5       | high   | 2    | 9            | 9     | yes    |
-
-Use the table as comparative context, not as permanent role assignments. Do not map a model to scouting, architecture, UI, implementation, review, or any other task class by default. For each task, the active orchestrator selects any compatible model from the full table based on risk, uncertainty, context, tools and modalities, validation options, output quality, and pool headroom. GLM is text-only; never send it images without a text summary from a vision-capable model.
-
-How to apply:
-
-- Defaults, not limits: if a cheaper model's output misses the bar, redo with a smarter one without asking. Judge the output, not the price tag.
-- Cost is a tie-breaker only; for anything that ships, intelligence > taste > cost.
-- Trust the orchestrator to choose the lightest sufficient path from task risk, uncertainty, domain, context size, and pool headroom. There is no mandatory model order or review lineup.
-- Two levels by default: the orchestrator plans, dispatches, and accepts; workers and reviewers are leaves. Modes: `simple`, `standard`, `serious` (review panel + anti-overengineering gate), `fanout` (isolated worktrees for genuinely independent work).
-- The active main session owns orchestration, synthesis, and final acceptance regardless of which model runs it.
-- Standard work gets one independent reviewer chosen for the task. Serious work gets 2-3 complementary reviewers selected from the full table for concrete failure modes. Reviewers are read-only.
-- Balance the pools (Codex / Claude / Ollama / grok.com): drain by model advantage, not habit.
-- Quota-aware routing: before a multi-task wave, check pool headroom with the `pickgauge-usage` skill (`pickgauge usage --json`). A cheaper lane near its cap loses to a pricier lane with room. Check per wave, not per call; plan-only rows (null percent) are unknown, not empty.
-- Quota fallback: if a lane is blocked, substitute the closest useful lane across GPT, Grok, GLM, Fable, Opus, and Sonnet, and report it. Stop if the missing lane was explicitly required or no substitute fits.
-- Parallelize when the speedup justifies the orchestration cost. One active writer per file/worktree; parallel writers need isolated worktrees and patch handoff.
-- Never use Haiku.
-- GPT-5.6 ratings are provisional (launched 2026-07-09; Terra/Luna have no independent benchmarks yet — vendor positioning plus early signal). Revisit when real evals land.
-- Mechanics: GPT-5.6 runs through the Codex CLI, GLM through Ollama Cloud, Grok through the `grok` CLI, and Claude models through the Agent/Workflow model parameter. The orchestrator chooses the lane and effort; `~/.codex/config.toml` defaults to Sol at high for Codex main sessions.
-- Multi-agent fan-outs: leaves inherit the session model unless overridden, so select each lane intentionally. Thin CLI delegates can route work to Codex, Grok, or GLM when that pool fits better. Mix pools when diversity adds value, not by quota or panel symmetry alone.
-
-### Delegation workflows
-
-For substantial tasks (features, refactors, multi-file changes), route by session model:
-
-- Fable 5 session → `codex-fable` skill for adaptive routing with the current session as orchestrator.
-- Opus session → `codex-opus` skill for adaptive routing with the current session as orchestrator.
-- Trivial edits and quick answers → skip the ceremony. The test: delegate only when the work costs more than the delegation overhead itself.
-- That call is provisional, not a license. Re-run the test when a task grows mid-flight; once delegation adds value, choose the lightest sufficient lane for the new scope.
+- For substantial or risky multi-model work, use `codex-fable` from Fable sessions and `codex-opus` from Opus sessions. The current comparative pool metadata, compatibility constraints, selection axes, and escalation policy live in `~/.codex/skills/model-orchestration/references/model-routing.md`.
+- Medium is the economical starting effort except for Grok 4.5, which always uses high, and Opus 4.8, which always uses xhigh. Select each call from task risk and irreversibility, modality/tool compatibility, uncertainty and context complexity, available validation strength, live quota headroom, and observed output quality.
+- Outside the shared Grok effort and review rules, Sol at medium is only the OMP session-bootstrap prior and any compatible non-Haiku pool model may build, scout, design, synthesize, or adjudicate; do not create other permanent model-to-role bindings, fixed provider sequences, or automatic defaults for task classes.
+- Standard review uses one targeted Grok 4.5 high reviewer. Serious backend review uses two complementary Grok 4.5 high profiles plus GPT-5.6 Sol high. Serious user-facing or full-stack review adds Fable 5 high. Use one targeted fix-verification reviewer after fixes instead of repeating the panel.
+- Claude subagents are selected with the Agent/Workflow model parameter. The main session owns scope, synthesis, validation, and acceptance; workers and reviewers are leaves unless the main session explicitly authorizes fan-out.
+- When Claude is invoked non-interactively as a worker under another orchestrator, do the assigned work directly and do not re-delegate.
 
 @RTK.md
