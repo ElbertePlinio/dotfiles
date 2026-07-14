@@ -1,0 +1,66 @@
+{
+  "$schema": "https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/coding-agent/src/config/mcp-schema.json",
+  "mcpServers": {
+    "agentmemory": {
+      "command": "npx",
+      "args": ["-y", "@agentmemory/mcp"],
+      "env": {
+        "AGENTMEMORY_URL": "http://localhost:3111"
+      }
+    },
+    "agentmemory-vault": {
+      "command": "python3",
+      "args": ["/home/dev/AgentMemory/scripts/agent_memory_mcp.py"]
+    },
+    "codegraph": {
+      "command": "codegraph",
+      "args": ["serve", "--mcp"]
+    },
+    "cua-driver": {
+      "command": "/home/dev/.local/bin/cua-driver",
+      "args": ["mcp"]
+    },
+    "picklab": {
+      "command": "picklab",
+      "args": ["mcp", "serve"]
+    },
+    "sentry": {
+      "command": "npx",
+      "args": ["-y", "@sentry/mcp-server@latest"],
+      "env": {
+        "SENTRY_ACCESS_TOKEN": "!cat ~/.pickforge-keys/sentry-token"
+      }
+    },
+    "stripe": {
+      "type": "http",
+      "url": "https://mcp.stripe.com",
+      "oauth": {
+        "clientId": "oacli_UsBlZ6jiucaNw9",
+        "redirectUri": "http://127.0.0.1:3000/callback",
+        "callbackPort": 3000,
+        "callbackPath": "/callback"
+      }
+    },
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com/"
+    },
+    "supabase-pickforge-pro-dev": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=trmlnarhgiutgsoancrl"
+    },
+    "supabase-computer-builder": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=bhfkyavecclrdgwtuvpc"
+    }
+  },
+  "disabledServers": [
+    "agentmemory_vault",
+    "context7:context7",
+    "supabase",
+    "stripe:stripe",
+    "vercel:vercel",
+    "github:github",
+    "vgv-ai-flutter-plugin:very-good-cli"
+  ]
+}

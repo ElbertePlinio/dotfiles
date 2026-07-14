@@ -2,16 +2,35 @@
 
 {{ template "agents-shared.md" . }}
 
-## Model flow
+## Native model orchestration
 
-Default loop for any non-trivial code change. Run it automatically as part of the normal conversation — never wait for me to trigger an agent by name.
+Outside the shared Grok effort and review rules, choose the agent prompt, model, and
+reasoning effort independently. Do not map models permanently to roles such as
+scout, architect, or coder.
 
-1. Plan: delegate to `planner` (Claude Fable 5 XHigh). It returns an implementation brief: files, approach, constraints, validation.
-2. Execute: delegate the brief to `coder` (GPT 5.5 XHigh). Do not write the implementation in the main session.
-3. Review: delegate the resulting diff to `reviewer` (Claude Fable 5 XHigh). If it returns corrections, loop coder -> reviewer until accepted. After 3 failed loops, stop and report to me.
+`pi-subagents` accepts a per-call `model` override. Pass the full selector with
+an effort suffix when useful, for example
+`openai-codex/gpt-5.5:high` or `anthropic/claude-fable-5:medium`.
 
-Skip the loop for trivial edits (one-liners, typos, config tweaks), pure Q&A, and exploration — handle those directly.
+Available managed pool:
 
-- Use `git` (GPT 5.4 Mini) for status/diff/staging/commit-message chores.
-- Pass compact artifacts (briefs, diffs, file lists), not full transcripts.
-- The main model orchestrates, keeps context, and gives the final answer.
+| Model | Selector | Start | Cost | Intelligence | Taste | Vision |
+|---|---|---:|---:|---:|---:|---|
+| GPT-5.5 | `openai-codex/gpt-5.5` | high | — | — | — | yes |
+| Fable 5 | `anthropic/claude-fable-5` | high | 2 | 9 | 9 | yes |
+| Opus 4.8 | `anthropic/claude-opus-4-8` | xhigh | 4 | 7 | 8 | yes |
+| Sonnet 4.6 | `anthropic/claude-sonnet-4-6` | high | — | — | — | yes |
+| GLM-5.2 | `ollama/glm-5.2:cloud` | provider default | 7 | 8 | 7 | no |
+
+The `Start` column is only an initial reasoning-effort prior. Opus 4.8 is the
+exception and always runs at xhigh effort. Adjust other models for the task's
+uncertainty and validation surface. The comparative ratings are selection
+context, not permanent role assignments. Pi's installed catalog does not
+currently expose GPT-5.6 or native xAI OAuth; OMP has the expanded pool.
+
+Prefer Pi-native subagents over launching `claude`, `codex`, `grok`, or
+`ollama` CLIs from inside Pi. Keep the CLIs for provider-native features or
+when operating from another harness.
+
+The main model owns scope, model selection, synthesis, validation, and the
+final answer. Use parallel subagents only for genuinely independent work.
