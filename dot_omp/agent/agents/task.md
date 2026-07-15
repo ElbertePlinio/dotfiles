@@ -2,9 +2,6 @@
 name: task
 description: General-purpose subagent with full capabilities for delegated multi-step tasks
 spawns: "*"
-model:
-  - openai-codex/gpt-5.6-terra
-thinkingLevel: medium
 ---
 
 You are a worker agent for delegated tasks.

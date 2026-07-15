@@ -1,0 +1,24 @@
+{{- $profile := .agentProfile | default "restricted" -}}
+# Global Claude Rules
+
+{{ if eq $profile "main" -}}
+{{ template "agents-shared.md" . }}
+
+{{ template "claude-adapter-common.md" . }}
+
+## Model orchestration
+
+- For substantial or risky multi-model work, use `codex-fable` from Fable sessions and `codex-opus` from Opus sessions. The current comparative pool metadata, compatibility constraints, selection axes, and escalation policy live in `~/.codex/skills/model-orchestration/references/model-routing.md`.
+- Start each selected model from the effort prior in `model-routing.md`; Grok 4.5 always uses high and Opus 4.8 always uses xhigh. Adjust other efforts only from concrete validation evidence or unresolved risk.
+- Select every call independently from the current table. Do not create permanent model-to-role bindings, named model lanes, fixed provider sequences, or automatic task-class defaults.
+- Claude subagents use the Agent or Workflow model parameter. The main session owns scope, synthesis, validation, and acceptance; workers and reviewers are leaves unless the main session explicitly authorizes fan-out.
+- When Claude is invoked non-interactively as a worker under another orchestrator, do the assigned work directly and do not re-delegate.
+
+@RTK.md
+{{ else -}}
+{{ template "claude-core.md" . }}
+
+{{ template "claude-adapter-common.md" . }}
+
+{{ template "claude-restricted.md" . }}
+{{ end -}}

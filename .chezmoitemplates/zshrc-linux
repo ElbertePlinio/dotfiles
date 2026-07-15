@@ -286,12 +286,11 @@ claude-codex() {
   ANTHROPIC_BASE_URL="http://127.0.0.1:8317" \
   ANTHROPIC_AUTH_TOKEN="$CLIPROXY_API_KEY" \
   ANTHROPIC_MODEL="$model" \
-  ANTHROPIC_SMALL_FAST_MODEL="gpt-5.6-luna" \
+  ANTHROPIC_SMALL_FAST_MODEL="gpt-5.6-terra" \
     "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
 }
 claude-terra() { CLAUDE_CODEX_MODEL="gpt-5.6-terra" claude-codex "$@"; }
 claude-sol()   { CLAUDE_CODEX_MODEL="gpt-5.6-sol"   claude-codex "$@"; }
-claude-luna()  { CLAUDE_CODEX_MODEL="gpt-5.6-luna"  claude-codex "$@"; }
 
 claudex() {
   CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1 \
