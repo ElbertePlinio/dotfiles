@@ -128,7 +128,13 @@ known_legacy_model_skill() {
 
 remove_known_legacy_model_skill() {
   local dir="$1"
+  local expected="../../.agents/skills/$(basename "$dir")"
   [[ -e "$dir" || -L "$dir" ]] || return 0
+  if [[ -L "$dir" ]]; then
+    [[ "$(readlink "$dir")" == "$expected" ]] && return 0
+    echo "agent-config-sync: refusing unexpected model skill link: $dir" >&2
+    return 1
+  fi
   known_legacy_model_skill "$dir" || {
     echo "agent-config-sync: refusing to replace divergent legacy model skill: $dir" >&2
     return 1
@@ -149,7 +155,19 @@ main_profile_was_managed() {
   return 1
 }
 
-remove_main_managed_file() {
+managed_regular_file_unchanged() {
+  local live="$1"
+  local state expected actual
+  [[ -f "$live" && ! -L "$live" ]] || return 1
+  state="$(chezmoi state get --bucket=entryState --key="$live" 2>/dev/null || true)"
+  expected="$(jq -r '.contentsSHA256 // empty' <<<"$state" 2>/dev/null || true)"
+  [[ -n "$expected" ]] || return 1
+  read -r actual _ < <(sha256sum "$live")
+  [[ "$actual" == "$expected" ]]
+}
+
+
+validate_main_managed_file() {
   local live="$1"
   local source_path="$2"
   local format="$3"
@@ -159,6 +177,7 @@ remove_main_managed_file() {
     echo "agent-config-sync: refusing to remove unexpected main-profile path: $live" >&2
     return 1
   }
+  managed_regular_file_unchanged "$live" && return 0
   if [[ "$format" == encrypted ]]; then
     rendered="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-main-profile.XXXXXX")"
     chezmoi "${SRC[@]}" decrypt "$source_path" >"$rendered" || {
@@ -173,10 +192,13 @@ remove_main_managed_file() {
     return 1
   fi
   [[ "$format" != encrypted ]] || rm -f "$rendered"
-  rm -f "$live"
 }
 
-remove_main_managed_skill() {
+remove_main_managed_file() {
+  rm -f "$1"
+}
+
+validate_main_managed_skill() {
   local skill="$1"
   local source_name="${2:-encrypted_SKILL.md.age}"
   local dir="${HOME}/.claude/skills/${skill}"
@@ -195,34 +217,40 @@ remove_main_managed_skill() {
     echo "agent-config-sync: refusing to remove divergent main-profile skill: $dir" >&2
     return 1
   }
-  remove_main_managed_file "$live" "$source_path" encrypted
-  rmdir "$dir"
+  validate_main_managed_file "$live" "$source_path" encrypted
+}
+
+remove_main_managed_skill() {
+  local skill="$1"
+  local dir="${HOME}/.claude/skills/${skill}"
+  rm -f "${dir}/SKILL.md"
+  rmdir "$dir" 2>/dev/null || true
 }
 
 remove_main_profile_paths() {
   local skill link expected
+  local -a native_skills=(codex-fable codex-opus kickoff ship-pr pickgauge-usage plan-issue x-research)
   [[ "$PROFILE_ROLE" == restricted ]] || return 0
   if [[ "$LIVE_PROFILE_ROLE" != main ]] && ! main_profile_was_managed; then
     return 0
   fi
 
-  remove_main_managed_file "${HOME}/.claude/settings.json" \
+  validate_main_managed_file "${HOME}/.claude/settings.json" \
     "${SOURCE}/dot_claude/encrypted_settings.json.age" encrypted
-  remove_main_managed_file "${HOME}/.claude/RTK.md" \
+  validate_main_managed_file "${HOME}/.claude/RTK.md" \
     "${SOURCE}/dot_claude/private_RTK.md" plain
-  remove_main_managed_file "${HOME}/.claude/codex-opus-workflow.html" \
+  validate_main_managed_file "${HOME}/.claude/codex-opus-workflow.html" \
     "${SOURCE}/dot_claude/codex-opus-workflow.html" plain
-  remove_main_managed_file "${HOME}/.claude/rules/context7.md" \
+  validate_main_managed_file "${HOME}/.claude/rules/context7.md" \
     "${SOURCE}/dot_claude/rules/context7.md" plain
-  rmdir "${HOME}/.claude/rules" 2>/dev/null || true
 
-  remove_main_managed_skill codex-fable
-  remove_main_managed_skill codex-opus
-  remove_main_managed_skill kickoff
-  remove_main_managed_skill ship-pr
-  remove_main_managed_skill pickgauge-usage
-  remove_main_managed_skill plan-issue encrypted_private_SKILL.md.age
-  remove_main_managed_skill x-research
+  for skill in "${native_skills[@]}"; do
+    if [[ "$skill" == plan-issue ]]; then
+      validate_main_managed_skill "$skill" encrypted_private_SKILL.md.age
+    else
+      validate_main_managed_skill "$skill"
+    fi
+  done
 
   while IFS= read -r skill; do
     link="${HOME}/.claude/skills/${skill}"
@@ -232,7 +260,20 @@ remove_main_profile_paths() {
       echo "agent-config-sync: refusing to remove divergent main-profile skill link: $link" >&2
       return 1
     }
-    rm -f "$link"
+  done < <(jq -r '.skills | to_entries[] | select(.value | index("claude")) | .key' "$MANIFEST")
+
+  remove_main_managed_file "${HOME}/.claude/settings.json"
+  remove_main_managed_file "${HOME}/.claude/RTK.md"
+  remove_main_managed_file "${HOME}/.claude/codex-opus-workflow.html"
+  remove_main_managed_file "${HOME}/.claude/rules/context7.md"
+  rmdir "${HOME}/.claude/rules" 2>/dev/null || true
+
+  for skill in "${native_skills[@]}"; do
+    remove_main_managed_skill "$skill"
+  done
+
+  while IFS= read -r skill; do
+    rm -f "${HOME}/.claude/skills/${skill}"
   done < <(jq -r '.skills | to_entries[] | select(.value | index("claude")) | .key' "$MANIFEST")
 }
 

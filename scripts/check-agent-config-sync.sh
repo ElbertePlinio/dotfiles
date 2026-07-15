@@ -43,6 +43,17 @@ dirs_identical() {
   diff -rq "$a" "$b" >/dev/null 2>&1
 }
 
+managed_regular_file_unchanged() {
+  local live="$1"
+  local state expected actual
+  [[ -f "$live" && ! -L "$live" ]] || return 1
+  state="$(chezmoi state get --bucket=entryState --key="$live" 2>/dev/null || true)"
+  expected="$(jq -r '.contentsSHA256 // empty' <<<"$state" 2>/dev/null || true)"
+  [[ -n "$expected" ]] || return 1
+  read -r actual _ < <(sha256sum "$live")
+  [[ "$actual" == "$expected" ]]
+}
+
 known_legacy_model_skill() {
   local skill="$1" dir="$2" expected_hash actual_hash live
   local -a entries
@@ -137,16 +148,9 @@ check_live_omp_agent_overrides() {
       continue
     fi
 
-    if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-      local baseline
-      baseline="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-omp-override.XXXXXX")"
-      if git -C "$ROOT" show "HEAD:dot_omp/agent/agents/${role}.md" >"$baseline" 2>/dev/null \
-        && cmp -s "$live_override" "$baseline"; then
-        rm -f "$baseline"
-        pass "live OMP ${role} override has managed pending drift"
-        continue
-      fi
-      rm -f "$baseline"
+    if [[ "$STRICT_PREFLIGHT" -eq 1 ]] && managed_regular_file_unchanged "$live_override"; then
+      pass "live OMP ${role} override has managed pending drift"
+      continue
     fi
     err "live OMP ${role} override differs from canonical source"
   done
@@ -862,6 +866,8 @@ if [[ "$MODE" == live ]]; then
     err 'live OMP MCP config is not valid JSON'
   elif cmp -s "$OMP_MCP_LIVE" "$OMP_MCP"; then
     pass 'live OMP MCP config matches canonical source'
+  elif [[ "$STRICT_PREFLIGHT" -eq 1 ]] && managed_regular_file_unchanged "$OMP_MCP_LIVE"; then
+    pass 'live OMP MCP config has managed pending drift'
   else
     err 'live OMP MCP config differs from canonical source; refusing an implicit overwrite'
   fi
@@ -1572,6 +1578,29 @@ while IFS=$'\t' read -r skill harness; do
   pass "temp portable ok: $harness/$skill"
 done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
 
+PENDING_FILE="$TMP/managed-pending-drift"
+printf '%s\n' managed >"$PENDING_FILE"
+read -r PENDING_HASH _ < <(sha256sum "$PENDING_FILE")
+chezmoi() {
+  if [[ "$1" == state && "$2" == get ]]; then
+    printf '{"contentsSHA256":"%s"}\n' "$PENDING_HASH"
+  else
+    command chezmoi "$@"
+  fi
+}
+if managed_regular_file_unchanged "$PENDING_FILE"; then
+  pass 'managed pending drift accepts unchanged prior target'
+else
+  err 'managed pending drift rejected unchanged prior target'
+fi
+printf '%s\n' divergent >>"$PENDING_FILE"
+if managed_regular_file_unchanged "$PENDING_FILE"; then
+  err 'managed pending drift accepted divergent target'
+else
+  pass 'managed pending drift rejects divergent target'
+fi
+unset -f chezmoi
+
 TRANSITION_HOME="$TMP/profile-transition-home"
 TRANSITION_CONFIG="$TRANSITION_HOME/.config/chezmoi/chezmoi.toml"
 TRANSITION_AGE_IDENTITY="$(chezmoi dump-config | jq -r '.age.identity')"
@@ -1636,6 +1665,54 @@ else
   err 'main-to-restricted cleanup lost divergent full-profile state'
 fi
 
+mkdir -p "$TRANSITION_HOME/.claude/rules" "$TRANSITION_HOME/.claude/skills/codex-fable"
+chezmoi "${MAIN_SRC[@]}" --destination "$TRANSITION_HOME" \
+  cat "$TRANSITION_HOME/.claude/settings.json" >"$TRANSITION_HOME/.claude/settings.json"
+cp "$ROOT/dot_claude/private_RTK.md" "$TRANSITION_HOME/.claude/RTK.md"
+cp "$ROOT/dot_claude/codex-opus-workflow.html" "$TRANSITION_HOME/.claude/codex-opus-workflow.html"
+cp "$ROOT/dot_claude/rules/context7.md" "$TRANSITION_HOME/.claude/rules/context7.md"
+chezmoi "${SRC[@]}" decrypt \
+  dot_claude/skills/codex-fable/encrypted_SKILL.md.age \
+  >"$TRANSITION_HOME/.claude/skills/codex-fable/SKILL.md"
+printf '\n' >>"$TRANSITION_HOME/.claude/skills/codex-fable/SKILL.md"
+if HOME="$TRANSITION_HOME" CHEZMOI_SOURCE_DIR="$ROOT" \
+  bash -c 'source "$1"; remove_main_profile_paths' _ \
+  "$ROOT/dot_local/bin/executable_agent-config-sync" >/dev/null 2>&1; then
+  err 'main-to-restricted cleanup accepted late divergent skill'
+elif [[ -f "$TRANSITION_HOME/.claude/settings.json" \
+  && -f "$TRANSITION_HOME/.claude/RTK.md" \
+  && -f "$TRANSITION_HOME/.claude/codex-opus-workflow.html" \
+  && -f "$TRANSITION_HOME/.claude/rules/context7.md" ]]; then
+  pass 'main-to-restricted cleanup preflights before deleting state'
+else
+  err 'main-to-restricted cleanup partially deleted state before failure'
+fi
+
+REAPPLY_HOME="$TMP/profile-reapply-home"
+mkdir -p \
+  "$REAPPLY_HOME/.agents/skills/codex" \
+  "$REAPPLY_HOME/.agents/skills/grok" \
+  "$REAPPLY_HOME/.config/chezmoi" \
+  "$REAPPLY_HOME/.claude/skills" \
+  "$REAPPLY_HOME/.claude-personal/skills"
+cp "$TRANSITION_CONFIG" "$REAPPLY_HOME/.config/chezmoi/chezmoi.toml"
+ln -s ../../.agents/skills/codex "$REAPPLY_HOME/.claude/skills/codex"
+ln -s ../../.agents/skills/grok "$REAPPLY_HOME/.claude/skills/grok"
+ln -s ../../.agents/skills/codex "$REAPPLY_HOME/.claude-personal/skills/codex"
+if HOME="$REAPPLY_HOME" CHEZMOI_SOURCE_DIR="$ROOT" \
+  bash -c 'source "$1"; remove_obsolete_portable_paths' _ \
+  "$ROOT/dot_local/bin/executable_agent-config-sync"; then
+  if [[ -L "$REAPPLY_HOME/.claude/skills/codex" \
+    && -L "$REAPPLY_HOME/.claude/skills/grok" \
+    && -L "$REAPPLY_HOME/.claude-personal/skills/codex" ]]; then
+    pass 'portable skill cleanup preserves canonical links on reapply'
+  else
+    err 'portable skill cleanup removed canonical links on reapply'
+  fi
+else
+  err 'portable skill cleanup failed on canonical links'
+fi
+
 PROFILE_HOME="$TMP/profile-home"
 FAKE_CLAUDE="$TMP/fake-claude"
 mkdir -p "$PROFILE_HOME/.config/agent-profiles" "$PROFILE_HOME/Projects/Personal/demo" "$TMP/outside"
@@ -1646,6 +1723,12 @@ cat >"$FAKE_CLAUDE" <<'EOF'
 printf 'config=%s\n' "${CLAUDE_CONFIG_DIR:-default}"
 printf 'bedrock=%s\n' "${CLAUDE_CODE_USE_BEDROCK:-unset}"
 printf 'aws_profile=%s\n' "${AWS_PROFILE:-unset}"
+printf 'mantle=%s\n' "${CLAUDE_CODE_USE_MANTLE:-unset}"
+printf 'bedrock_bearer=%s\n' "${AWS_BEARER_TOKEN_BEDROCK:-unset}"
+printf 'bedrock_skip_auth=%s\n' "${CLAUDE_CODE_SKIP_BEDROCK_AUTH:-unset}"
+printf 'anthropic_aws=%s\n' "${ANTHROPIC_AWS_API_KEY:-unset}"
+printf 'foundry_token=%s\n' "${ANTHROPIC_FOUNDRY_AUTH_TOKEN:-unset}"
+printf 'vertex_base=%s\n' "${ANTHROPIC_VERTEX_BASE_URL:-unset}"
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   printf 'anthropic=set\n'
 else
@@ -1690,13 +1773,22 @@ fi
 portable_run="$(
   cd "$PROFILE_HOME/Projects/Personal/demo"
   HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
-    CLAUDE_CODE_USE_BEDROCK=1 AWS_PROFILE=restricted \
+    CLAUDE_CODE_USE_BEDROCK=1 CLAUDE_CODE_USE_MANTLE=1 \
+    CLAUDE_CODE_SKIP_BEDROCK_AUTH=1 AWS_BEARER_TOKEN_BEDROCK=restricted \
+    AWS_PROFILE=restricted ANTHROPIC_AWS_API_KEY=restricted \
+    ANTHROPIC_FOUNDRY_AUTH_TOKEN=restricted ANTHROPIC_VERTEX_BASE_URL=restricted \
     ANTHROPIC_API_KEY=restricted OPENAI_API_KEY=restricted \
     "$ROOT/dot_local/bin/executable_claude-profile" personal --print probe
 )"
 grep -Fq "config=$PROFILE_HOME/.claude-personal" <<<"$portable_run" \
-  && grep -Fq "codex_home=$PROFILE_HOME/.codex-personal" <<<"$portable_run" \
+  && grep -Fq "codex_home=$PROFILE_HOME/Projects/Personal/.codex" <<<"$portable_run" \
   && grep -Fq 'bedrock=unset' <<<"$portable_run" \
+  && grep -Fq 'mantle=unset' <<<"$portable_run" \
+  && grep -Fq 'bedrock_bearer=unset' <<<"$portable_run" \
+  && grep -Fq 'bedrock_skip_auth=unset' <<<"$portable_run" \
+  && grep -Fq 'anthropic_aws=unset' <<<"$portable_run" \
+  && grep -Fq 'foundry_token=unset' <<<"$portable_run" \
+  && grep -Fq 'vertex_base=unset' <<<"$portable_run" \
   && grep -Fq 'aws_profile=unset' <<<"$portable_run" \
   && grep -Fq 'anthropic=unset' <<<"$portable_run" \
   && grep -Fq 'arg=--permission-mode' <<<"$portable_run" \
