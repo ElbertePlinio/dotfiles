@@ -1209,6 +1209,25 @@ for target in "${ROUTING_SKILL_TARGETS[@]}"; do
 done
 unset decrypted
 
+local_review=''
+if local_review="$(chezmoi "${SRC[@]}" decrypt \
+  "$ROOT/dot_agents/skills/local-review/encrypted_SKILL.md.age")"; then
+  grep -Fq 'Every review includes a KISS gate' <<<"$local_review" \
+    && grep -Fq 'mandatory KISS verdict' <<<"$local_review" \
+    && pass 'local-review requires a scoped KISS gate' \
+    || err 'local-review missing required KISS gate'
+  grep -Fq '~/.codex/skills/model-orchestration/references/model-routing.md' <<<"$local_review" \
+    && grep -Fq 'never treat a model as permanently assigned' <<<"$local_review" \
+    && pass 'local-review delegates model selection to the current table' \
+    || err 'local-review missing dynamic model selection'
+  grep -Eq 'Grok 4\.5|GPT-5\.6|Fable 5|Opus 4\.8|GLM-5\.2' <<<"$local_review" \
+    && err 'local-review contains fixed model lane assignments' \
+    || pass 'local-review contains no fixed model lane assignments'
+else
+  err 'could not decrypt local-review skill for checks'
+fi
+unset local_review
+
 check_manifest_and_sources
 check_omp_agent_override_sources
 check_mcp_registry_and_config
