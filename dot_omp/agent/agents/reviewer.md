@@ -12,9 +12,6 @@ tools:
   - yield
 spawns:
   - scout
-model:
-  - openai-codex/gpt-5.6-terra
-thinkingLevel: medium
 output:
   properties:
     overall_correctness:

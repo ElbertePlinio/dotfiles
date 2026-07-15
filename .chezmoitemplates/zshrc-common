@@ -14,42 +14,7 @@ _agent_personal_context() {
 }
 
 claude() {
-  if ! _agent_personal_context; then
-    "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
-    return
-  fi
-  local gh_bin token
-  local -a clean_env
-  gh_bin="$(command -v gh 2>/dev/null)"
-  if [[ -n "$gh_bin" ]]; then
-    token="$("$gh_bin" auth token 2>/dev/null)"
-  fi
-  clean_env=(
-    env
-    -u CLAUDE_CODE_USE_BEDROCK
-    -u AWS_ACCESS_KEY_ID
-    -u AWS_SECRET_ACCESS_KEY
-    -u AWS_SESSION_TOKEN
-    -u AWS_SECURITY_TOKEN
-    -u AWS_PROFILE
-    -u AWS_REGION
-    -u AWS_DEFAULT_REGION
-    -u AWS_ROLE_ARN
-    -u AWS_ROLE_SESSION_NAME
-    -u AWS_WEB_IDENTITY_TOKEN_FILE
-    -u AWS_SHARED_CREDENTIALS_FILE
-    -u AWS_CONFIG_FILE
-    -u AWS_CONTAINER_CREDENTIALS_FULL_URI
-    -u AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
-  )
-  if [[ -n "$token" ]]; then
-    CLAUDE_CONFIG_DIR="$HOME/.claude-personal" \
-    GITHUB_PERSONAL_ACCESS_TOKEN="$token" \
-      "${clean_env[@]}" "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
-  else
-    CLAUDE_CONFIG_DIR="$HOME/.claude-personal" \
-      "${clean_env[@]}" "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
-  fi
+  "$HOME/.local/bin/claude-default" "$@"
 }
 
 codex() {

@@ -34,10 +34,39 @@ scripts
 .pi/agent/pi-hermes-memory/.skills-migrated-to-extension-storage
 .pi/agent/pi-hermes-memory/sessions.db
 
-# Claude work state stays machine-owned; only .claude-personal config is managed.
-.claude
+# Claude runtime state stays machine-owned. The safe default only manages
+# neutral rules; full stable configuration is applied when agentProfile=main.
 .claude.json
 .claude.json.backup
+.claude/.credentials.json
+.claude/backups
+.claude/cache
+.claude/debug
+.claude/file-history
+.claude/history.jsonl
+.claude/ide
+.claude/plans
+.claude/plugins
+.claude/projects
+.claude/session-env
+.claude/settings.local.json
+.claude/shell-snapshots
+.claude/stats-cache.json
+.claude/statsig
+.claude/tasks
+.claude/teams
+.claude/telemetry
+.claude/todos
+.claude/usage-data
+{{- if ne (.agentProfile | default "restricted") "main" }}
+.claude/RTK.md
+.claude/codex-opus-workflow.html
+.claude/rules
+.claude/settings.json
+.claude/skills
+{{- end }}
+
+# Portable Claude runtime stays machine-owned; stable configuration is managed.
 .claude-personal/.credentials.json
 .claude-personal/backups
 .claude-personal/cache
