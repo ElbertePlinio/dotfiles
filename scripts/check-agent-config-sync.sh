@@ -16,6 +16,18 @@ for arg in "$@"; do
   esac
 done
 
+PROFILE_ROLE="$(
+  if [[ -r "${HOME}/.config/agent-profiles/role" ]]; then
+    tr -d '[:space:]' <"${HOME}/.config/agent-profiles/role"
+  else
+    printf '%s' restricted
+  fi
+)"
+if [[ "$PROFILE_ROLE" != main && "$PROFILE_ROLE" != restricted ]]; then
+  printf 'ERR invalid profile role: %s\n' "$PROFILE_ROLE" >&2
+  exit 1
+fi
+
 pass() { printf 'OK  %s\n' "$*"; }
 err()  { printf 'ERR %s\n' "$*" >&2; fail=1; }
 need() { [[ -f "$1" ]] || err "missing: $1"; }
@@ -195,6 +207,14 @@ RUNTIME_IGNORE_PATHS=(
   .pi/agent/mcp-npx-cache.json
   .pi/agent/mcp-onboarding.json
   .pi/agent/pi-hermes-memory/.skills-migrated-to-extension-storage
+  .claude/.credentials.json
+  .claude/history.jsonl
+  .claude/plugins
+  .claude/projects
+  .claude-personal/.credentials.json
+  .claude-personal/history.jsonl
+  .claude-personal/plugins
+  .claude-personal/projects
   .codex/auth.json
   .codex/config.toml
   .codex/rules
@@ -284,11 +304,14 @@ check_manifest_and_sources() {
     fi
   done
 
-  if [[ -e "$ROOT/dot_claude-personal/skills/context7-mcp" ]]; then
-    err 'duplicate Claude context7 source still present (expected symlink only)'
-  else
-    pass 'no duplicate Claude context7 source directory'
-  fi
+  local claude_source
+  for claude_source in dot_claude dot_claude-personal; do
+    if [[ -e "$ROOT/${claude_source}/skills/context7-mcp" ]]; then
+      err "duplicate Context7 skill source still present: $claude_source"
+    else
+      pass "no duplicate Context7 skill directory: $claude_source"
+    fi
+  done
 
   while IFS=$'\t' read -r skill harness; do
     [[ -n "$skill" && -n "$harness" ]] || continue
@@ -561,6 +584,9 @@ check_live_portable_links() {
   local skill harness root link target expected_prefix canon
   canon_root="$(expand_home "$(jq -r '.canonical_root' "$MANIFEST")")"
   while IFS=$'\t' read -r skill harness; do
+    if [[ "$PROFILE_ROLE" == restricted && "$harness" == claude ]]; then
+      continue
+    fi
     local discovery
     discovery="$(jq -r --arg h "$harness" '.harnesses[$h].discovery' "$MANIFEST")"
     if [[ "$discovery" == "canonical" ]]; then
@@ -641,12 +667,16 @@ check_live_native_routing_ancestors() {
 check_live_native_routing_files() {
   local live rendered
   local -a files=(
-    "${HOME}/.claude-personal/skills/codex-fable/SKILL.md"
-    "${HOME}/.claude-personal/skills/codex-opus/SKILL.md"
-    "${HOME}/.claude-personal/skills/kickoff/SKILL.md"
     "${HOME}/.codex/skills/model-orchestration/SKILL.md"
     "${HOME}/.codex/skills/model-orchestration/references/model-routing.md"
   )
+  if [[ "$PROFILE_ROLE" == main ]]; then
+    files+=(
+      "${HOME}/.claude/skills/codex-fable/SKILL.md"
+      "${HOME}/.claude/skills/codex-opus/SKILL.md"
+      "${HOME}/.claude/skills/kickoff/SKILL.md"
+    )
+  fi
 
   rendered="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-native-routing.XXXXXX")"
   for live in "${files[@]}"; do
@@ -680,8 +710,15 @@ check_live_native_routing_files() {
 
 check_live_split_profile_targets() {
   local -a targets=(
+    "${HOME}/.config/agent-profiles/role"
+    "${HOME}/.config/agent-profiles/personal-roots"
+    "${HOME}/.local/bin/claude-profile"
+    "${HOME}/.local/bin/claude-default"
+    "${HOME}/.local/bin/claude-personal"
+    "${HOME}/.local/bin/agent-profile-doctor"
     "${HOME}/.zshrc"
     "${HOME}/.bashrc"
+    "${HOME}/.claude/CLAUDE.md"
     "${HOME}/.claude-personal"
     "${HOME}/Projects/Personal/.codex/config.toml"
     "${HOME}/Projects/Personal/.codex/AGENTS.md"
@@ -692,12 +729,43 @@ check_live_split_profile_targets() {
     "${HOME}/Projects/Personal/.agent-safety/install-repo-hook"
     "${HOME}/Projects/Personal/.agent-safety/hooks/pre-push"
   )
+  if [[ "$PROFILE_ROLE" == main ]]; then
+    targets+=(
+      "${HOME}/.claude/RTK.md"
+      "${HOME}/.claude/codex-opus-workflow.html"
+      "${HOME}/.claude/rules"
+      "${HOME}/.claude/settings.json"
+      "${HOME}/.claude/skills"
+    )
+  fi
 
   if chezmoi "${SRC[@]}" verify "${targets[@]}" >/dev/null 2>&1; then
-    pass 'live Personal/work split profile matches managed target state'
+    pass 'live default and portable profiles match managed target state'
   else
-    err 'live Personal/work split profile differs from managed target state'
+    err 'live default or portable profile differs from managed target state'
   fi
+}
+
+check_live_portable_scope() {
+  local path
+  local -a forbidden=(
+    "${HOME}/.claude-personal/codex-opus-workflow.html"
+    "${HOME}/.claude-personal/skills/agent-config-sync"
+    "${HOME}/.claude-personal/skills/codex-fable"
+    "${HOME}/.claude-personal/skills/codex-opus"
+    "${HOME}/.claude-personal/skills/kickoff"
+    "${HOME}/.claude-personal/skills/local-review"
+    "${HOME}/.claude-personal/skills/ship-pr"
+  )
+  for path in "${forbidden[@]}"; do
+    if [[ -e "$path" || -L "$path" ]]; then
+      if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
+        pass "portable full-profile path pending removal: $path"
+      else
+        err "portable profile still contains full-profile path: $path"
+      fi
+    fi
+  done
 }
 
 if [[ "$MODE" == live ]]; then
@@ -767,6 +835,7 @@ if [[ "$MODE" == live ]]; then
   fi
   check_live_omp_agent_overrides
   check_live_native_routing_files
+  check_live_portable_scope
 
 
   if [[ ! -e "$OPENCODE_LIVE" ]]; then
@@ -827,7 +896,6 @@ SHARED=(
   .chezmoitemplates/agents-shared-after-git.md
 )
 HARNESS=(
-  'dot_claude-personal/CLAUDE.md.tmpl|# Global Claude Rules|# Personal Codex Notes'
   'dot_codex/AGENTS.md.tmpl|# Personal Codex Notes|# Global Claude Rules'
   'dot_grok/AGENTS.md.tmpl|# Personal Grok Notes|# Personal Codex Notes'
   'dot_pi/agent/AGENTS.md.tmpl|# Personal Pi Notes|# Personal Codex Notes'
@@ -870,7 +938,8 @@ REQUIRED_SHARED_INVARIANTS=(
 )
 
 ADAPTER_BUDGETS=(
-  'dot_claude-personal/CLAUDE.md.tmpl|3000'
+  'dot_claude/CLAUDE.md.tmpl|2400'
+  'dot_claude-personal/CLAUDE.md.tmpl|500'
   'dot_codex/AGENTS.md.tmpl|2000'
   'dot_grok/AGENTS.md.tmpl|700'
   'dot_pi/agent/AGENTS.md.tmpl|1800'
@@ -887,18 +956,33 @@ STALE_PI_FLOW_PATHS=(
 )
 
 ROUTING_SKILL_TARGETS=(
-  "$HOME/.claude-personal/skills/codex-fable/SKILL.md"
-  "$HOME/.claude-personal/skills/codex-opus/SKILL.md"
-  "$HOME/.claude-personal/skills/kickoff/SKILL.md"
+  "$HOME/.claude/skills/codex-fable/SKILL.md"
+  "$HOME/.claude/skills/codex-opus/SKILL.md"
+  "$HOME/.claude/skills/kickoff/SKILL.md"
   "$HOME/.codex/skills/model-orchestration/SKILL.md"
   "$HOME/.codex/skills/model-orchestration/references/model-routing.md"
 )
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync.XXXXXX")"
 DEST="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-dest.XXXXXX")"
+RESTRICTED_DEST="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-restricted.XXXXXX")"
 TMP_SRC=("${SRC[@]}" --persistent-state "$TMP/chezmoi-state.boltdb")
-trap 'rm -rf "$TMP" "$DEST"' EXIT
+trap 'rm -rf "$TMP" "$DEST" "$RESTRICTED_DEST"' EXIT
 render() { chezmoi "${SRC[@]}" execute-template --file "$1" >"$2"; }
+MAIN_PROFILE_CONFIG="$TMP/main-profile.toml"
+RESTRICTED_PROFILE_CONFIG="$TMP/restricted-profile.toml"
+printf '%s\n' '[data]' '  agentProfile = "main"' >"$MAIN_PROFILE_CONFIG"
+printf '%s\n' '[data]' '  agentProfile = "restricted"' >"$RESTRICTED_PROFILE_CONFIG"
+RESTRICTED_SRC=(--config "$RESTRICTED_PROFILE_CONFIG" "${SRC[@]}" --persistent-state "$TMP/restricted-state.boltdb")
+render_profile() {
+  local profile="$1" source_file="$2" destination_file="$3" config
+  case "$profile" in
+    main) config="$MAIN_PROFILE_CONFIG" ;;
+    restricted) config="$RESTRICTED_PROFILE_CONFIG" ;;
+    *) err "unknown render profile: $profile"; return 1 ;;
+  esac
+  chezmoi --config "$config" "${SRC[@]}" execute-template --file "$source_file" >"$destination_file"
+}
 
 for f in "${SHARED[@]}"; do need "$f"; done
 [[ -f .chezmoitemplates/agents-shared.md ]] && \
@@ -975,15 +1059,15 @@ for entry in "${ADAPTER_BUDGETS[@]}"; do
   fi
 done
 
-for path in dot_claude-personal/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl \
-  dot_grok/AGENTS.md.tmpl private_dot_factory/AGENTS.md.tmpl; do
+for path in dot_claude/CLAUDE.md.tmpl dot_claude-personal/CLAUDE.md.tmpl \
+  dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl private_dot_factory/AGENTS.md.tmpl; do
   grep -qiE '^\|.*cost.*intelligence.*taste.*vision.*\|$' "$path" \
     && err "adapter embeds a full model scoring table: $path" \
     || pass "adapter has no full model scoring table: $path"
 done
 
 ADAPTER_OWNER_POINTERS=(
-  'dot_claude-personal/CLAUDE.md.tmpl|model-routing.md|Claude'
+  'dot_claude/CLAUDE.md.tmpl|model-routing.md|Claude'
   'dot_codex/AGENTS.md.tmpl|$model-orchestration|Codex'
   'dot_grok/AGENTS.md.tmpl|model-orchestration|Grok'
   'dot_pi/agent/AGENTS.md.tmpl|Available managed pool|Pi'
@@ -1116,18 +1200,93 @@ for entry in "${HARNESS[@]}"; do
     || pass "global harness excludes CODING_AGENT_RULES: $path"
 done
 
+MAIN_CLAUDE_OUT="$TMP/claude-main.md"
+PORTABLE_CLAUDE_OUT="$TMP/claude-portable.md"
+RESTRICTED_CLAUDE_OUT="$TMP/claude-restricted.md"
+
+if render_profile main dot_claude/CLAUDE.md.tmpl "$MAIN_CLAUDE_OUT"; then
+  grep -Fq '## Model orchestration' "$MAIN_CLAUDE_OUT" \
+    && grep -Fq '/home/dev/AgentMemory' "$MAIN_CLAUDE_OUT" \
+    && grep -Fq 'model-routing.md' "$MAIN_CLAUDE_OUT" \
+    && pass 'main Claude profile renders full personal orchestration' \
+    || err 'main Claude profile is missing full personal policy'
+else
+  err 'main Claude profile render failed'
+fi
+
+if render dot_claude-personal/CLAUDE.md.tmpl "$PORTABLE_CLAUDE_OUT"; then
+  grep -Fq '## Portable personal profile' "$PORTABLE_CLAUDE_OUT" \
+    && grep -Fq 'Do not use Grok, GLM' "$PORTABLE_CLAUDE_OUT" \
+    && ! grep -Fq '/home/dev/AgentMemory' "$PORTABLE_CLAUDE_OUT" \
+    && ! grep -Fq 'model-routing.md' "$PORTABLE_CLAUDE_OUT" \
+    && pass 'portable Claude profile renders personal policy without full orchestration' \
+    || err 'portable Claude profile policy mismatch'
+else
+  err 'portable Claude profile render failed'
+fi
+
+PORTABLE_SETTINGS_OUT="$TMP/claude-portable-settings.json"
+if chezmoi "${SRC[@]}" decrypt dot_claude-personal/encrypted_settings.json.age >"$PORTABLE_SETTINGS_OUT" \
+  && jq -e '
+    .permissions.defaultMode == "default"
+    and .permissions.allow == [
+      "Read", "Glob", "Grep", "Edit", "Write", "mcp__codegraph__*"
+    ]
+    and ((.permissions.deny // []) | length == 0)
+    and (((.mcpServers // {}) | has("agentmemory-vault")) | not)
+    and ((.enabledPlugins["claude-mem@thedotmack"] // false) | not)
+  ' "$PORTABLE_SETTINGS_OUT" >/dev/null; then
+  pass 'portable Claude settings require prompts for shell and external actions'
+else
+  err 'portable Claude settings grant unsafe unattended permissions'
+fi
+
+if render_profile restricted dot_claude/CLAUDE.md.tmpl "$RESTRICTED_CLAUDE_OUT"; then
+  grep -Fq '## Restricted profile' "$RESTRICTED_CLAUDE_OUT" \
+    && grep -Fq 'require explicit user authorization for that exact action' "$RESTRICTED_CLAUDE_OUT" \
+    && ! grep -Fq 'Pickforge' "$RESTRICTED_CLAUDE_OUT" \
+    && ! grep -Fq 'model-routing.md' "$RESTRICTED_CLAUDE_OUT" \
+    && ! grep -Fq '/home/dev/AgentMemory' "$RESTRICTED_CLAUDE_OUT" \
+    && pass 'restricted Claude profile renders neutral explicit-authorization policy' \
+    || err 'restricted Claude profile policy mismatch'
+else
+  err 'restricted Claude profile render failed'
+fi
+
+for public_profile_file in \
+  .chezmoitemplates/claude-core.md \
+  .chezmoitemplates/claude-adapter-common.md \
+  .chezmoitemplates/claude-personal-lite.md \
+  .chezmoitemplates/claude-restricted.md \
+  dot_claude/CLAUDE.md.tmpl \
+  dot_claude-personal/CLAUDE.md.tmpl; do
+  grep -qiE '(^|[^[:alnum:]_])(company|contract|client|employer)([^[:alnum:]_]|$)' "$public_profile_file" \
+    && err "profile source exposes private work-context vocabulary: $public_profile_file" \
+    || pass "profile source uses generic public vocabulary: $public_profile_file"
+done
+
 render "$SOUL" "$TMP/SOUL.md" && pass 'rendered Hermes SOUL' || err 'Hermes SOUL render failed'
 
 TARGETS=(
+  "$DEST/.config/agent-profiles/role" "$DEST/.config/agent-profiles/personal-roots"
+  "$DEST/.local/bin/claude-profile" "$DEST/.local/bin/claude-default"
+  "$DEST/.local/bin/claude-personal" "$DEST/.local/bin/agent-profile-doctor"
   "$DEST/.zshrc" "$DEST/.bashrc"
+  "$DEST/.claude/CLAUDE.md" "$DEST/.claude/RTK.md"
+  "$DEST/.claude/codex-opus-workflow.html"
+  "$DEST/.claude/rules/context7.md" "$DEST/.claude/settings.json"
+  "$DEST/.claude/skills/codex-fable/SKILL.md"
+  "$DEST/.claude/skills/codex-opus/SKILL.md"
+  "$DEST/.claude/skills/kickoff/SKILL.md"
+  "$DEST/.claude/skills/codex/SKILL.md"
+  "$DEST/.claude/skills/ship-pr/SKILL.md"
+  "$DEST/.claude/skills/grok/SKILL.md"
+  "$DEST/.claude/skills/pickgauge-usage/SKILL.md"
+  "$DEST/.claude/skills/plan-issue/SKILL.md"
+  "$DEST/.claude/skills/x-research/SKILL.md"
   "$DEST/.claude-personal/CLAUDE.md" "$DEST/.claude-personal/RTK.md"
-  "$DEST/.claude-personal/codex-opus-workflow.html"
   "$DEST/.claude-personal/rules/context7.md" "$DEST/.claude-personal/settings.json"
-  "$DEST/.claude-personal/skills/codex-fable/SKILL.md"
-  "$DEST/.claude-personal/skills/codex-opus/SKILL.md"
-  "$DEST/.claude-personal/skills/kickoff/SKILL.md"
   "$DEST/.claude-personal/skills/codex/SKILL.md"
-  "$DEST/.claude-personal/skills/ship-pr/SKILL.md"
   "$DEST/.codex/AGENTS.md"
   "$DEST/Projects/Personal/.codex/config.toml"
   "$DEST/Projects/Personal/.codex/AGENTS.md"
@@ -1142,15 +1301,25 @@ TARGETS=(
   "$DEST/.factory/AGENTS.md" "$DEST/.config/opencode/AGENTS.md" "$DEST/.hermes/SOUL.md"
 )
 EXPECTED=(
+  dot_config/agent-profiles/role.tmpl dot_config/agent-profiles/personal-roots
+  dot_local/bin/executable_claude-profile dot_local/bin/executable_claude-default
+  dot_local/bin/executable_claude-personal dot_local/bin/executable_agent-profile-doctor
   dot_zshrc.tmpl dot_bashrc
+  dot_claude/CLAUDE.md.tmpl dot_claude/private_RTK.md
+  dot_claude/codex-opus-workflow.html
+  dot_claude/rules/context7.md dot_claude/encrypted_settings.json.age
+  dot_claude/skills/codex-fable/encrypted_SKILL.md.age
+  dot_claude/skills/codex-opus/encrypted_SKILL.md.age
+  dot_claude/skills/kickoff/encrypted_SKILL.md.age
+  dot_claude/skills/codex/encrypted_SKILL.md.age
+  dot_claude/skills/ship-pr/encrypted_SKILL.md.age
+  dot_claude/skills/grok/encrypted_SKILL.md.age
+  dot_claude/skills/pickgauge-usage/encrypted_SKILL.md.age
+  dot_claude/skills/plan-issue/encrypted_private_SKILL.md.age
+  dot_claude/skills/x-research/encrypted_SKILL.md.age
   dot_claude-personal/CLAUDE.md.tmpl dot_claude-personal/private_RTK.md
-  dot_claude-personal/codex-opus-workflow.html
   dot_claude-personal/rules/context7.md dot_claude-personal/encrypted_settings.json.age
-  dot_claude-personal/skills/codex-fable/encrypted_SKILL.md.age
-  dot_claude-personal/skills/codex-opus/encrypted_SKILL.md.age
-  dot_claude-personal/skills/kickoff/encrypted_SKILL.md.age
   dot_claude-personal/skills/codex/encrypted_SKILL.md.age
-  dot_claude-personal/skills/ship-pr/encrypted_SKILL.md.age
   dot_codex/AGENTS.md.tmpl
   Projects/Personal/dot_codex/config.toml
   Projects/Personal/dot_codex/symlink_AGENTS.md
@@ -1175,12 +1344,19 @@ chezmoi "${SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TMP/st
   && pass 'dry-run status (temp dest)' || err "dry-run status failed: $(tr '\n' ' ' <"$TMP/st.err")"
 
 mkdir -p "$DEST/.grok" "$DEST/.hermes" "$DEST/.config/opencode" \
+  "$DEST/.config/agent-profiles" "$DEST/.local/bin" \
+  "$DEST/.claude/rules" \
+  "$DEST/.claude/skills/codex-fable" \
+  "$DEST/.claude/skills/codex-opus" \
+  "$DEST/.claude/skills/kickoff" \
+  "$DEST/.claude/skills/codex" \
+  "$DEST/.claude/skills/ship-pr" \
+  "$DEST/.claude/skills/grok" \
+  "$DEST/.claude/skills/pickgauge-usage" \
+  "$DEST/.claude/skills/plan-issue" \
+  "$DEST/.claude/skills/x-research" \
   "$DEST/.claude-personal/rules" \
-  "$DEST/.claude-personal/skills/codex-fable" \
-  "$DEST/.claude-personal/skills/codex-opus" \
-  "$DEST/.claude-personal/skills/kickoff" \
   "$DEST/.claude-personal/skills/codex" \
-  "$DEST/.claude-personal/skills/ship-pr" \
   "$DEST/.codex/skills/model-orchestration/references" \
   "$DEST/.codex/skills/ship-pr" \
   "$DEST/.grok/skills/model-orchestration" \
@@ -1200,9 +1376,30 @@ else
   grep -Fq 'Projects/Personal/.agent-safety/bin:$PATH' "$DEST/.zshrc" \
     && pass 'temp zsh profile enables Personal GitHub guard' \
     || err 'temp zsh profile missing Personal GitHub guard PATH'
-  grep -Fq 'CLAUDE_CONFIG_DIR="$HOME/.claude-personal"' "$DEST/.zshrc" \
-    && pass 'temp zsh profile routes Personal Claude state' \
-    || err 'temp zsh profile missing Personal Claude route'
+  grep -Fq '"$HOME/.local/bin/claude-default"' "$DEST/.zshrc" \
+    && pass 'temp zsh profile routes default Claude through managed launcher' \
+    || err 'temp zsh profile missing managed default Claude launcher'
+  grep -Fxq main "$DEST/.config/agent-profiles/role" \
+    && pass 'temp main role marker applied' \
+    || err 'temp main role marker mismatch'
+  grep -Fq '## Model orchestration' "$DEST/.claude/CLAUDE.md" \
+    && pass 'temp main Claude profile applied' \
+    || err 'temp main Claude profile missing full orchestration'
+  grep -Fq '## Portable personal profile' "$DEST/.claude-personal/CLAUDE.md" \
+    && ! grep -Fq 'model-routing.md' "$DEST/.claude-personal/CLAUDE.md" \
+    && pass 'temp portable Claude profile stays lightweight' \
+    || err 'temp portable Claude profile scope mismatch'
+  for script in \
+    "$DEST/.local/bin/claude-profile" \
+    "$DEST/.local/bin/claude-default" \
+    "$DEST/.local/bin/claude-personal" \
+    "$DEST/.local/bin/agent-profile-doctor"; do
+    if [[ -x "$script" ]] && sh -n "$script"; then
+      pass "temp profile launcher applied: ${script#"$DEST/"}"
+    else
+      err "temp profile launcher invalid: ${script#"$DEST/"}"
+    fi
+  done
   if [[ -L "$DEST/Projects/Personal/.codex/AGENTS.md" ]] \
     && [[ "$(readlink "$DEST/Projects/Personal/.codex/AGENTS.md")" == '../../../.codex/AGENTS.md' ]]; then
     pass 'temp Personal Codex AGENTS link applied'
@@ -1259,14 +1456,44 @@ else
     || err 'temp OpenCode memory cutover apply mismatch'
 fi
 
+RESTRICTED_TARGETS=(
+  "$RESTRICTED_DEST/.config/agent-profiles/role"
+  "$RESTRICTED_DEST/.config/agent-profiles/personal-roots"
+  "$RESTRICTED_DEST/.local/bin/claude-profile"
+  "$RESTRICTED_DEST/.local/bin/claude-default"
+  "$RESTRICTED_DEST/.local/bin/claude-personal"
+  "$RESTRICTED_DEST/.local/bin/agent-profile-doctor"
+  "$RESTRICTED_DEST/.claude/CLAUDE.md"
+)
+mkdir -p "$RESTRICTED_DEST/.config/agent-profiles" "$RESTRICTED_DEST/.local/bin" "$RESTRICTED_DEST/.claude"
+if chezmoi "${RESTRICTED_SRC[@]}" --destination "$RESTRICTED_DEST" apply "${RESTRICTED_TARGETS[@]}"; then
+  grep -Fxq restricted "$RESTRICTED_DEST/.config/agent-profiles/role" \
+    && grep -Fq '## Restricted profile' "$RESTRICTED_DEST/.claude/CLAUDE.md" \
+    && ! grep -Fq 'Pickforge' "$RESTRICTED_DEST/.claude/CLAUDE.md" \
+    && [[ ! -e "$RESTRICTED_DEST/.claude/settings.json" ]] \
+    && [[ ! -e "$RESTRICTED_DEST/.claude/skills" ]] \
+    && pass 'restricted destination applies only neutral default-profile policy' \
+    || err 'restricted destination profile scope mismatch'
+else
+  err 'restricted destination apply failed'
+fi
+if chezmoi "${RESTRICTED_SRC[@]}" --destination "$RESTRICTED_DEST" \
+  source-path "$RESTRICTED_DEST/.claude/settings.json" >/dev/null 2>&1; then
+  err 'restricted profile still exposes full default settings as a managed target'
+else
+  pass 'restricted profile ignores full default settings'
+fi
+
 if [[ -d "$DEST/.agents/skills/context7-mcp" ]]; then
-  rm -rf "$DEST/.claude-personal/skills/context7-mcp"
-  cp -a "$DEST/.agents/skills/context7-mcp" "$DEST/.claude-personal/skills/context7-mcp"
-  if dirs_identical "$DEST/.claude-personal/skills/context7-mcp" "$DEST/.agents/skills/context7-mcp"; then
-    pass 'seeded Claude context7 as identical regular directory'
-  else
-    err 'failed to seed identical Claude context7 directory'
-  fi
+  for claude_skills_root in "$DEST/.claude/skills" "$DEST/.claude-personal/skills"; do
+    rm -rf "$claude_skills_root/context7-mcp"
+    cp -a "$DEST/.agents/skills/context7-mcp" "$claude_skills_root/context7-mcp"
+    if dirs_identical "$claude_skills_root/context7-mcp" "$DEST/.agents/skills/context7-mcp"; then
+      pass "seeded identical Context7 directory: ${claude_skills_root#"$DEST/"}"
+    else
+      err "failed to seed Context7 directory: ${claude_skills_root#"$DEST/"}"
+    fi
+  done
 else
   err 'canonical context7-mcp missing after seed apply'
 fi
@@ -1316,6 +1543,72 @@ while IFS=$'\t' read -r skill harness; do
   fi
   pass "temp portable ok: $harness/$skill"
 done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
+
+PROFILE_HOME="$TMP/profile-home"
+FAKE_CLAUDE="$TMP/fake-claude"
+mkdir -p "$PROFILE_HOME/.config/agent-profiles" "$PROFILE_HOME/Projects/Personal/demo" "$TMP/outside"
+printf '%s\n' restricted >"$PROFILE_HOME/.config/agent-profiles/role"
+printf '%s\n' '~/Projects/Personal' >"$PROFILE_HOME/.config/agent-profiles/personal-roots"
+cat >"$FAKE_CLAUDE" <<'EOF'
+#!/bin/sh
+printf 'config=%s\n' "${CLAUDE_CONFIG_DIR:-default}"
+printf 'bedrock=%s\n' "${CLAUDE_CODE_USE_BEDROCK:-unset}"
+printf 'aws_profile=%s\n' "${AWS_PROFILE:-unset}"
+for argument in "$@"; do
+  printf 'arg=%s\n' "$argument"
+done
+EOF
+chmod +x "$FAKE_CLAUDE"
+
+restricted_run="$(
+  HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
+    "$ROOT/dot_local/bin/executable_claude-profile" default --print probe
+)"
+grep -Fq 'arg=--permission-mode' <<<"$restricted_run" \
+  && grep -Fq 'arg=manual' <<<"$restricted_run" \
+  && ! grep -Fq 'arg=--dangerously-skip-permissions' <<<"$restricted_run" \
+  && pass 'restricted launcher forces manual permissions' \
+  || err 'restricted launcher permission enforcement failed'
+
+if HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
+  "$ROOT/dot_local/bin/executable_claude-profile" default --dangerously-skip-permissions >/dev/null 2>&1; then
+  err 'restricted launcher accepted permission bypass'
+else
+  pass 'restricted launcher rejects permission bypass'
+fi
+
+if (
+  cd "$TMP/outside"
+  HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
+    "$ROOT/dot_local/bin/executable_claude-profile" personal --print probe
+) >/dev/null 2>&1; then
+  err 'portable launcher accepted a path outside configured personal roots'
+else
+  pass 'portable launcher rejects paths outside configured personal roots'
+fi
+
+portable_run="$(
+  cd "$PROFILE_HOME/Projects/Personal/demo"
+  HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
+    CLAUDE_CODE_USE_BEDROCK=1 AWS_PROFILE=restricted \
+    "$ROOT/dot_local/bin/executable_claude-profile" personal --print probe
+)"
+grep -Fq "config=$PROFILE_HOME/.claude-personal" <<<"$portable_run" \
+  && grep -Fq 'bedrock=unset' <<<"$portable_run" \
+  && grep -Fq 'aws_profile=unset' <<<"$portable_run" \
+  && grep -Fq 'arg=--dangerously-skip-permissions' <<<"$portable_run" \
+  && pass 'portable launcher isolates config and provider environment' \
+  || err 'portable launcher isolation failed'
+
+printf '%s\n' main >"$PROFILE_HOME/.config/agent-profiles/role"
+main_run="$(
+  HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
+    "$ROOT/dot_local/bin/executable_claude-profile" default --print probe
+)"
+grep -Fq 'arg=--dangerously-skip-permissions' <<<"$main_run" \
+  && ! grep -Fq 'arg=manual' <<<"$main_run" \
+  && pass 'main launcher retains autonomous permissions' \
+  || err 'main launcher permission mode mismatch'
 
 bash -n "$ROOT/scripts/check-agent-config-sync.sh" && pass 'bash -n' || err 'bash -n failed'
 if [[ -f "$ROOT/dot_local/bin/executable_agent-config-sync" ]]; then

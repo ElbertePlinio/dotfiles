@@ -39,6 +39,18 @@ CHECK="$SOURCE/scripts/check-agent-config-sync.sh"
 MANIFEST="$SOURCE/dot_agents/skill-targets.json"
 SRC=(--source "$SOURCE")
 
+PROFILE_ROLE="$(
+  if [[ -r "${HOME}/.config/agent-profiles/role" ]]; then
+    tr -d '[:space:]' <"${HOME}/.config/agent-profiles/role"
+  else
+    chezmoi "${SRC[@]}" execute-template '{{ .agentProfile | default "restricted" }}'
+  fi
+)"
+[[ "$PROFILE_ROLE" == main || "$PROFILE_ROLE" == restricted ]] || {
+  echo "agent-config-sync: invalid profile role '$PROFILE_ROLE'" >&2
+  exit 1
+}
+
 cmd_check() {
   bash "$CHECK"
 }
@@ -52,13 +64,14 @@ cmd_strict_preflight() {
 }
 
 portable_link_targets() {
-  jq -r --arg home "$HOME" '
+  jq -r --arg home "$HOME" --arg role "$PROFILE_ROLE" '
     . as $root
     | .skills | to_entries[]
     | .key as $skill
     | .value[] as $harness
     | $root.harnesses[$harness] as $h
     | select($h.discovery == "symlink")
+    | select($role == "main" or $harness != "claude")
     | ($h.skills_root | if startswith("~/") then $home + .[1:] elif . == "~" then $home else . end) + "/" + $skill
   ' "$MANIFEST"
 }
@@ -110,17 +123,92 @@ preflight_unmanaged_targets() {
   done
 }
 
+remove_obsolete_portable_skill() {
+  local skill="$1"
+  local dir="${HOME}/.claude-personal/skills/${skill}"
+  local live="${dir}/SKILL.md"
+  local source_age="${SOURCE}/dot_claude/skills/${skill}/encrypted_SKILL.md.age"
+  local rendered actual_hash legacy_hash
+  local source_matches=0
+  local -a entries
+
+  case "$skill" in
+    codex-fable) legacy_hash='ff2e124c935ae773d1be21aac4c990fe773e4979547ea88086925abfecb55a96' ;;
+    codex-opus) legacy_hash='7cdb683091226a41760b265da01d22011ad97f01e47b904730ff0410bba874e0' ;;
+    kickoff) legacy_hash='d15b84f6030291cb1598cf833778124fe771483f4172d04645f5da736f0ac317' ;;
+    ship-pr) legacy_hash='2b3cd186b5d339dca2907cf963cccaaf7b71a75cfc0339556fb1d752e91dd82d' ;;
+    *) echo "agent-config-sync: unknown obsolete portable skill: $skill" >&2; return 1 ;;
+  esac
+
+  [[ -e "$dir" || -L "$dir" ]] || return 0
+  [[ -d "$dir" && ! -L "$dir" ]] || {
+    echo "agent-config-sync: refusing to remove unexpected portable skill path: $dir" >&2
+    return 1
+  }
+  shopt -s nullglob dotglob
+  entries=("$dir"/*)
+  shopt -u nullglob dotglob
+  [[ "${#entries[@]}" -eq 1 && "${entries[0]}" == "$live" && -f "$live" && ! -L "$live" ]] || {
+    echo "agent-config-sync: refusing to remove modified portable skill directory: $dir" >&2
+    return 1
+  }
+
+  rendered="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-portable-skill.XXXXXX")"
+  if chezmoi "${SRC[@]}" decrypt "$source_age" >"$rendered" && cmp -s "$live" "$rendered"; then
+    source_matches=1
+  fi
+  rm -f "$rendered"
+  read -r actual_hash _ < <(sha256sum "$live")
+  if [[ "$source_matches" -ne 1 && "$actual_hash" != "$legacy_hash" ]]; then
+    echo "agent-config-sync: refusing to remove divergent portable skill: $live" >&2
+    return 1
+  fi
+
+  rm -f "$live"
+  rmdir "$dir"
+}
+
+remove_obsolete_portable_paths() {
+  local skill link target workflow workflow_hash
+  for skill in codex-fable codex-opus kickoff ship-pr; do
+    remove_obsolete_portable_skill "$skill"
+  done
+
+  for skill in agent-config-sync local-review; do
+    link="${HOME}/.claude-personal/skills/${skill}"
+    [[ -e "$link" || -L "$link" ]] || continue
+    target="../../.agents/skills/${skill}"
+    [[ -L "$link" && "$(readlink "$link")" == "$target" ]] || {
+      echo "agent-config-sync: refusing to remove divergent portable skill link: $link" >&2
+      return 1
+    }
+    rm -f "$link"
+  done
+
+  workflow="${HOME}/.claude-personal/codex-opus-workflow.html"
+  if [[ -e "$workflow" || -L "$workflow" ]]; then
+    [[ -f "$workflow" && ! -L "$workflow" ]] || {
+      echo "agent-config-sync: refusing to remove unexpected portable workflow: $workflow" >&2
+      return 1
+    }
+    read -r workflow_hash _ < <(sha256sum "$workflow")
+    if ! cmp -s "$workflow" "${SOURCE}/dot_claude/codex-opus-workflow.html" \
+      && [[ "$workflow_hash" != 'de5efd7678c7d537090486178690e6b3a5805947fadd322ac65a807977bfd40d' ]]; then
+      echo "agent-config-sync: refusing to remove divergent portable workflow: $workflow" >&2
+      return 1
+    fi
+    rm -f "$workflow"
+  fi
+}
+
 cmd_apply() {
   cmd_check
   cmd_strict_preflight
 
   mkdir -p \
+    "${HOME}/.config/agent-profiles" \
     "${HOME}/.claude-personal/rules" \
-    "${HOME}/.claude-personal/skills/codex-fable" \
-    "${HOME}/.claude-personal/skills/codex-opus" \
-    "${HOME}/.claude-personal/skills/kickoff" \
     "${HOME}/.claude-personal/skills/codex" \
-    "${HOME}/.claude-personal/skills/ship-pr" \
     "${HOME}/.codex/skills/model-orchestration/references" \
     "${HOME}/.codex/skills/ship-pr" \
     "${HOME}/.grok/skills/model-orchestration" \
@@ -129,18 +217,21 @@ cmd_apply() {
     "${HOME}/Projects/Personal/.agent-safety/hooks"
 
   local -a targets=(
+    "${HOME}/.config/agent-profiles/role"
+    "${HOME}/.config/agent-profiles/personal-roots"
+    "${HOME}/.local/bin/claude-profile"
+    "${HOME}/.local/bin/claude-default"
+    "${HOME}/.local/bin/claude-personal"
+    "${HOME}/.local/bin/agent-profile-doctor"
     "${HOME}/.zshrc"
     "${HOME}/.bashrc"
+    "${HOME}/.claude/CLAUDE.md"
     "${HOME}/.claude-personal/CLAUDE.md"
     "${HOME}/.claude-personal/RTK.md"
-    "${HOME}/.claude-personal/codex-opus-workflow.html"
     "${HOME}/.claude-personal/rules"
     "${HOME}/.claude-personal/settings.json"
-    "${HOME}/.codex/AGENTS.md"
-    "${HOME}/.claude-personal/skills/codex-fable/SKILL.md"
-    "${HOME}/.claude-personal/skills/codex-opus/SKILL.md"
-    "${HOME}/.claude-personal/skills/kickoff/SKILL.md"
     "${HOME}/.claude-personal/skills/codex"
+    "${HOME}/.codex/AGENTS.md"
     "${HOME}/.codex/skills/model-orchestration/SKILL.md"
     "${HOME}/.codex/skills/model-orchestration/references/model-routing.md"
     "${HOME}/Projects/Personal/.codex/config.toml"
@@ -168,14 +259,39 @@ cmd_apply() {
     "${HOME}/.local/bin/sudo-askpass"
     "${HOME}/.config/environment.d/50-sudo-askpass.conf"
     "${HOME}/.config/environment.d/60-omp.conf"
-    "${HOME}/.claude-personal/skills/codex-fable"
-    "${HOME}/.claude-personal/skills/codex-opus"
-    "${HOME}/.claude-personal/skills/kickoff"
-    "${HOME}/.claude-personal/skills/ship-pr"
     "${HOME}/.codex/skills/model-orchestration"
     "${HOME}/.codex/skills/ship-pr"
     "${HOME}/.grok/skills/model-orchestration"
   )
+
+  if [[ "$PROFILE_ROLE" == main ]]; then
+    mkdir -p \
+      "${HOME}/.claude/rules" \
+      "${HOME}/.claude/skills/codex" \
+      "${HOME}/.claude/skills/codex-fable" \
+      "${HOME}/.claude/skills/codex-opus" \
+      "${HOME}/.claude/skills/kickoff" \
+      "${HOME}/.claude/skills/ship-pr" \
+      "${HOME}/.claude/skills/grok" \
+      "${HOME}/.claude/skills/pickgauge-usage" \
+      "${HOME}/.claude/skills/plan-issue" \
+      "${HOME}/.claude/skills/x-research"
+    targets+=(
+      "${HOME}/.claude/RTK.md"
+      "${HOME}/.claude/codex-opus-workflow.html"
+      "${HOME}/.claude/rules"
+      "${HOME}/.claude/settings.json"
+      "${HOME}/.claude/skills/codex"
+      "${HOME}/.claude/skills/codex-fable"
+      "${HOME}/.claude/skills/codex-opus"
+      "${HOME}/.claude/skills/kickoff"
+      "${HOME}/.claude/skills/ship-pr"
+      "${HOME}/.claude/skills/grok"
+      "${HOME}/.claude/skills/pickgauge-usage"
+      "${HOME}/.claude/skills/plan-issue"
+      "${HOME}/.claude/skills/x-research"
+    )
+  fi
 
   local link
   while IFS= read -r link; do
@@ -183,6 +299,7 @@ cmd_apply() {
   done < <(portable_link_targets)
 
   preflight_unmanaged_targets "${targets[@]}"
+  remove_obsolete_portable_paths
   bootstrap_real_gh
 
   chezmoi "${SRC[@]}" apply --no-tty "${targets[@]}"

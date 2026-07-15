@@ -21,21 +21,26 @@ chmod 0600 ~/.config/chezmoi/key.txt
 # 3. Initialize from this repo
 chezmoi init git@github.com:ElbertePlinio/dotfiles.git
 
-# 4. Preview what will change in $HOME
+# 4. Preview every target before applying
 chezmoi diff
 
-# 5. Apply
-chezmoi apply -v
+# 5. Apply interactively on a clean machine
+chezmoi apply --interactive
+
+# 6. Validate and reconcile managed agent configuration
+chezmoi apply ~/.local/bin/agent-config-sync
+agent-config-sync apply
 ```
 
 Daily use:
 
 ```bash
-chezmoi edit ~/.zshrc      # edit a tracked file (chezmoi opens source copy)
-chezmoi apply              # push staged changes into $HOME
-chezmoi cd                 # jump into the source repo
-git add -A && git commit -m "..." && git push
-chezmoi update             # git pull && chezmoi apply
+chezmoi edit ~/.zshrc               # edit the source copy
+chezmoi diff                         # review target drift
+chezmoi apply ~/.zshrc               # apply only the reviewed target
+agent-config-sync apply              # validated agent-config cutover
+chezmoi cd                           # open the source repository
+git pull --ff-only                   # update source without applying blindly
 ```
 
 ## What's managed
@@ -49,14 +54,43 @@ chezmoi update             # git pull && chezmoi apply
 - **Defaults / environment**: `mimeapps.list`, `user-dirs.dirs`, `user-dirs.locale`, `trashrc`, `autostart/`, `environment.d/`, `cachyos/`, `cachyos-hello.json`, `libinput-gestures.conf`
 - **Fonts / input**: `~/.config/fontconfig/`, `.XCompose`
 - **AI tooling**:
-  - Shared behavior: `.chezmoitemplates/agents-shared*.md` (included by harness adapters)
-  - Adapters: `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.grok/AGENTS.md`, `~/.pi/agent/AGENTS.md`, `~/.factory/AGENTS.md`, Hermes identity `~/.hermes/SOUL.md`
-  - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`. Harness-native/`encrypted_*.age` skills stay per-tool — do not migrate in the shared slice. Codex reads the canonical root; other harnesses use chezmoi symlinks.
-  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply`) — source at `dot_local/bin/executable_agent-config-sync`
-  - Plaintext extras: `~/.claude/settings.json`, `~/.claude/rules/`, `~/.codex/rules/`
-  - **Encrypted** (age): `~/.codex/auth.json`, `~/.codex/config.toml`, `~/.context7/credentials.json`
-  - Check consolidation: `scripts/check-agent-config-sync.sh` (also via `agent-config-sync check`)
-  - Runtime state: sessions, histories, caches, usage/curator state, and background-process state are excluded; one-off encrypted archives live outside chezmoi under `~/Archives/agent-runtime-state/`
+  - Shared full-profile behavior: `.chezmoitemplates/agents-shared*.md`
+  - Claude profile components: `.chezmoitemplates/claude-*.md`
+  - Default Claude adapter: `~/.claude/CLAUDE.md` (full on `main`, neutral on `restricted`)
+  - Portable Claude adapter: `~/.claude-personal/CLAUDE.md` (Claude and OpenAI only)
+  - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`
+  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply`)
+  - Profile launchers: `claude-default`, `claude-personal`, `agent-profile-doctor`
+  - Encrypted stable configuration: selected Claude settings and harness-native skills
+  - Runtime state: credentials, sessions, histories, caches, plugins, and usage state remain machine-owned
+
+## Agent profiles
+
+Profile names describe capability and safety, not organizations or projects:
+
+- `main`: full managed agent configuration for the trusted primary workstation.
+- `restricted`: safe default. The default Claude profile receives neutral rules, manual permissions, and no personal provider or memory imports.
+- Portable: `claude-personal` uses the isolated `~/.claude-personal` state directory, strips AWS/Bedrock environment variables, and runs only inside configured personal roots or their worktrees.
+
+The public repository contains profile policy and encrypted stable configuration. It does not contain machine credentials, sessions, histories, plugin installations, account tokens, or the reason a machine uses a given role.
+
+Machine role is local data. Omit it for the safe `restricted` default. Set `main` only on the trusted primary workstation:
+
+```toml
+# ~/.config/chezmoi/chezmoi.toml
+[data]
+  agentProfile = "main"
+```
+
+Use explicit launchers instead of directory-sensitive shell magic:
+
+```bash
+claude                 # shell wrapper -> claude-default
+claude-personal        # isolated portable profile
+agent-profile-doctor   # resolved role, paths, permission mode, environment presence
+```
+
+Authentication, provider setup, and plugin installation happen separately inside each Claude config directory. Never copy `.credentials.json`, sessions, or caches between profiles.
 
 ## Secrets (age encryption)
 
@@ -244,7 +278,7 @@ Regenerable — don't back up, reinstall fresh:
 3. **Reinstall** the OS.
 4. **Packages** → pacman, AUR helper, flatpaks from the `.txt` lists.
 5. **Age identity** → restore `~/.config/chezmoi/key.txt` (0600) and recreate `~/.config/chezmoi/chezmoi.toml` — see [Secrets](#secrets-age-encryption).
-6. **Dotfiles** → `chezmoi init git@github.com:ElbertePlinio/dotfiles.git && chezmoi apply`.
+6. **Dotfiles** → initialize the repo, review `chezmoi diff`, apply interactively, then run `agent-config-sync apply`.
 7. **SSH/GPG** → decrypt `secrets.tar.age` into `$HOME`.
 8. **Browsers** → extract tarballs (browsers closed).
 9. **AI state** → decrypt and extract if kept.
