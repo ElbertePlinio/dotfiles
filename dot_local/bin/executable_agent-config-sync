@@ -39,15 +39,18 @@ CHECK="$SOURCE/scripts/check-agent-config-sync.sh"
 MANIFEST="$SOURCE/dot_agents/skill-targets.json"
 SRC=(--source "$SOURCE")
 
-PROFILE_ROLE="$(
-  if [[ -r "${HOME}/.config/agent-profiles/role" ]]; then
-    tr -d '[:space:]' <"${HOME}/.config/agent-profiles/role"
-  else
-    chezmoi "${SRC[@]}" execute-template '{{ .agentProfile | default "restricted" }}'
-  fi
-)"
+LIVE_PROFILE_ROLE=absent
+if [[ -r "${HOME}/.config/agent-profiles/role" ]]; then
+  LIVE_PROFILE_ROLE="$(tr -d '[:space:]' <"${HOME}/.config/agent-profiles/role")"
+fi
+[[ "$LIVE_PROFILE_ROLE" == absent || "$LIVE_PROFILE_ROLE" == main || "$LIVE_PROFILE_ROLE" == restricted ]] || {
+  echo "agent-config-sync: invalid installed profile role '$LIVE_PROFILE_ROLE'" >&2
+  exit 1
+}
+
+PROFILE_ROLE="$(chezmoi "${SRC[@]}" execute-template '{{ .agentProfile | default "restricted" }}')"
 [[ "$PROFILE_ROLE" == main || "$PROFILE_ROLE" == restricted ]] || {
-  echo "agent-config-sync: invalid profile role '$PROFILE_ROLE'" >&2
+  echo "agent-config-sync: invalid desired profile role '$PROFILE_ROLE'" >&2
   exit 1
 }
 
@@ -100,6 +103,139 @@ bootstrap_real_gh() {
   return 1
 }
 
+known_legacy_model_skill() {
+  local dir="$1"
+  local expected_hash actual_hash live
+  local -a entries
+  case "$dir" in
+    "${HOME}/.claude/skills/codex"|"${HOME}/.claude-personal/skills/codex")
+      expected_hash='bcf38f2d2b463edaf6a7d5cf7374616318dfe24e133053ca45f42621eaedcb5c'
+      ;;
+    "${HOME}/.claude/skills/grok")
+      expected_hash='fdd4ad1e3a40569ab80f0e1dc59fc5e197f39409b265b8bc01207cac82f39483'
+      ;;
+    *) return 1 ;;
+  esac
+  [[ -d "$dir" && ! -L "$dir" ]] || return 1
+  live="${dir}/SKILL.md"
+  shopt -s nullglob dotglob
+  entries=("$dir"/*)
+  shopt -u nullglob dotglob
+  [[ "${#entries[@]}" -eq 1 && "${entries[0]}" == "$live" && -f "$live" && ! -L "$live" ]] || return 1
+  read -r actual_hash _ < <(sha256sum "$live")
+  [[ "$actual_hash" == "$expected_hash" ]]
+}
+
+remove_known_legacy_model_skill() {
+  local dir="$1"
+  [[ -e "$dir" || -L "$dir" ]] || return 0
+  known_legacy_model_skill "$dir" || {
+    echo "agent-config-sync: refusing to replace divergent legacy model skill: $dir" >&2
+    return 1
+  }
+  rm -f "$dir/SKILL.md"
+  rmdir "$dir"
+}
+
+main_profile_was_managed() {
+  local target state
+  for target in \
+    "${HOME}/.claude/settings.json" \
+    "${HOME}/.claude/RTK.md" \
+    "${HOME}/.claude/codex-opus-workflow.html"; do
+    state="$(chezmoi state get --bucket=entryState --key="$target" 2>/dev/null || true)"
+    [[ -n "$state" ]] && return 0
+  done
+  return 1
+}
+
+remove_main_managed_file() {
+  local live="$1"
+  local source_path="$2"
+  local format="$3"
+  local rendered="$source_path"
+  [[ -e "$live" || -L "$live" ]] || return 0
+  [[ -f "$live" && ! -L "$live" ]] || {
+    echo "agent-config-sync: refusing to remove unexpected main-profile path: $live" >&2
+    return 1
+  }
+  if [[ "$format" == encrypted ]]; then
+    rendered="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-main-profile.XXXXXX")"
+    chezmoi "${SRC[@]}" decrypt "$source_path" >"$rendered" || {
+      rm -f "$rendered"
+      echo "agent-config-sync: cannot render managed main-profile source: $source_path" >&2
+      return 1
+    }
+  fi
+  if ! cmp -s "$live" "$rendered"; then
+    [[ "$format" != encrypted ]] || rm -f "$rendered"
+    echo "agent-config-sync: refusing to remove divergent main-profile file: $live" >&2
+    return 1
+  fi
+  [[ "$format" != encrypted ]] || rm -f "$rendered"
+  rm -f "$live"
+}
+
+remove_main_managed_skill() {
+  local skill="$1"
+  local source_name="${2:-encrypted_SKILL.md.age}"
+  local dir="${HOME}/.claude/skills/${skill}"
+  local live="${dir}/SKILL.md"
+  local source_path="${SOURCE}/dot_claude/skills/${skill}/${source_name}"
+  local -a entries
+  [[ -e "$dir" || -L "$dir" ]] || return 0
+  [[ -d "$dir" && ! -L "$dir" ]] || {
+    echo "agent-config-sync: refusing to remove unexpected main-profile skill: $dir" >&2
+    return 1
+  }
+  shopt -s nullglob dotglob
+  entries=("$dir"/*)
+  shopt -u nullglob dotglob
+  [[ "${#entries[@]}" -eq 1 && "${entries[0]}" == "$live" ]] || {
+    echo "agent-config-sync: refusing to remove divergent main-profile skill: $dir" >&2
+    return 1
+  }
+  remove_main_managed_file "$live" "$source_path" encrypted
+  rmdir "$dir"
+}
+
+remove_main_profile_paths() {
+  local skill link expected
+  [[ "$PROFILE_ROLE" == restricted ]] || return 0
+  if [[ "$LIVE_PROFILE_ROLE" != main ]] && ! main_profile_was_managed; then
+    return 0
+  fi
+
+  remove_main_managed_file "${HOME}/.claude/settings.json" \
+    "${SOURCE}/dot_claude/encrypted_settings.json.age" encrypted
+  remove_main_managed_file "${HOME}/.claude/RTK.md" \
+    "${SOURCE}/dot_claude/private_RTK.md" plain
+  remove_main_managed_file "${HOME}/.claude/codex-opus-workflow.html" \
+    "${SOURCE}/dot_claude/codex-opus-workflow.html" plain
+  remove_main_managed_file "${HOME}/.claude/rules/context7.md" \
+    "${SOURCE}/dot_claude/rules/context7.md" plain
+  rmdir "${HOME}/.claude/rules" 2>/dev/null || true
+
+  remove_main_managed_skill codex-fable
+  remove_main_managed_skill codex-opus
+  remove_main_managed_skill kickoff
+  remove_main_managed_skill ship-pr
+  remove_main_managed_skill pickgauge-usage
+  remove_main_managed_skill plan-issue encrypted_private_SKILL.md.age
+  remove_main_managed_skill x-research
+
+  while IFS= read -r skill; do
+    link="${HOME}/.claude/skills/${skill}"
+    [[ -e "$link" || -L "$link" ]] || continue
+    expected="../../.agents/skills/${skill}"
+    [[ -L "$link" && "$(readlink "$link")" == "$expected" ]] || {
+      echo "agent-config-sync: refusing to remove divergent main-profile skill link: $link" >&2
+      return 1
+    }
+    rm -f "$link"
+  done < <(jq -r '.skills | to_entries[] | select(.value | index("claude")) | .key' "$MANIFEST")
+}
+
 preflight_unmanaged_targets() {
   local target state
   local -a managed_targets
@@ -113,6 +249,7 @@ preflight_unmanaged_targets() {
 
   for target in "${managed_targets[@]}"; do
     [[ -e "$target" || -L "$target" ]] || continue
+    known_legacy_model_skill "$target" && continue
     state="$(chezmoi state get --bucket=entryState --key="$target" 2>/dev/null || true)"
     [[ -n "$state" ]] && continue
     if chezmoi "${SRC[@]}" verify "$target" >/dev/null 2>&1; then
@@ -169,6 +306,10 @@ remove_obsolete_portable_skill() {
 }
 
 remove_obsolete_portable_paths() {
+  remove_known_legacy_model_skill "${HOME}/.claude/skills/codex"
+  remove_known_legacy_model_skill "${HOME}/.claude/skills/grok"
+  remove_known_legacy_model_skill "${HOME}/.claude-personal/skills/codex"
+
   local skill link target workflow workflow_hash
   for skill in codex-fable codex-opus kickoff ship-pr; do
     remove_obsolete_portable_skill "$skill"
@@ -208,7 +349,7 @@ cmd_apply() {
   mkdir -p \
     "${HOME}/.config/agent-profiles" \
     "${HOME}/.claude-personal/rules" \
-    "${HOME}/.claude-personal/skills/codex" \
+    "${HOME}/.claude-personal/skills" \
     "${HOME}/.codex/skills/model-orchestration/references" \
     "${HOME}/.codex/skills/ship-pr" \
     "${HOME}/.grok/skills/model-orchestration" \
@@ -267,12 +408,10 @@ cmd_apply() {
   if [[ "$PROFILE_ROLE" == main ]]; then
     mkdir -p \
       "${HOME}/.claude/rules" \
-      "${HOME}/.claude/skills/codex" \
       "${HOME}/.claude/skills/codex-fable" \
       "${HOME}/.claude/skills/codex-opus" \
       "${HOME}/.claude/skills/kickoff" \
       "${HOME}/.claude/skills/ship-pr" \
-      "${HOME}/.claude/skills/grok" \
       "${HOME}/.claude/skills/pickgauge-usage" \
       "${HOME}/.claude/skills/plan-issue" \
       "${HOME}/.claude/skills/x-research"
@@ -300,15 +439,18 @@ cmd_apply() {
 
   preflight_unmanaged_targets "${targets[@]}"
   remove_obsolete_portable_paths
+  remove_main_profile_paths
   bootstrap_real_gh
 
-  chezmoi "${SRC[@]}" apply --no-tty "${targets[@]}"
+  chezmoi "${SRC[@]}" apply --force --no-tty "${targets[@]}"
   bash "$CHECK" --check-live-migration --require-portable-links
 }
 
-case "${1}" in
-  check) cmd_check ;;
-  check-live) cmd_check_live ;;
-  apply) cmd_apply ;;
-  *) usage ;;
-esac
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  case "${1:-}" in
+    check) cmd_check ;;
+    check-live) cmd_check_live ;;
+    apply) cmd_apply ;;
+    *) usage ;;
+  esac
+fi

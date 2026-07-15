@@ -53,6 +53,8 @@
   },
   "skills": {
     "agent-config-sync": ["claude", "codex", "grok", "pi", "omp", "factory", "hermes"],
+    "codex": ["claude", "claude-portable", "codex", "grok", "pi", "omp", "factory", "hermes"],
+    "grok": ["claude", "codex", "grok", "pi", "omp", "factory", "hermes"],
     "context7-mcp": ["claude", "claude-portable", "codex", "pi", "omp", "factory"],
     "design-director": ["claude", "claude-portable", "codex", "grok", "pi", "omp", "factory", "hermes"],
     "design-taste-frontend": ["claude", "claude-portable", "codex", "grok", "pi", "omp", "factory", "hermes"],

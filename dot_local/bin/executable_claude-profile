@@ -68,12 +68,14 @@ is_personal_context() {
   return 1
 }
 
-reject_restricted_bypass() {
+reject_manual_bypass() {
+  profile=$1
+  shift
   expect_mode=0
   for argument in "$@"; do
     if [ "$expect_mode" -eq 1 ]; then
       [ "$argument" = manual ] || {
-        echo 'claude-profile: restricted role fixes permission mode to manual' >&2
+        echo "claude-profile: $profile fixes permission mode to manual" >&2
         exit 2
       }
       expect_mode=0
@@ -81,7 +83,7 @@ reject_restricted_bypass() {
     fi
     case "$argument" in
       --dangerously-skip-permissions|--allow-dangerously-skip-permissions|--permission-mode=bypassPermissions)
-        echo "claude-profile: '$argument' is disabled for the restricted role" >&2
+        echo "claude-profile: '$argument' is disabled for $profile" >&2
         exit 2
         ;;
       --permission-mode)
@@ -90,7 +92,7 @@ reject_restricted_bypass() {
       --permission-mode=manual)
         ;;
       --permission-mode=*)
-        echo 'claude-profile: restricted role fixes permission mode to manual' >&2
+        echo "claude-profile: $profile fixes permission mode to manual" >&2
         exit 2
         ;;
     esac
@@ -106,8 +108,8 @@ run_default() {
   if [ "$role" = main ]; then
     exec "$claude_bin" --dangerously-skip-permissions "$@"
   fi
-  reject_restricted_bypass "$@"
-  exec "$claude_bin" --permission-mode manual "$@"
+  reject_manual_bypass 'restricted role' "$@"
+  exec env CLAUDE_CONFIG_DIR="$HOME/.claude" "$claude_bin" --permission-mode manual "$@"
 }
 
 run_personal() {
@@ -115,8 +117,28 @@ run_personal() {
     echo 'claude-profile: portable personal profile is limited to configured personal roots and their worktrees' >&2
     exit 2
   }
+  reject_manual_bypass 'portable profile' "$@"
   claude_bin=$(find_claude)
   exec env \
+    -u ANTHROPIC_API_KEY \
+    -u ANTHROPIC_AUTH_TOKEN \
+    -u ANTHROPIC_BASE_URL \
+    -u ANTHROPIC_CUSTOM_HEADERS \
+    -u ANTHROPIC_MODEL \
+    -u ANTHROPIC_DEFAULT_OPUS_MODEL \
+    -u ANTHROPIC_DEFAULT_SONNET_MODEL \
+    -u ANTHROPIC_DEFAULT_HAIKU_MODEL \
+    -u CLAUDE_CODE_USE_VERTEX \
+    -u CLAUDE_CODE_USE_FOUNDRY \
+    -u ANTHROPIC_VERTEX_PROJECT_ID \
+    -u CLOUD_ML_REGION \
+    -u GOOGLE_APPLICATION_CREDENTIALS \
+    -u ANTHROPIC_FOUNDRY_API_KEY \
+    -u ANTHROPIC_FOUNDRY_RESOURCE \
+    -u OPENAI_API_KEY \
+    -u OPENAI_BASE_URL \
+    -u OPENAI_ORG_ID \
+    -u OPENAI_PROJECT_ID \
     -u CLAUDE_CODE_USE_BEDROCK \
     -u AWS_ACCESS_KEY_ID \
     -u AWS_SECRET_ACCESS_KEY \
@@ -133,7 +155,8 @@ run_personal() {
     -u AWS_CONTAINER_CREDENTIALS_FULL_URI \
     -u AWS_CONTAINER_CREDENTIALS_RELATIVE_URI \
     CLAUDE_CONFIG_DIR="$HOME/.claude-personal" \
-    "$claude_bin" --dangerously-skip-permissions "$@"
+    CODEX_HOME="$HOME/.codex-personal" \
+    "$claude_bin" --permission-mode manual "$@"
 }
 
 print_doctor() {
