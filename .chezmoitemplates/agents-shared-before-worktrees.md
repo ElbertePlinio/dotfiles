@@ -44,15 +44,14 @@ Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious 
 ## Grok routing
 
 - Whenever Grok 4.5 is used for any task—implementation, research, review, vision, or verification—run it at `high` effort. Never invoke Grok 4.5 at `medium` or `low`.
-- Use Grok for terminal-heavy work, visual context, and targeted independent review—not as an automatic multi-reviewer panel. `$local-review` owns review counts.
-- The weekly pool is finite. Check PickGauge before non-review multi-agent waves and route implementation/research work by live headroom. Review calls remain Grok 4.5 high.
+- Select Grok from the current model table only when it best fits the call; every Grok 4.5 call still uses `high` effort.
+- The weekly pool is finite. Check PickGauge before non-review multi-agent waves and select from live headroom.
 
 ## Model effort and fallback rules
 
 - Whenever Opus 4.8 is used in a multi-model workflow or orchestration call, run it at `xhigh` effort. Never invoke Opus 4.8 at a lower effort.
-- If Fable 5 is unavailable, use Opus 4.8 at `xhigh`; if Opus is also unavailable or incompatible, use Grok 4.5 at `high`.
-- If GPT-5.6 Sol is unavailable, use GPT-5.6 Terra at `xhigh`.
-- Report every substitution. Preserve tool and modality compatibility; GLM-5.2 remains text-only.
+- If a selected model is unavailable or incompatible, reselect the closest compatible candidate from the current model table and report the substitution. Stop when the user required that exact model or no candidate fits.
+- Preserve tool and modality compatibility; GLM-5.2 remains text-only.
 
 ## Usage-aware orchestration
 
@@ -60,16 +59,17 @@ Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious 
 - Default to one active issue or PR slice at a time. Broad roadmap requests proceed slice by slice unless the user explicitly prioritizes parallel throughput and the relevant pools have headroom.
 - Before every multi-agent wave, check PickGauge once. Static cost ratings never override live quota headroom.
 - Reuse or resume the original builder for fixes. Do not create a fresh agent for each verification step, and do not repeat a whole review panel after fixes.
-- Substantial multi-agent main sessions start on Sol medium. Routine direct work and general leaves start on Terra medium. Review leaves default to Grok 4.5 high unless the user explicitly names another reviewer model and effort. Reserve Sol high for hard debugging, architecture, safety-critical decisions, or adjudication after evidence shows medium is insufficient.
-- Prefer GLM for text-only implementation when it has headroom. Use one accountable Fable or Opus owner for taste-heavy work, not a Claude-model committee.
+- Select the model and effort independently for every call from the current table, task requirements, validation surface, and live headroom. Never bind a model to a task class, role, or lane.
+- Keep one accountable owner for taste-heavy work; provider identity does not define ownership.
 
 ## Model restrictions
 
 - Never use Anthropic Haiku, directly or indirectly through a tool, skill, search provider, subagent, fallback, or hidden/default route. Choose a non-Haiku route instead. If a tool unexpectedly reports Haiku, stop using that route and report it.
+- Never use GPT-5.6 Luna. Use GPT-5.6 Terra or Sol instead.
 
 ## Provider-diverse review
 
-- For shipping review, `$local-review` owns profile selection and review counts; every review defaults to Grok 4.5 high unless the user explicitly names another reviewer model and effort. Other providers may adjudicate unresolved critical evidence.
+- For shipping review, `$local-review` owns profiles and review counts. Select each reviewer independently from the current model table for the concrete failure mode; do not assign review roles to fixed models.
 
 ## Personal project isolation
 

@@ -18,18 +18,15 @@
     },
     "cua-driver": {
       "command": "/home/dev/.local/bin/cua-driver",
-      "args": ["mcp"]
+      "args": ["mcp", "--no-overlay"]
     },
     "picklab": {
       "command": "picklab",
       "args": ["mcp", "serve"]
     },
     "sentry": {
-      "command": "npx",
-      "args": ["-y", "@sentry/mcp-server@latest"],
-      "env": {
-        "SENTRY_ACCESS_TOKEN": "!cat ~/.pickforge-keys/sentry-token"
-      }
+      "type": "http",
+      "url": "https://mcp.sentry.dev/mcp"
     },
     "stripe": {
       "type": "http",
