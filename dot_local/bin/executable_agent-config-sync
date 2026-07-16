@@ -147,8 +147,7 @@ main_profile_was_managed() {
   local target state
   for target in \
     "${HOME}/.claude/settings.json" \
-    "${HOME}/.claude/RTK.md" \
-    "${HOME}/.claude/codex-opus-workflow.html"; do
+    "${HOME}/.claude/RTK.md"; do
     state="$(chezmoi state get --bucket=entryState --key="$target" 2>/dev/null || true)"
     [[ -n "$state" ]] && return 0
   done
@@ -229,7 +228,7 @@ remove_main_managed_skill() {
 
 remove_main_profile_paths() {
   local skill link expected
-  local -a native_skills=(codex-fable codex-opus kickoff ship-pr pickgauge-usage plan-issue x-research)
+  local -a native_skills=(kickoff ship-pr pickgauge-usage plan-issue x-research)
   [[ "$PROFILE_ROLE" == restricted ]] || return 0
   if [[ "$LIVE_PROFILE_ROLE" != main ]] && ! main_profile_was_managed; then
     return 0
@@ -239,8 +238,6 @@ remove_main_profile_paths() {
     "${SOURCE}/dot_claude/encrypted_settings.json.age" encrypted
   validate_main_managed_file "${HOME}/.claude/RTK.md" \
     "${SOURCE}/dot_claude/private_RTK.md" plain
-  validate_main_managed_file "${HOME}/.claude/codex-opus-workflow.html" \
-    "${SOURCE}/dot_claude/codex-opus-workflow.html" plain
   validate_main_managed_file "${HOME}/.claude/rules/context7.md" \
     "${SOURCE}/dot_claude/rules/context7.md" plain
 
@@ -264,7 +261,6 @@ remove_main_profile_paths() {
 
   remove_main_managed_file "${HOME}/.claude/settings.json"
   remove_main_managed_file "${HOME}/.claude/RTK.md"
-  remove_main_managed_file "${HOME}/.claude/codex-opus-workflow.html"
   remove_main_managed_file "${HOME}/.claude/rules/context7.md"
   rmdir "${HOME}/.claude/rules" 2>/dev/null || true
 
@@ -449,8 +445,6 @@ cmd_apply() {
   if [[ "$PROFILE_ROLE" == main ]]; then
     mkdir -p \
       "${HOME}/.claude/rules" \
-      "${HOME}/.claude/skills/codex-fable" \
-      "${HOME}/.claude/skills/codex-opus" \
       "${HOME}/.claude/skills/kickoff" \
       "${HOME}/.claude/skills/ship-pr" \
       "${HOME}/.claude/skills/pickgauge-usage" \
@@ -458,15 +452,13 @@ cmd_apply() {
       "${HOME}/.claude/skills/x-research"
     targets+=(
       "${HOME}/.claude/RTK.md"
-      "${HOME}/.claude/codex-opus-workflow.html"
       "${HOME}/.claude/rules"
       "${HOME}/.claude/settings.json"
       "${HOME}/.claude/skills/codex"
-      "${HOME}/.claude/skills/codex-fable"
-      "${HOME}/.claude/skills/codex-opus"
       "${HOME}/.claude/skills/kickoff"
       "${HOME}/.claude/skills/ship-pr"
       "${HOME}/.claude/skills/grok"
+      "${HOME}/.claude/skills/audit-report"
       "${HOME}/.claude/skills/pickgauge-usage"
       "${HOME}/.claude/skills/plan-issue"
       "${HOME}/.claude/skills/x-research"

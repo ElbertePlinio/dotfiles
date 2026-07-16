@@ -2,25 +2,18 @@
   "version": 1,
   "omp": {
     "native": [
-      "agentmemory",
       "agentmemory-vault",
       "codegraph",
       "cua-driver",
       "picklab",
       "sentry",
       "stripe",
-      "vercel",
-      "supabase-pickforge-pro-dev",
-      "supabase-computer-builder"
+      "vercel"
     ],
     "externallyImported": [
       "context7"
     ],
-    "pluginRetained": [
-      "claude-mem:mcp-search",
-      "vgv-ai-flutter-plugin:dart",
-      "openaiDeveloperDocs"
-    ],
+    "pluginRetained": [],
     "suppressed": [
       "agentmemory_vault",
       "context7:context7",
@@ -28,7 +21,14 @@
       "stripe:stripe",
       "vercel:vercel",
       "github:github",
-      "vgv-ai-flutter-plugin:very-good-cli"
+      "vgv-ai-flutter-plugin:very-good-cli",
+      "vgv-ai-flutter-plugin:dart",
+      "claude-mem:mcp-search",
+      "claude-mem",
+      "openaideveloperdocs",
+      "openaiDeveloperDocs",
+      "supabase-computer-builder",
+      "agentmemory"
     ]
   }
 }
