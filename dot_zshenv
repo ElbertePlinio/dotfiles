@@ -3,7 +3,7 @@
 # TUIs like Claude Code render entirely white.
 [[ -n $NO_COLOR ]] && unset NO_COLOR
 
-export PI_CODEX_WEB_SEARCH_MODEL=gpt-5.6-terra
+export PI_CODEX_WEB_SEARCH_MODEL=gpt-5.6-sol
 
 export PATH="$HOME/ProgramsDev/flutter/bin:$PATH"
 export PATH="/home/dev/fvm/bin:$PATH"
