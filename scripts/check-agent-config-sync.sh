@@ -708,8 +708,6 @@ check_live_native_routing_files() {
   )
   if [[ "$PROFILE_ROLE" == main ]]; then
     files+=(
-      "${HOME}/.claude/skills/codex-fable/SKILL.md"
-      "${HOME}/.claude/skills/codex-opus/SKILL.md"
       "${HOME}/.claude/skills/kickoff/SKILL.md"
     )
   fi
@@ -768,7 +766,6 @@ check_live_split_profile_targets() {
   if [[ "$PROFILE_ROLE" == main ]]; then
     targets+=(
       "${HOME}/.claude/RTK.md"
-      "${HOME}/.claude/codex-opus-workflow.html"
       "${HOME}/.claude/rules"
       "${HOME}/.claude/settings.json"
       "${HOME}/.claude/skills"
@@ -951,7 +948,7 @@ REQUIRED_SHARED_INVARIANTS=(
   '- Never expose, print, commit, or send secrets or private production data.'
   '- Destructive filesystem, Git, account, or external-service actions require explicit confirmation.'
   '- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.'
-  '- Never use Anthropic Haiku, directly, indirectly, or as a fallback.'
+  '- Never use Anthropic Haiku — directly, via any tool, skill, subagent, fallback, or hidden route.'
   'verify-personal-github` to verify `ElbertePlinio`'
   '- Protect user work. Check status before staging, committing, merging, or cleaning.'
   '- Treat untracked files as user-owned.'
@@ -970,7 +967,10 @@ REQUIRED_SHARED_INVARIANTS=(
   'projects/*.md'
   'Never store secrets in memory.'
   'never edit only a rendered `$HOME` file'
-  '- Use Context7 when library/API details matter and it is available.'
+  '- Use Context7 when library/API details matter.'
+  '- When dispatching a swarm or any multi-subagent wave, explicitly choose and state each task'"'"'s model and effort from the current table.'
+  '- Anything done or requested more than twice becomes a skill, command, or hook'
+  '- Establish the delivery mode before substantial work or any dispatch: plan-only, local-implement, or ship.'
   '- For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation.'
   '- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `$ship-pr` when available.'
 )
@@ -994,8 +994,6 @@ STALE_PI_FLOW_PATHS=(
 )
 
 ROUTING_SKILL_TARGETS=(
-  "$HOME/.claude/skills/codex-fable/SKILL.md"
-  "$HOME/.claude/skills/codex-opus/SKILL.md"
   "$HOME/.claude/skills/kickoff/SKILL.md"
   "$HOME/.codex/skills/model-orchestration/SKILL.md"
   "$HOME/.codex/skills/model-orchestration/references/model-routing.md"
@@ -1328,10 +1326,8 @@ TARGETS=(
   "$DEST/.local/bin/claude-personal" "$DEST/.local/bin/agent-profile-doctor"
   "$DEST/.zshrc" "$DEST/.bashrc"
   "$DEST/.claude/CLAUDE.md" "$DEST/.claude/RTK.md"
-  "$DEST/.claude/codex-opus-workflow.html"
   "$DEST/.claude/rules/context7.md" "$DEST/.claude/settings.json"
-  "$DEST/.claude/skills/codex-fable/SKILL.md"
-  "$DEST/.claude/skills/codex-opus/SKILL.md"
+  "$DEST/.claude/skills/audit-report"
   "$DEST/.claude/skills/kickoff/SKILL.md"
   "$DEST/.claude/skills/codex"
   "$DEST/.claude/skills/ship-pr/SKILL.md"
@@ -1361,10 +1357,8 @@ EXPECTED=(
   dot_local/bin/executable_claude-personal dot_local/bin/executable_agent-profile-doctor
   dot_zshrc.tmpl dot_bashrc
   dot_claude/CLAUDE.md.tmpl dot_claude/private_RTK.md
-  dot_claude/codex-opus-workflow.html
   dot_claude/rules/context7.md dot_claude/encrypted_settings.json.age
-  dot_claude/skills/codex-fable/encrypted_SKILL.md.age
-  dot_claude/skills/codex-opus/encrypted_SKILL.md.age
+  dot_claude/skills/symlink_audit-report
   dot_claude/skills/kickoff/encrypted_SKILL.md.age
   dot_claude/skills/symlink_codex
   dot_claude/skills/ship-pr/encrypted_SKILL.md.age
@@ -1628,7 +1622,7 @@ mkdir -p \
   "$TRANSITION_HOME/.config/chezmoi" \
   "$TRANSITION_HOME/.config/agent-profiles" \
   "$TRANSITION_HOME/.claude/rules" \
-  "$TRANSITION_HOME/.claude/skills/codex-fable"
+  "$TRANSITION_HOME/.claude/skills/kickoff"
 cat >"$TRANSITION_CONFIG" <<EOF
 encryption = "age"
 [age]
@@ -1641,11 +1635,10 @@ printf '%s\n' main >"$TRANSITION_HOME/.config/agent-profiles/role"
 chezmoi "${MAIN_SRC[@]}" --destination "$TRANSITION_HOME" \
   cat "$TRANSITION_HOME/.claude/settings.json" >"$TRANSITION_HOME/.claude/settings.json"
 cp "$ROOT/dot_claude/private_RTK.md" "$TRANSITION_HOME/.claude/RTK.md"
-cp "$ROOT/dot_claude/codex-opus-workflow.html" "$TRANSITION_HOME/.claude/codex-opus-workflow.html"
 cp "$ROOT/dot_claude/rules/context7.md" "$TRANSITION_HOME/.claude/rules/context7.md"
 chezmoi "${SRC[@]}" decrypt \
-  dot_claude/skills/codex-fable/encrypted_SKILL.md.age \
-  >"$TRANSITION_HOME/.claude/skills/codex-fable/SKILL.md"
+  dot_claude/skills/kickoff/encrypted_SKILL.md.age \
+  >"$TRANSITION_HOME/.claude/skills/kickoff/SKILL.md"
 ln -s ../../.agents/skills/codex "$TRANSITION_HOME/.claude/skills/codex"
 ln -s ../../.agents/skills/grok "$TRANSITION_HOME/.claude/skills/grok"
 
@@ -1656,9 +1649,8 @@ if HOME="$TRANSITION_HOME" CHEZMOI_SOURCE_DIR="$ROOT" \
   for path in \
     "$TRANSITION_HOME/.claude/settings.json" \
     "$TRANSITION_HOME/.claude/RTK.md" \
-    "$TRANSITION_HOME/.claude/codex-opus-workflow.html" \
     "$TRANSITION_HOME/.claude/rules/context7.md" \
-    "$TRANSITION_HOME/.claude/skills/codex-fable" \
+    "$TRANSITION_HOME/.claude/skills/kickoff" \
     "$TRANSITION_HOME/.claude/skills/codex" \
     "$TRANSITION_HOME/.claude/skills/grok"; do
     [[ ! -e "$path" && ! -L "$path" ]] || transition_stale=1
@@ -1684,23 +1676,21 @@ else
   err 'main-to-restricted cleanup lost divergent full-profile state'
 fi
 
-mkdir -p "$TRANSITION_HOME/.claude/rules" "$TRANSITION_HOME/.claude/skills/codex-fable"
+mkdir -p "$TRANSITION_HOME/.claude/rules" "$TRANSITION_HOME/.claude/skills/kickoff"
 chezmoi "${MAIN_SRC[@]}" --destination "$TRANSITION_HOME" \
   cat "$TRANSITION_HOME/.claude/settings.json" >"$TRANSITION_HOME/.claude/settings.json"
 cp "$ROOT/dot_claude/private_RTK.md" "$TRANSITION_HOME/.claude/RTK.md"
-cp "$ROOT/dot_claude/codex-opus-workflow.html" "$TRANSITION_HOME/.claude/codex-opus-workflow.html"
 cp "$ROOT/dot_claude/rules/context7.md" "$TRANSITION_HOME/.claude/rules/context7.md"
 chezmoi "${SRC[@]}" decrypt \
-  dot_claude/skills/codex-fable/encrypted_SKILL.md.age \
-  >"$TRANSITION_HOME/.claude/skills/codex-fable/SKILL.md"
-printf '\n' >>"$TRANSITION_HOME/.claude/skills/codex-fable/SKILL.md"
+  dot_claude/skills/kickoff/encrypted_SKILL.md.age \
+  >"$TRANSITION_HOME/.claude/skills/kickoff/SKILL.md"
+printf '\n' >>"$TRANSITION_HOME/.claude/skills/kickoff/SKILL.md"
 if HOME="$TRANSITION_HOME" CHEZMOI_SOURCE_DIR="$ROOT" \
   bash -c 'source "$1"; remove_main_profile_paths' _ \
   "$ROOT/dot_local/bin/executable_agent-config-sync" >/dev/null 2>&1; then
   err 'main-to-restricted cleanup accepted late divergent skill'
 elif [[ -f "$TRANSITION_HOME/.claude/settings.json" \
   && -f "$TRANSITION_HOME/.claude/RTK.md" \
-  && -f "$TRANSITION_HOME/.claude/codex-opus-workflow.html" \
   && -f "$TRANSITION_HOME/.claude/rules/context7.md" ]]; then
   pass 'main-to-restricted cleanup preflights before deleting state'
 else
