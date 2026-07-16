@@ -24,7 +24,7 @@ For dynamic model selection, prefer the eval bridge:
 ```js
 await agent(prompt, {
   agent: "task",
-  model: "openai-codex/gpt-5.6-terra:medium",
+  model: "openai-codex/gpt-5.6-sol:medium",
 });
 ```
 
@@ -36,8 +36,7 @@ Available managed pool:
 
 | Model | Selector | Start | Cost | Intelligence | Taste | Vision |
 |---|---|---:|---:|---:|---:|---|
-| GPT-5.6 Terra | `openai-codex/gpt-5.6-terra` | medium | 6 | 8 | 5 | yes |
-| GPT-5.6 Sol | `openai-codex/gpt-5.6-sol` | high | 9 | 9 | 6 | yes |
+| GPT-5.6 Sol | `openai-codex/gpt-5.6-sol` | medium | 7 | 9 | 6 | yes |
 | Fable 5 | `anthropic/claude-fable-5` | high | 4 | 9 | 9 | yes |
 | Opus 4.8 | `anthropic/claude-opus-4-8` | xhigh | 5 | 7 | 8 | yes |
 | Sonnet 5 | `anthropic/claude-sonnet-5` | medium | 5 | 5 | 7 | yes |
@@ -45,10 +44,12 @@ Available managed pool:
 | GLM-5.2 | `ollama/glm-5.2:cloud` | provider default | 2 | 8 | 7 | no |
 
 `Start` is an initial reasoning-effort prior, not a role assignment. Grok 4.5
-always runs at high effort, and Opus 4.8 always runs at xhigh effort. `Cost` is
-relative marginal routing cost (1 = cheapest), not subscription price. Adjust
-other models for the task's uncertainty, context size, and validation surface.
-Ratings are comparative routing context. GPT-5.6 Luna is excluded.
+always runs at high effort, and Opus 4.8 always runs at xhigh effort. Sol is the
+only GPT-5.6 lane: shift its effort (low/medium/high) instead of switching to a
+sibling model. `Cost` is relative marginal routing cost (1 = cheapest), not
+subscription price. Adjust other models for the task's uncertainty, context
+size, and validation surface. Ratings are comparative routing context. GPT-5.6
+Luna and Terra are excluded.
 
 Prefer OMP-native subagents over launching `claude`, `codex`, `grok`, or
 `ollama` CLIs from inside OMP. Keep the CLIs for provider-native features or
