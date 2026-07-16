@@ -1,13 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/coding-agent/src/config/mcp-schema.json",
   "mcpServers": {
-    "agentmemory": {
-      "command": "npx",
-      "args": ["-y", "@agentmemory/mcp"],
-      "env": {
-        "AGENTMEMORY_URL": "http://localhost:3111"
-      }
-    },
     "agentmemory-vault": {
       "command": "python3",
       "args": ["/home/dev/AgentMemory/scripts/agent_memory_mcp.py"]
@@ -17,18 +10,22 @@
       "args": ["serve", "--mcp"]
     },
     "cua-driver": {
+      "enabled": false,
       "command": "/home/dev/.local/bin/cua-driver",
       "args": ["mcp", "--no-overlay"]
     },
     "picklab": {
+      "enabled": false,
       "command": "picklab",
       "args": ["mcp", "serve"]
     },
     "sentry": {
+      "enabled": false,
       "type": "http",
       "url": "https://mcp.sentry.dev/mcp"
     },
     "stripe": {
+      "enabled": false,
       "type": "http",
       "url": "https://mcp.stripe.com",
       "oauth": {
@@ -39,16 +36,9 @@
       }
     },
     "vercel": {
+      "enabled": false,
       "type": "http",
       "url": "https://mcp.vercel.com/"
-    },
-    "supabase-pickforge-pro-dev": {
-      "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=trmlnarhgiutgsoancrl"
-    },
-    "supabase-computer-builder": {
-      "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=bhfkyavecclrdgwtuvpc"
     }
   },
   "disabledServers": [
@@ -58,6 +48,12 @@
     "stripe:stripe",
     "vercel:vercel",
     "github:github",
-    "vgv-ai-flutter-plugin:very-good-cli"
+    "vgv-ai-flutter-plugin:very-good-cli",
+    "vgv-ai-flutter-plugin:dart",
+    "claude-mem:mcp-search",
+    "claude-mem",
+    "openaideveloperdocs",
+    "supabase-computer-builder",
+    "agentmemory"
   ]
 }
