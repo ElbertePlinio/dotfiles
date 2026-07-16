@@ -970,6 +970,7 @@ REQUIRED_SHARED_INVARIANTS=(
   '- Use Context7 when library/API details matter.'
   '- When dispatching a swarm or any multi-subagent wave, explicitly choose and state each task'"'"'s model and effort from the current table.'
   '- Anything done or requested more than twice becomes a skill, command, or hook'
+  '- `xhigh` is the absolute effort ceiling. Never use `ultra`, `max`, or any effort above xhigh'
   '- Establish the delivery mode before substantial work or any dispatch: plan-only, local-implement, or ship.'
   '- For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation.'
   '- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `$ship-pr` when available.'
