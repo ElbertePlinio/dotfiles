@@ -60,6 +60,7 @@ Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious 
 - Before every multi-agent wave, check PickGauge once. Static cost ratings never override live quota headroom.
 - Reuse or resume the original builder for fixes. Do not create a fresh agent for each verification step, and do not repeat a whole review panel after fixes.
 - Select the model and effort independently for every call from the current table, task requirements, validation surface, and live headroom. Never bind a model to a task class, role, or lane.
+- When dispatching a swarm or any multi-subagent wave, the orchestrator must explicitly choose each task's model and effort from the current model table and state those selections in the dispatch. Never launch subagents on an unstated default lane; a default agent type is not a model selection.
 - Keep one accountable owner for taste-heavy work; provider identity does not define ownership.
 
 ## Model restrictions
