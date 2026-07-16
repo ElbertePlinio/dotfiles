@@ -1329,15 +1329,14 @@ TARGETS=(
   "$DEST/.claude/rules/context7.md" "$DEST/.claude/settings.json"
   "$DEST/.claude/skills/audit-report"
   "$DEST/.claude/skills/kickoff/SKILL.md"
-  "$DEST/.claude/skills/codex"
+  "$DEST/.claude/skills/model-runners"
   "$DEST/.claude/skills/ship-pr/SKILL.md"
-  "$DEST/.claude/skills/grok"
   "$DEST/.claude/skills/pickgauge-usage/SKILL.md"
   "$DEST/.claude/skills/plan-issue/SKILL.md"
   "$DEST/.claude/skills/x-research/SKILL.md"
   "$DEST/.claude-personal/CLAUDE.md" "$DEST/.claude-personal/RTK.md"
   "$DEST/.claude-personal/rules/context7.md" "$DEST/.claude-personal/settings.json"
-  "$DEST/.claude-personal/skills/codex"
+  "$DEST/.claude-personal/skills/model-runners"
   "$DEST/.codex/AGENTS.md"
   "$DEST/Projects/Personal/.codex/config.toml"
   "$DEST/Projects/Personal/.codex/AGENTS.md"
@@ -1360,15 +1359,14 @@ EXPECTED=(
   dot_claude/rules/context7.md dot_claude/encrypted_settings.json.age
   dot_claude/skills/symlink_audit-report
   dot_claude/skills/kickoff/encrypted_SKILL.md.age
-  dot_claude/skills/symlink_codex
+  dot_claude/skills/symlink_model-runners
   dot_claude/skills/ship-pr/encrypted_SKILL.md.age
-  dot_claude/skills/symlink_grok
   dot_claude/skills/pickgauge-usage/encrypted_SKILL.md.age
   dot_claude/skills/plan-issue/encrypted_private_SKILL.md.age
   dot_claude/skills/x-research/encrypted_SKILL.md.age
   dot_claude-personal/CLAUDE.md.tmpl dot_claude-personal/private_RTK.md
   dot_claude-personal/rules/context7.md dot_claude-personal/encrypted_settings.json.age
-  dot_claude-personal/skills/symlink_codex
+  dot_claude-personal/skills/symlink_model-runners
   dot_codex/AGENTS.md.tmpl
   Projects/Personal/dot_codex/config.toml
   Projects/Personal/dot_codex/symlink_AGENTS.md
@@ -1639,8 +1637,7 @@ cp "$ROOT/dot_claude/rules/context7.md" "$TRANSITION_HOME/.claude/rules/context7
 chezmoi "${SRC[@]}" decrypt \
   dot_claude/skills/kickoff/encrypted_SKILL.md.age \
   >"$TRANSITION_HOME/.claude/skills/kickoff/SKILL.md"
-ln -s ../../.agents/skills/codex "$TRANSITION_HOME/.claude/skills/codex"
-ln -s ../../.agents/skills/grok "$TRANSITION_HOME/.claude/skills/grok"
+ln -s ../../.agents/skills/model-runners "$TRANSITION_HOME/.claude/skills/model-runners"
 
 if HOME="$TRANSITION_HOME" CHEZMOI_SOURCE_DIR="$ROOT" \
   bash -c 'source "$1"; remove_main_profile_paths' _ \
@@ -1651,8 +1648,7 @@ if HOME="$TRANSITION_HOME" CHEZMOI_SOURCE_DIR="$ROOT" \
     "$TRANSITION_HOME/.claude/RTK.md" \
     "$TRANSITION_HOME/.claude/rules/context7.md" \
     "$TRANSITION_HOME/.claude/skills/kickoff" \
-    "$TRANSITION_HOME/.claude/skills/codex" \
-    "$TRANSITION_HOME/.claude/skills/grok"; do
+    "$TRANSITION_HOME/.claude/skills/model-runners"; do
     [[ ! -e "$path" && ! -L "$path" ]] || transition_stale=1
   done
   [[ "$transition_stale" -eq 0 ]] \
