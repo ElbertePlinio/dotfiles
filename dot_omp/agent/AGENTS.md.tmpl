@@ -31,6 +31,9 @@ await agent(prompt, {
 Use `parallel()` around independent `agent()` calls. The `model` override accepts
 a full selector with an effort suffix, so the orchestrator can change both for
 each call without creating model-specific agent definitions.
+Give every subagent a task that requires at least one tool call; trivial
+reply-only prompts can fail the yield protocol on `openai-codex` lanes and
+report a false lane failure.
 
 Available managed pool:
 
