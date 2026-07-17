@@ -114,6 +114,24 @@
       "pi",
       "omp",
       "hermes"
+    ],
+    "codebase-design": [
+      "claude",
+      "claude-portable",
+      "codex",
+      "grok",
+      "pi",
+      "omp",
+      "hermes"
+    ],
+    "diagnosing-bugs": [
+      "claude",
+      "claude-portable",
+      "codex",
+      "grok",
+      "pi",
+      "omp",
+      "hermes"
     ]
   }
 }
