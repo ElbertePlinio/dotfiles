@@ -1134,8 +1134,8 @@ pi_settings=''
 if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; then
   if jq -e . >/dev/null 2>&1 <<<"$pi_settings"; then
     pass 'Pi settings JSON valid'
-    jq -e 'any(.. | strings; contains("pi-subagents"))' >/dev/null <<<"$pi_settings" \
-      && pass 'Pi runtime enables native subagents' \
+    jq -e 'any(.. | strings; contains("pi-kit") or contains("pi-subagents"))' >/dev/null <<<"$pi_settings" \
+      && pass 'Pi runtime enables native subagents (pi-kit)' \
       || err 'Pi runtime missing native subagents'
     jq -e 'any(.. | strings; ascii_downcase | contains("haiku"))' >/dev/null <<<"$pi_settings" \
       && err 'Pi settings contain a forbidden Haiku selector' \
