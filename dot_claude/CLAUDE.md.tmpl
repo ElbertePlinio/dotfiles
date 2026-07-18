@@ -6,12 +6,10 @@
 
 {{ template "claude-adapter-common.md" . }}
 
-## Model orchestration
+## Claude model orchestration
 
-- For substantial or risky multi-model work, use the `model-orchestration` skill. The current comparative pool metadata, compatibility constraints, selection axes, and escalation policy live in `~/.codex/skills/model-orchestration/references/model-routing.md`.
-- Start each selected model from the effort prior in `model-routing.md`; Grok 4.5 always uses high and Opus 4.8 always uses xhigh. Adjust other efforts only from concrete validation evidence or unresolved risk.
-- Select every call independently from the current table. Do not create permanent model-to-role bindings, named model lanes, fixed provider sequences, or automatic task-class defaults.
-- Claude subagents use the Agent or Workflow model parameter. The main session owns scope, synthesis, validation, and acceptance; workers and reviewers are leaves unless the main session explicitly authorizes fan-out.
+- For substantial or risky multi-model work, use the `model-orchestration` skill; pool metadata, compatibility constraints, selection axes, and escalation policy live in `~/.codex/skills/model-orchestration/references/model-routing.md`.
+- Claude subagents use the Agent or Workflow model parameter. Workers and reviewers are leaves unless the main session explicitly authorizes fan-out.
 - When Claude is invoked non-interactively as a worker under another orchestrator, do the assigned work directly and do not re-delegate.
 
 @RTK.md

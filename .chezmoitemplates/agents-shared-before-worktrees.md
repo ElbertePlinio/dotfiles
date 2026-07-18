@@ -20,11 +20,16 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 - Hard constraints: Grok 4.5 always runs at `high` effort. Opus 4.8 always runs at `xhigh` in multi-model workflows. GLM-5.2 is text-only.
 - Never use Anthropic Haiku — directly, via any tool, skill, subagent, fallback, or hidden route. GPT-5.6 Sol is the only GPT-5.6 lane: never use Luna or Terra; shift Sol's effort instead. If a route unexpectedly reports Haiku, stop using it and report.
 - If a selected model is unavailable or incompatible, reselect the closest compatible candidate and report the substitution. Stop only when the user required that exact model or nothing fits.
-- Prefer direct work for routine tasks. Delegate when an independent context, isolated writer, or different capability materially improves correctness or latency. Default to one active issue or PR slice at a time.
+- Before any multi-step task, spend one sentence deciding which parts a sub-agent lane can do with a report, and state that decision explicitly. Delegate by default when work is self-contained and does not need your accumulated context; keep only scope, model selection, synthesis, and judgment. Default to one active issue or PR slice at a time.
+- The orchestrator is the expensive lane. Self-contained work that does not need its taste or context — mechanical edits, test/build runs, doc lookups, log digging, bulk file surveys, long validations — goes to a cheaper lane by default (Sol, Sonnet, GLM per the current table). Sequential orchestrator tool-call marathons on delegable work are a selection error, not diligence.
+- Computer use, browser automation, and interactive app testing (clicking, typing, screenshot-driven UI verification, smoke-testing built apps) are always delegated to a sub-agent on `openai-codex/gpt-5.6-sol` — never performed by the main orchestrator. The sub-agent writes a detailed Markdown report (verdict, evidence, screenshots paths) for the orchestrator to review; the orchestrator only reads the report and screenshots, it does not drive the UI itself. If Sol is unavailable, reselect the closest vision-capable lane and report the substitution.
+- Before any desktop capture, input driving, or reading screenshots into model context, follow `~/.agents/desktop-capture.md` (Wayland/Xwayland tool routing, mandatory downscaling).
 - When dispatching a swarm or any multi-subagent wave, explicitly choose and state each task's model and effort from the current table. Never launch subagents on an unstated default lane; a default agent type is not a model selection.
 - Check PickGauge headroom (`pickgauge usage --json`) once before multi-agent waves that route across pools. If the gauge fails or is unavailable, continue and note it — never block work on quota telemetry.
 - Reuse the original builder for follow-up fixes while it is healthy. Abandon stuck, failed, or interrupted runs instead of rescuing them: capture the short cause, cancel owned work, and redispatch fresh. Never spawn a new agent per verification step or repeat a full review panel after fixes.
+- For any task dispatched to an `openai-codex/*` lane (or when the main session itself runs on one), apply `~/.agents/codex-lane-override.md`: prepend its BEHAVIOR OVERRIDE block verbatim, or an explicit OUTPUT CONTRACT when the answer has a known shape.
 - Keep one accountable owner for taste-heavy work; provider identity does not define ownership.
+- Pi and OMP are the primary harnesses. Land new automation (hooks, extensions, gates) there first, mirror to Claude and Factory where compatible; harnesses without native hooks (Codex, Grok) get instructions-only.
 - For shipping review, `$local-review` owns profiles and review counts. Select each reviewer for the concrete failure mode; never assign review roles to fixed models.
 
 ## Dictated prompts (PickScribe)
@@ -37,7 +42,7 @@ Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious 
 - Prefer `frun` for noisy shell commands; otherwise prefix noisy read-only commands with `rtk`. Never wrap commands where exact output matters: tests, analyzers, Dart, Flutter, FVM.
 - For `sudo` in non-interactive sessions, use `sudo -A` with `SUDO_ASKPASS=~/.local/bin/sudo-askpass`. Never request, capture, pipe, print, or store the sudo password; if askpass is unavailable or cancelled, stop and ask me to run it manually.
 - For X (Twitter) practitioner-signal research, use the `x-research` skill; if Hermes is unavailable, say so.
-- If a subagent or model lane needs re-authentication, use the provider's normal interactive login through the available browser or PickLab session: Google `elberte.dev@gmail.com` for Claude, ChatGPT, and Ollama; Microsoft `eoberte@outlook.com` for Grok. Never request, type, expose, or store passwords, recovery codes, 2FA codes, cookies, or tokens. If it cannot complete without my direct interaction, stop and prompt me.
+- If a subagent or model lane needs re-authentication, use the provider's normal interactive login through the available browser or PickLab session: Google `elberte.dev@gmail.com` for Claude, ChatGPT, and Ollama; Microsoft `eoberte@outlook.com` for Grok. Never handle passwords, recovery codes, 2FA codes, cookies, or tokens; if login cannot complete without me, stop and prompt me.
 
 ## UI and UX
 

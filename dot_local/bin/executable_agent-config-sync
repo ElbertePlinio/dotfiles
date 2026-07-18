@@ -385,6 +385,10 @@ cmd_apply() {
 
   mkdir -p \
     "${HOME}/.config/agent-profiles" \
+    "${HOME}/.pi/agent/extensions" \
+    "${HOME}/.omp/agent/extensions" \
+    "${HOME}/.factory/hooks" \
+    "${HOME}/.claude/hooks" \
     "${HOME}/.claude-personal/rules" \
     "${HOME}/.claude-personal/skills" \
     "${HOME}/.codex/skills/model-orchestration/references" \
@@ -422,15 +426,21 @@ cmd_apply() {
     "${HOME}/Projects/Personal/.agent-safety/hooks/pre-push"
     "${HOME}/.grok/AGENTS.md"
     "${HOME}/.pi/agent/AGENTS.md"
+    "${HOME}/.pi/agent/extensions/decision-audit-gate.ts"
     "${HOME}/.omp/agent/AGENTS.md"
     "${HOME}/.omp/agent/config.yml"
     "${HOME}/.omp/agent/agents"
     "${HOME}/.omp/agent/mcp.json"
+    "${HOME}/.omp/agent/extensions/decision-audit-gate.ts"
     "${HOME}/.factory/AGENTS.md"
     "${HOME}/.factory/hooks/model-flow-reminder.sh"
+    "${HOME}/.factory/hooks/decision-audit-gate.sh"
+    "${HOME}/.factory/hooks.json"
     "${HOME}/.config/opencode/AGENTS.md"
     "${HOME}/.agents/mcp-targets.json"
     "${HOME}/.agents/skill-targets.json"
+    "${HOME}/.agents/desktop-capture.md"
+    "${HOME}/.agents/codex-lane-override.md"
     "${HOME}/.hermes/SOUL.md"
     "${HOME}/.agents/skills"
     "${HOME}/.local/bin/agent-config-sync"
@@ -454,6 +464,7 @@ cmd_apply() {
       "${HOME}/.claude/RTK.md"
       "${HOME}/.claude/rules"
       "${HOME}/.claude/settings.json"
+      "${HOME}/.claude/hooks/decision-audit-gate.sh"
       "${HOME}/.claude/skills/model-runners"
       "${HOME}/.claude/skills/kickoff"
       "${HOME}/.claude/skills/ship-pr"
