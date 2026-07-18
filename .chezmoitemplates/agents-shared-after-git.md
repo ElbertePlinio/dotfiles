@@ -12,26 +12,18 @@ Keep Markdown short, useful, and human-written unless the user asks for more or 
 
 ## HTML readability artifacts
 
-For substantial brainstorms, plans, architecture diagrams, comparisons, or
-reports, offer an optional standalone HTML page when visual structure would make
-the material easier to understand.
-
-- Never create the HTML page automatically. Ask first and wait for my explicit
-  approval.
-- If I explicitly request an HTML page, that request is approval; do not ask a
-  second time.
-- Keep the normal chat explanation understandable on its own. HTML improves the
-  presentation; it does not replace a clear answer.
-- Once approved, make the page responsive and self-contained, avoid remote
-  dependencies or telemetry unless requested, and verify both desktop and mobile
-  rendering.
-- Save every standalone HTML artifact under `~/Projects/Boards`, never inside the active project repository.
-- Use `~/Projects/Boards/<project-slug>/` for project-specific boards and `~/Projects/Boards/_global/<topic>/` for cross-project or system-wide boards. Use concise kebab-case filenames.
-- This storage rule applies to generated reports, plans, diagrams, comparisons, and other presentation artifacts. HTML files that are required source code for a repository or application stay in that repository.
+For substantial plans, diagrams, comparisons, or reports, offer an optional standalone HTML page — never create it unasked; an explicit request is approval. The chat answer must stand on its own. Approved pages are responsive, self-contained, and free of remote dependencies or telemetry unless requested. Save presentation artifacts under `~/Projects/Boards/<project-slug>/` or `~/Projects/Boards/_global/<topic>/` (kebab-case filenames), never inside the active repo; HTML that is real application source stays in its repo.
 
 ## Before finishing
 
 Run the narrowest behavioral validation that proves the change. If blocked, say why and name the command. Final coding reports are evidence-based: changed, validated, risks/uncertainties, and next action only if needed.
+
+### Decision audit gate
+
+- Before declaring any non-trivial task done or opening a PR, self-review: would you stand behind this branch as-is? If not, say exactly why — no hedging.
+- List every choice made that the user or plan did not explicitly specify: approach, scope, naming, data shapes, workarounds. Flag low-confidence choices and ones with a plausible alternative.
+- A fix that passes validation but relies on an incidental choice (magic constant, coincidental size, special-cased path) is not done — surface it as an open decision, not a success.
+- Subagent/lane reports must include this decision list; the orchestrator reviews decisions before diffs.
 
 ## Pickforge issue workflow
 
@@ -43,4 +35,4 @@ Before user-specific work, read relevant `/home/dev/AgentMemory`: always `CORE_P
 
 ## Updating these rules
 
-Use `agent-config-sync` for global instructions, adapters, portable skills, and drift. Shared changes go to canonical chezmoi templates/adapters; never edit only a rendered `$HOME` file. Harness changes stay in that adapter; repo rules stay local unless made global. Target only compatible harnesses; use documented native fallbacks elsewhere.
+Use `agent-config-sync` for global instructions, adapters, portable skills, and drift. Shared changes go to canonical chezmoi templates/adapters; never edit only a rendered `$HOME` file. Never run whole-tree `chezmoi diff`/`status`/`verify`; always scope to explicit paths and wrap in `timeout` (full-tree runs can hang on encrypted files). Harness changes stay in that adapter; repo rules stay local unless made global. Target only compatible harnesses; use documented native fallbacks elsewhere.

@@ -1,4 +1,16 @@
 {
+  "PreToolUse": [
+    {
+      "matcher": "Execute",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "/home/dev/.factory/hooks/decision-audit-gate.sh",
+          "timeout": 5
+        }
+      ]
+    }
+  ],
   "UserPromptSubmit": [
     {
       "hooks": [
