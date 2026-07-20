@@ -9,8 +9,8 @@ Covers shell, terminal emulators, editors, git, KDE theming, and AI tooling conf
 On a fresh machine:
 
 ```bash
-# 1. Install chezmoi and age
-sudo pacman -S chezmoi age
+# 1. Install bootstrap dependencies (agent-config-sync requires system gh)
+sudo pacman -S chezmoi age git github-cli
 
 # 2. Restore your chezmoi age identity (see "Secrets" section)
 #    Store it off-machine; you need it before `chezmoi apply`.
@@ -18,19 +18,30 @@ mkdir -p ~/.config/chezmoi
 # ...copy your saved key.txt to ~/.config/chezmoi/key.txt...
 chmod 0600 ~/.config/chezmoi/key.txt
 
-# 3. Initialize from this repo
+# 3. Authenticate GitHub SSH before apply (the Pi bootstrap clones
+#    pickforge-platform, which provides pi-kit)
+ssh -T git@github.com
+
+# 4. Initialize from this repo
 chezmoi init git@github.com:ElbertePlinio/dotfiles.git
 
-# 4. Preview every target before applying
+# 5. Preview every target before applying
 chezmoi diff
 
-# 5. Apply interactively on a clean machine
+# 6. Apply interactively on a clean machine
 chezmoi apply --interactive
 
-# 6. Validate and reconcile managed agent configuration
-chezmoi apply ~/.local/bin/agent-config-sync
-agent-config-sync apply
+# 7. Start a new shell, then validate managed agent configuration
+exec zsh
+agent-config-sync check-live
 ```
+
+The first apply installs `agent-config-sync`, the canonical skill under
+`~/.agents/skills/agent-config-sync`, and each declared harness link. The skill
+cannot guide the initial apply because it does not exist locally yet; use this
+Quickstart as the bootstrap boundary. Tailscale is optional during bootstrap:
+a later `chezmoi apply` configures the Plannotator tailnet URL after Tailscale is
+installed and connected.
 
 Daily use:
 
