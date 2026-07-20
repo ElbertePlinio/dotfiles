@@ -1,0 +1,52 @@
+#!/bin/sh
+
+port=${PLANNOTATOR_PORT:-19432}
+dns_name=
+route_ready=
+
+if command -v tailscale >/dev/null 2>&1; then
+  status_json=$(tailscale status --json 2>/dev/null) || status_json=
+  if [ -n "$status_json" ]; then
+    dns_name=$(printf '%s' "$status_json" | node -e '
+      let input = "";
+      process.stdin.on("data", chunk => input += chunk);
+      process.stdin.on("end", () => {
+        try {
+          const status = JSON.parse(input);
+          if (status.BackendState === "Running" && status.Self?.DNSName) {
+            process.stdout.write(status.Self.DNSName.replace(/\.$/, ""));
+          }
+        } catch {}
+      });
+    ' 2>/dev/null) || dns_name=
+  fi
+
+  serve_json=$(tailscale serve status --json 2>/dev/null) || serve_json=
+  if [ -n "$dns_name" ] && [ -n "$serve_json" ]; then
+    route_ready=$(PLANNOTATOR_EXPECTED_PORT="$port" PLANNOTATOR_DNS_NAME="$dns_name" \
+      node -e '
+        let input = "";
+        process.stdin.on("data", chunk => input += chunk);
+        process.stdin.on("end", () => {
+          try {
+            const config = JSON.parse(input);
+            const port = process.env.PLANNOTATOR_EXPECTED_PORT;
+            const host = `${process.env.PLANNOTATOR_DNS_NAME}:${port}`;
+            const proxy = config.Web?.[host]?.Handlers?.["/"]?.Proxy;
+            if (config.TCP?.[port]?.HTTPS === true && proxy === `http://127.0.0.1:${port}`) {
+              process.stdout.write("yes");
+            }
+          } catch {}
+        });
+      ' 2>/dev/null <<EOF
+$serve_json
+EOF
+    ) || route_ready=
+  fi
+fi
+
+if [ "$route_ready" = yes ]; then
+  printf 'https://%s:%s/\n' "$dns_name" "$port"
+else
+  printf 'http://localhost:%s/\n' "$port"
+fi
