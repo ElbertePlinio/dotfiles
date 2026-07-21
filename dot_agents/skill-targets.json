@@ -119,6 +119,15 @@
       "pi",
       "omp",
       "hermes"
+    ],
+    "bro": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp",
+      "factory",
+      "hermes"
     ]
   }
 }
