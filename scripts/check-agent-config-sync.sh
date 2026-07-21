@@ -469,7 +469,16 @@ check_active_retired_references() {
 
 check_active_target_completeness() {
   local sync_command="$ROOT/dot_local/bin/executable_agent-config-sync"
-  local source_path target command hook_name hook_source
+  local source_path target command hook_name hook_source entry
+  local -a metadata_targets=(
+    'dot_agents/dot_skill-lock.json|.agents/.skill-lock.json'
+    'dot_agents/skill-targets.json|.agents/skill-targets.json'
+    'dot_agents/mcp-targets.json|.agents/mcp-targets.json'
+  )
+  local -a opencode_targets=(
+    'dot_config/opencode/AGENTS.md|.config/opencode/AGENTS.md'
+    'dot_config/opencode/README.md|.config/opencode/README.md'
+  )
 
   need "$sync_command"
   [[ -f "$sync_command" ]] || return
@@ -481,6 +490,30 @@ check_active_target_completeness() {
       pass "active target includes top-level agent policy: $target"
     else
       err "active target missing top-level agent policy: $target"
+    fi
+  done
+
+  for entry in "${metadata_targets[@]}"; do
+    source_path="${entry%%|*}"
+    target="${entry#*|}"
+    need "$ROOT/$source_path"
+    if [[ -f "$ROOT/$source_path" ]] \
+      && grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
+      pass "active target includes agent metadata registry: $target"
+    else
+      err "active target missing agent metadata registry: $target"
+    fi
+  done
+
+  for entry in "${opencode_targets[@]}"; do
+    source_path="${entry%%|*}"
+    target="${entry#*|}"
+    need "$ROOT/$source_path"
+    if [[ -f "$ROOT/$source_path" ]] \
+      && grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
+      pass "active target includes OpenCode policy/doc: $target"
+    else
+      err "active target missing OpenCode policy/doc: $target"
     fi
   done
 
@@ -562,6 +595,8 @@ check_sync_command_flow() {
     dot_factory/hooks/executable_kde-notify.sh
     dot_factory/hooks.json
     dot_config/opencode/AGENTS.md
+    dot_config/opencode/README.md
+    dot_agents/dot_skill-lock.json
     dot_agents/mcp-targets.json
     dot_agents/skill-targets.json
     dot_agents/desktop-capture.md
@@ -575,7 +610,8 @@ check_sync_command_flow() {
   )
 
   mkdir -p "$flow_source/scripts" \
-    "$flow_home/.local/bin" "$flow_home/.retired-agent-config-probe" \
+    "$flow_home/.local/bin" "$flow_home/.agents" "$flow_home/.config/opencode" \
+    "$flow_home/.retired-agent-config-probe" \
     "$divergent_home/.local/bin" "$divergent_home/.retired-agent-config-probe" \
     "$divergent_home/.agents" "$malformed_home/.local/bin"
   cat >"$flow_source/scripts/check-agent-config-sync.sh" <<'EOF'
@@ -619,8 +655,14 @@ EOF
   printf '%s\n' original-unrelated >"$flow_source/dot_unrelated-agent-config-probe"
   install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
     "$flow_source/dot_local/bin/executable_agent-config-sync"
+  printf '%s\n' '{"state":"original"}' >"$flow_source/dot_agents/dot_skill-lock.json"
+  printf '%s\n' original-opencode-readme >"$flow_source/dot_config/opencode/README.md"
   HOME="$flow_home" chezmoi --source "$flow_source" apply --force --no-tty \
-    "$flow_home/.unrelated-agent-config-probe"
+    "$flow_home/.unrelated-agent-config-probe" \
+    "$flow_home/.agents/.skill-lock.json" \
+    "$flow_home/.config/opencode/README.md"
+  printf '%s\n' '{"state":"intended"}' >"$flow_source/dot_agents/dot_skill-lock.json"
+  printf '%s\n' intended-opencode-readme >"$flow_source/dot_config/opencode/README.md"
   cat >"$flow_source/run_after_agent_config_probe.sh" <<'EOF'
 #!/usr/bin/env bash
 : >"$SYNC_SCRIPT_MARKER"
@@ -642,6 +684,8 @@ EOF
       "$flow_home/.local/bin/agent-config-sync" check-live >/dev/null 2>&1; then
     printf '%s\n' source strict live live >"$expected_log"
     if grep -Fxq intended-agent-probe "$flow_home/.agents/mcp-targets.json" \
+      && grep -Fxq '{"state":"intended"}' "$flow_home/.agents/.skill-lock.json" \
+      && grep -Fxq intended-opencode-readme "$flow_home/.config/opencode/README.md" \
       && grep -Fxq managed "$flow_home/.agents/browser-use.md" \
       && [[ -x "$flow_home/.factory/hooks/kde-notify.sh" ]] \
       && grep -Fxq managed "$flow_home/.factory/hooks/kde-notify.sh" \
@@ -654,6 +698,8 @@ EOF
       && grep -Fxq original-unrelated "$flow_home/.unrelated-agent-config-probe" \
       && [[ ! -e "$script_marker" ]] \
       && cmp -s "$expected_log" "$flow_log"; then
+      pass 'temporary scoped sync updates skill-lock metadata target from source'
+      pass 'temporary scoped sync updates OpenCode README target from source'
       pass 'temporary scoped sync applies browser-use policy target'
       pass 'temporary scoped sync applies Factory kde-notify hook target'
       pass 'temporary scoped sync removes present retirement and skips absent retirement'
@@ -1873,8 +1919,11 @@ TARGETS=(
   "$DEST/.codex/AGENTS.md"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json" "$DEST/.omp/agent/agents"
-  "$DEST/.factory/AGENTS.md" "$DEST/.config/opencode/AGENTS.md" "$DEST/.hermes/SOUL.md"
+  "$DEST/.factory/AGENTS.md"
+  "$DEST/.config/opencode/AGENTS.md" "$DEST/.config/opencode/README.md"
+  "$DEST/.hermes/SOUL.md"
   "$DEST/.local/bin/agent-config-sync"
+  "$DEST/.agents/.skill-lock.json"
   "$DEST/.agents/skill-targets.json"
   "$DEST/.agents/mcp-targets.json"
 )
@@ -1892,8 +1941,11 @@ EXPECTED=(
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/config.yml dot_omp/agent/mcp.json dot_omp/agent/agents
-  private_dot_factory/AGENTS.md.tmpl dot_config/opencode/AGENTS.md private_dot_hermes/SOUL.md.tmpl
+  private_dot_factory/AGENTS.md.tmpl
+  dot_config/opencode/AGENTS.md dot_config/opencode/README.md
+  private_dot_hermes/SOUL.md.tmpl
   dot_local/bin/executable_agent-config-sync
+  dot_agents/dot_skill-lock.json
   dot_agents/skill-targets.json
   dot_agents/mcp-targets.json
 )
@@ -1979,6 +2031,12 @@ else
     && ! grep -Fq 'CODING_AGENT_RULES.md' "$DEST/.config/opencode/AGENTS.md" \
     && pass 'temp OpenCode memory cutover applied' \
     || err 'temp OpenCode memory cutover apply mismatch'
+  cmp -s "$DEST/.config/opencode/README.md" "$ROOT/dot_config/opencode/README.md" \
+    && pass 'temp OpenCode README applied' \
+    || err 'temp OpenCode README apply mismatch'
+  cmp -s "$DEST/.agents/.skill-lock.json" "$SKILL_LOCK" \
+    && pass 'temp skill lock applied' \
+    || err 'temp skill lock apply mismatch'
 fi
 
 if [[ -d "$DEST/.agents/skills/context7-mcp" ]]; then

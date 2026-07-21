@@ -164,6 +164,8 @@ cmd_apply() {
     "${HOME}/.factory/hooks/kde-notify.sh"
     "${HOME}/.factory/hooks.json"
     "${HOME}/.config/opencode/AGENTS.md"
+    "${HOME}/.config/opencode/README.md"
+    "${HOME}/.agents/.skill-lock.json"
     "${HOME}/.agents/mcp-targets.json"
     "${HOME}/.agents/skill-targets.json"
     "${HOME}/.agents/desktop-capture.md"
