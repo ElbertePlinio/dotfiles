@@ -61,8 +61,3 @@ Projects/Personal/dot_codex/*
 !Projects/Personal/dot_codex/config.toml
 !Projects/Personal/dot_codex/symlink_AGENTS.md
 !Projects/Personal/dot_codex/symlink_skills
-
-# Personal GitHub credential/runtime state is never source-managed.
-Projects/Personal/private_dot_agent-safety/symlink_real-gh
-Projects/Personal/private_dot_agent-safety/private_use-isolated-gh
-Projects/Personal/private_dot_agent-safety/private_gh/
