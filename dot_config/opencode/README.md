@@ -16,8 +16,6 @@ Global OpenCode setup with a 3-level company hierarchy: CTO orchestrates, Senior
   - `cto.md` — primary agent, GPT 5.5, strategic orchestration
   - `senior-dev.md` — subagent, GPT 5.5, architecture/review/complex refactors
   - `mid-dev.md` — subagent, DeepSeek V4 Pro (Ollama Cloud), hands-on implementation
-- `plugins/rtk.ts`
-  - plugin that rewrites shell commands with `rtk` to save tokens
 - `tools/workflow-route.ts`
   - deterministic task router for CTO (routes to self, senior-dev, or mid-dev)
 - `WORKFLOW_DIAGRAM.md`
@@ -154,17 +152,6 @@ Responsibilities:
 - running tests
 - git operations (commits, pushes, PRs)
 - benchmarks, evals, CI checks
-
-## `rtk` Plugin
-
-`plugins/rtk.ts` intercepts `bash` / `shell` calls and tries to rewrite the command through `rtk rewrite`.
-
-Goal:
-
-- reduce tokens spent on verbose shell commands
-- keep a single source of truth for command rewrite rules inside `rtk`
-
-If `rtk` is not available in `PATH`, the plugin disables itself without breaking the session.
 
 ## `workflow-route` Tool
 

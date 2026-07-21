@@ -42,7 +42,7 @@ Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious 
 ## Tool and workflow triggers
 
 - Use Context7 when library/API details matter. For deeper repo work, use CodeGraph when available; if uninitialized, suggest `codegraph init`.
-- Prefer `frun` for noisy shell commands; otherwise prefix noisy read-only commands with `rtk`. Never wrap commands where exact output matters: tests, analyzers, Dart, Flutter, FVM.
+- Never wrap commands where exact output matters: tests, analyzers, Dart, Flutter, FVM.
 - For `sudo` in non-interactive sessions, use `sudo -A` with `SUDO_ASKPASS=~/.local/bin/sudo-askpass`. Never request, capture, pipe, print, or store the sudo password; if askpass is unavailable or cancelled, stop and ask me to run it manually.
 - For X (Twitter) practitioner-signal research, use the `x-research` skill; if Hermes is unavailable, say so.
 - If a subagent or model lane needs re-authentication, use the provider's normal interactive login through the available browser or PickLab session: Google `elberte.dev@gmail.com` for Claude, ChatGPT, and Ollama; Microsoft `eoberte@outlook.com` for Grok. Never handle passwords, recovery codes, 2FA codes, cookies, or tokens; if login cannot complete without me, stop and prompt me.
@@ -51,13 +51,6 @@ Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious 
 
 - For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation. If the repo has a more specific design skill, use it as an overlay on the general workflow.
 - Tiny fixes already determined by the repo's existing tokens or components can use the skill's light path.
-
-## Personal project isolation
-
-- When `~/Projects/Personal/.agent-safety` exists, access defaults to `~/Projects/Personal` and descendants. Outside access requires the exact path and action in the request.
-- Do not follow symlinks outside it or reuse company context, credentials, caches, or config.
-- Before Personal GitHub mutations or pushes, run `~/Projects/Personal/.agent-safety/verify-personal-github` to verify `ElbertePlinio`. Stop on failure; never switch accounts.
-- `claude-work` is company-only and forbidden there; use only a user-approved personal profile.
 
 ## Git and pull requests
 
