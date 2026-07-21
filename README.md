@@ -65,43 +65,33 @@ git pull --ff-only                   # update source without applying blindly
 - **Defaults / environment**: `mimeapps.list`, `user-dirs.dirs`, `user-dirs.locale`, `trashrc`, `autostart/`, `environment.d/`, `cachyos/`, `cachyos-hello.json`, `libinput-gestures.conf`
 - **Fonts / input**: `~/.config/fontconfig/`, `.XCompose`
 - **AI tooling**:
-  - Shared full-profile behavior: `.chezmoitemplates/agents-shared*.md`
-  - Claude profile components: `.chezmoitemplates/claude-*.md`
-  - Default Claude adapter: `~/.claude/CLAUDE.md` (full on `main`, neutral on `restricted`)
-  - Portable Claude adapter: `~/.claude-personal/CLAUDE.md` (Claude and OpenAI only)
+  - Shared policy: `.chezmoitemplates/agents-shared*.md`
+  - Global Claude adapter: `~/.claude/CLAUDE.md` (unrestricted `claude` shell wrapper)
+  - Global Codex adapter: `~/.codex/AGENTS.md` (unrestricted `codex` shell wrapper)
+  - Other harness adapters: Grok, Pi, OMP, Factory, Hermes, OpenCode
   - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`
   - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply`)
-  - Profile launchers: `claude-default`, `claude-personal`, `agent-profile-doctor`
   - Encrypted stable configuration: selected Claude settings and harness-native skills
   - Runtime state: credentials, sessions, histories, caches, plugins, and usage state remain machine-owned
 
-## Agent profiles
+## Agent configuration
 
-Profile names describe capability and safety, not organizations or projects:
-
-- `main`: full managed agent configuration for the trusted primary workstation.
-- `restricted`: safe default. The default Claude profile receives neutral rules, manual permissions, and no personal provider or memory imports.
-- Portable: `claude-personal` uses the isolated `~/.claude-personal` state directory, strips AWS/Bedrock environment variables, and runs only inside configured personal roots or their worktrees.
-
-The public repository contains profile policy and encrypted stable configuration. It does not contain machine credentials, sessions, histories, plugin installations, account tokens, or the reason a machine uses a given role.
-
-Machine role is local data. Omit it for the safe `restricted` default. Set `main` only on the trusted primary workstation:
-
-```toml
-# ~/.config/chezmoi/chezmoi.toml
-[data]
-  agentProfile = "main"
-```
-
-Use explicit launchers instead of directory-sensitive shell magic:
+One unrestricted global Claude and Codex setup. Shell wrappers:
 
 ```bash
-claude                 # shell wrapper -> claude-default
-claude-personal        # isolated portable profile
-agent-profile-doctor   # resolved role, paths, permission mode, environment presence
+claude   # command claude --dangerously-skip-permissions
+codex    # command codex --yolo
 ```
 
-Authentication, provider setup, and plugin installation happen separately inside each Claude config directory. Never copy `.credentials.json`, sessions, or caches between profiles.
+Daily sync workflow:
+
+```bash
+agent-config-sync check       # source templates + portable skill matrix
+agent-config-sync check-live  # read-only live validation against $HOME
+agent-config-sync apply       # source check, strict preflight, full managed apply, live check
+```
+
+`apply` runs a full managed-source `chezmoi apply` so `.chezmoiremove` retirements execute. Do not sync credentials, sessions, histories, caches, or other machine-owned runtime state.
 
 ## Secrets (age encryption)
 
