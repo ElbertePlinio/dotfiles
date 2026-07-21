@@ -70,7 +70,7 @@ git pull --ff-only                   # update source without applying blindly
   - Global Codex adapter: `~/.codex/AGENTS.md` (unrestricted `codex` shell wrapper)
   - Other harness adapters: Grok, Pi, OMP, Factory, Hermes, OpenCode
   - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`
-  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply`)
+  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `doctor`)
   - Encrypted stable configuration: selected Claude settings and harness-native skills
   - Runtime state: credentials, sessions, histories, caches, plugins, and usage state remain machine-owned
 
@@ -92,6 +92,36 @@ agent-config-sync apply       # source check, strict preflight, scoped agent app
 ```
 
 `apply` targets only the managed agent configuration and the stable paths listed in `.chezmoiremove`; it does not apply unrelated dotfiles or root run scripts. Do not sync credentials, sessions, histories, caches, or other machine-owned runtime state.
+
+### Agent doctor
+
+Each computer declares only the harnesses, Pi providers, and MCP servers it
+requires in the deliberately unmanaged
+`~/.config/agent-config-sync/doctor.json`:
+
+```json
+{
+  "version": 1,
+  "harnesses": ["claude", "codex", "pi", "ollama"],
+  "providers": {"pi": ["openai-codex", "ollama"]},
+  "mcp": {"pi": ["context7"]}
+}
+```
+
+Unlisted tools are ignored. The default doctor is local and read-only:
+
+```bash
+agent-config-sync doctor                 # local installation and configuration
+agent-config-sync doctor --online        # add noninteractive login-status probes
+agent-config-sync doctor --deep          # add safe HTTP MCP reachability checks
+agent-config-sync doctor --only pi       # one required harness
+agent-config-sync doctor --json          # stable machine-readable results
+agent-config-sync doctor --ascii         # ASCII symbols for limited terminals
+```
+
+Human output uses symbols and automatic terminal colors. `NO_COLOR` and
+`--color=never` disable color. The doctor never logs in, installs packages,
+starts MCP OAuth, executes stdio MCP servers, or prints credential values.
 
 ## Secrets (age encryption)
 

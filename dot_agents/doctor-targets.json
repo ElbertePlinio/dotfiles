@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "bootstrap": ["bash", "jq"],
+  "harnesses": {
+    "claude": {
+      "displayName": "Claude",
+      "binary": "claude",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.claude/CLAUDE.md", "~/.claude/settings.json"],
+      "mcp": {"path": "~/.claude.json", "root": "mcpServers"},
+      "onlineProbe": ["auth", "status"]
+    },
+    "codex": {
+      "displayName": "Codex",
+      "binary": "codex",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.codex/AGENTS.md", "~/.codex/config.toml"],
+      "onlineProbe": ["login", "status"]
+    },
+    "grok": {
+      "displayName": "Grok",
+      "binary": "grok",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.grok/AGENTS.md", "~/.grok/config.toml"]
+    },
+    "pi": {
+      "displayName": "Pi",
+      "binary": "pi",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.pi/agent/AGENTS.md", "~/.pi/agent/settings.json", "~/.pi/agent/models.json"],
+      "providerAuth": {"path": "~/.pi/agent/auth.json"},
+      "mcp": {"path": "~/.pi/agent/mcp.json", "root": "mcpServers"}
+    },
+    "omp": {
+      "displayName": "OMP",
+      "binary": "omp",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.omp/agent/AGENTS.md", "~/.omp/agent/config.yml"],
+      "mcp": {"path": "~/.omp/agent/mcp.json", "root": "mcpServers"}
+    },
+    "ollama": {
+      "displayName": "Ollama",
+      "binary": "ollama",
+      "versionArgs": ["--version"],
+      "configPaths": []
+    },
+    "opencode": {
+      "displayName": "OpenCode",
+      "binary": "opencode",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.config/opencode/AGENTS.md", "~/.config/opencode/opencode.json"],
+      "mcp": {"path": "~/.config/opencode/opencode.json", "root": "mcp"},
+      "onlineProbe": ["auth", "list"]
+    },
+    "factory": {
+      "displayName": "Factory",
+      "binary": "droid",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.factory/AGENTS.md", "~/.factory/settings.json"],
+      "mcp": {"path": "~/.factory/mcp.json", "root": "mcpServers"}
+    },
+    "hermes": {
+      "displayName": "Hermes",
+      "binary": "hermes",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.hermes/SOUL.md", "~/.hermes/config.yaml"],
+      "onlineProbe": ["auth", "status"]
+    }
+  },
+  "skills": {
+    "manifest": "~/.agents/skill-targets.json"
+  },
+  "drift": {
+    "paths": [
+      "~/.agents/skill-targets.json",
+      "~/.agents/mcp-targets.json",
+      "~/.local/bin/agent-config-sync"
+    ]
+  }
+}
