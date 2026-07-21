@@ -467,6 +467,53 @@ check_active_retired_references() {
   fi
 }
 
+check_active_target_completeness() {
+  local sync_command="$ROOT/dot_local/bin/executable_agent-config-sync"
+  local source_path target command hook_name hook_source
+
+  need "$sync_command"
+  [[ -f "$sync_command" ]] || return
+
+  for source_path in "$ROOT"/dot_agents/*.md; do
+    [[ -f "$source_path" ]] || continue
+    target=".agents/${source_path##*/}"
+    if grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
+      pass "active target includes top-level agent policy: $target"
+    else
+      err "active target missing top-level agent policy: $target"
+    fi
+  done
+
+  need "$ROOT/private_dot_factory/hooks.json"
+  [[ -f "$ROOT/private_dot_factory/hooks.json" ]] || return
+  if ! jq -e . "$ROOT/private_dot_factory/hooks.json" >/dev/null 2>&1; then
+    err 'Factory hooks.json is not valid JSON'
+    return
+  fi
+  pass 'Factory hooks JSON valid'
+  if ! grep -Fq '"${HOME}/.factory/hooks.json"' "$sync_command"; then
+    err 'active target missing Factory hooks.json'
+    return
+  fi
+
+  while IFS= read -r command; do
+    case "$command" in
+      */.factory/hooks/*.sh) ;;
+      *) continue ;;
+    esac
+    hook_name="${command##*/}"
+    hook_source="$ROOT/private_dot_factory/hooks/executable_${hook_name}"
+    [[ -f "$hook_source" || -f "$hook_source.tmpl" ]] || continue
+    target=".factory/hooks/$hook_name"
+    if grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
+      pass "active target includes managed Factory hook: $target"
+    else
+      err "active target missing managed Factory hook: $target"
+    fi
+  done < <(jq -r '.. | objects | .command? // empty | select(type == "string")' \
+    "$ROOT/private_dot_factory/hooks.json" | sort -u)
+}
+
 check_sync_command_flow() {
   local flow_source="$TMP/sync-flow-source"
   local flow_home="$TMP/sync-flow-home"
@@ -510,11 +557,13 @@ check_sync_command_flow() {
     dot_factory/AGENTS.md
     dot_factory/hooks/model-flow-reminder.sh
     dot_factory/hooks/decision-audit-gate.sh
+    dot_factory/hooks/executable_kde-notify.sh
     dot_factory/hooks.json
     dot_config/opencode/AGENTS.md
     dot_agents/mcp-targets.json
     dot_agents/skill-targets.json
     dot_agents/desktop-capture.md
+    dot_agents/browser-use.md
     dot_agents/codex-lane-override.md
     dot_hermes/SOUL.md
     dot_agents/skills/probe/SKILL.md
@@ -588,12 +637,17 @@ EOF
       "$flow_home/.local/bin/agent-config-sync" check-live >/dev/null 2>&1; then
     printf '%s\n' source strict live live >"$expected_log"
     if grep -Fxq intended-agent-probe "$flow_home/.agents/mcp-targets.json" \
+      && grep -Fxq managed "$flow_home/.agents/browser-use.md" \
+      && [[ -x "$flow_home/.factory/hooks/kde-notify.sh" ]] \
+      && grep -Fxq managed "$flow_home/.factory/hooks/kde-notify.sh" \
       && [[ -L "$flow_home/.pi/agent/skills/probe" ]] \
       && [[ "$(readlink "$flow_home/.pi/agent/skills/probe")" == '../../../.agents/skills/probe' ]] \
       && [[ ! -e "$flow_home/.retired-agent-config-probe" ]] \
       && grep -Fxq original-unrelated "$flow_home/.unrelated-agent-config-probe" \
       && [[ ! -e "$script_marker" ]] \
       && cmp -s "$expected_log" "$flow_log"; then
+      pass 'temporary scoped sync applies browser-use policy target'
+      pass 'temporary scoped sync applies Factory kde-notify hook target'
       pass 'temporary sync applies only agent targets and retirements without run scripts'
     else
       err 'temporary scoped sync changed an unrelated target, ran a script, or missed agent cleanup'
@@ -1412,6 +1466,7 @@ check_retired_target_removals
 check_retired_target_apply
 check_live_retired_target_regressions
 check_active_retired_references
+check_active_target_completeness
 check_sync_command_flow
 
 for f in "${SHARED[@]}"; do need "$f"; done
