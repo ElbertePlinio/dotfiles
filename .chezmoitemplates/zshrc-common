@@ -1,28 +1,9 @@
-export PATH="$HOME/Projects/Personal/.agent-safety/bin:$PATH"
-
-_agent_personal_context() {
-  local current personal_root git_common
-  current="${PWD:A}"
-  personal_root="${HOME}/Projects/Personal"
-  personal_root="${personal_root:A}"
-  if [[ "$current" == "$personal_root" || "$current" == "$personal_root"/* ]]; then
-    return 0
-  fi
-  git_common="$(command git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
-  git_common="${git_common:A}"
-  [[ "$git_common" == "$personal_root" || "$git_common" == "$personal_root"/* ]]
-}
-
 claude() {
-  "$HOME/.local/bin/claude-default" "$@"
+  command claude --dangerously-skip-permissions "$@"
 }
 
 codex() {
-  if _agent_personal_context; then
-    CODEX_HOME="$HOME/Projects/Personal/.codex" command codex --yolo "$@"
-  else
-    command codex --yolo "$@"
-  fi
+  command codex --yolo "$@"
 }
 
 alias ccu='bunx ccusage --compact'

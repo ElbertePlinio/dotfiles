@@ -1,7 +1,5 @@
-{{- $profile := .agentProfile | default "restricted" -}}
 # Global Claude Rules
 
-{{ if eq $profile "main" -}}
 {{ template "agents-shared.md" . }}
 
 {{ template "claude-adapter-common.md" . }}
@@ -11,12 +9,3 @@
 - For substantial or risky multi-model work, use the `model-orchestration` skill; pool metadata, compatibility constraints, selection axes, and escalation policy live in `~/.codex/skills/model-orchestration/references/model-routing.md`.
 - Claude subagents use the Agent or Workflow model parameter. Workers and reviewers are leaves unless the main session explicitly authorizes fan-out.
 - When Claude is invoked non-interactively as a worker under another orchestrator, do the assigned work directly and do not re-delegate.
-
-@RTK.md
-{{ else -}}
-{{ template "claude-core.md" . }}
-
-{{ template "claude-adapter-common.md" . }}
-
-{{ template "claude-restricted.md" . }}
-{{ end -}}

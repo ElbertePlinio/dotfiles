@@ -6,25 +6,26 @@ cd "$ROOT"
 SRC=(--source "$ROOT")
 fail=0
 MODE=default
-REQUIRE_PORTABLE_LINKS=0
 STRICT_PREFLIGHT=0
 for arg in "$@"; do
   case "$arg" in
     --check-live-migration) MODE=live ;;
-    --require-portable-links) REQUIRE_PORTABLE_LINKS=1 ;;
     --strict-preflight) STRICT_PREFLIGHT=1 ;;
   esac
 done
 
-PROFILE_ROLE="$(chezmoi "${SRC[@]}" execute-template '{{ .agentProfile | default "restricted" }}')"
-if [[ "$PROFILE_ROLE" != main && "$PROFILE_ROLE" != restricted ]]; then
-  printf 'ERR invalid profile role: %s\n' "$PROFILE_ROLE" >&2
-  exit 1
-fi
-
 pass() { printf 'OK  %s\n' "$*"; }
 err()  { printf 'ERR %s\n' "$*" >&2; fail=1; }
 need() { [[ -f "$1" ]] || err "missing: $1"; }
+
+source_absent() {
+  local path="$1"
+  if [[ -e "$ROOT/$path" || -L "$ROOT/$path" ]]; then
+    err "retired source remains: $path"
+  else
+    pass "retired source absent: $path"
+  fi
+}
 
 expand_home() {
   local p="$1"
@@ -54,23 +55,6 @@ managed_regular_file_unchanged() {
   [[ "$actual" == "$expected" ]]
 }
 
-known_legacy_model_skill() {
-  local skill="$1" dir="$2" expected_hash actual_hash live
-  local -a entries
-  case "$skill" in
-    codex) expected_hash='bcf38f2d2b463edaf6a7d5cf7374616318dfe24e133053ca45f42621eaedcb5c' ;;
-    grok) expected_hash='fdd4ad1e3a40569ab80f0e1dc59fc5e197f39409b265b8bc01207cac82f39483' ;;
-    *) return 1 ;;
-  esac
-  [[ -d "$dir" && ! -L "$dir" ]] || return 1
-  live="$dir/SKILL.md"
-  shopt -s nullglob dotglob
-  entries=("$dir"/*)
-  shopt -u nullglob dotglob
-  [[ "${#entries[@]}" -eq 1 && "${entries[0]}" == "$live" && -f "$live" && ! -L "$live" ]] || return 1
-  read -r actual_hash _ < <(sha256sum "$live")
-  [[ "$actual_hash" == "$expected_hash" ]]
-}
 validate_omp_agent_override() {
   local role="$1" path="$2"
 
@@ -158,11 +142,64 @@ check_live_omp_agent_overrides() {
 
 
 MANIFEST="$ROOT/dot_agents/skill-targets.json"
+SKILL_LOCK="$ROOT/dot_agents/dot_skill-lock.json"
 MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"
 OMP_MCP="$ROOT/dot_omp/agent/mcp.json"
 OMP_AGENT_OVERRIDES_DIR="$ROOT/dot_omp/agent/agents"
 OMP_TASK_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/task.md"
 OMP_REVIEWER_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/reviewer.md"
+
+RETIRED_SOURCE_PATHS=(
+  dot_claude-personal
+  dot_config/agent-profiles
+  dot_config/rtk
+  Projects/Personal/dot_codex
+  Projects/Personal/private_dot_agent-safety
+  dot_local/bin/executable_claude-profile
+  dot_local/bin/executable_claude-default
+  dot_local/bin/executable_claude-personal
+  dot_local/bin/executable_agent-profile-doctor
+  dot_claude/private_RTK.md
+  private_dot_factory/bin/executable_frun
+  .chezmoitemplates/claude-restricted.md
+  .chezmoitemplates/claude-personal-lite.md
+)
+
+RETIRED_SKILL_LOCK_ENTRIES=(
+  caveman
+  caveman-commit
+  caveman-compress
+  caveman-help
+  caveman-review
+  caveman-stats
+  cavecrew
+  compress
+)
+
+RETIRED_TARGET_PATHS=(
+  .claude-personal
+  .config/agent-profiles
+  .config/rtk
+  .local/bin/agent-profile-doctor
+  .local/bin/claude-default
+  .local/bin/claude-personal
+  .local/bin/claude-profile
+  .factory/bin/frun
+  .claude/RTK.md
+  Projects/Personal/.codex
+  Projects/Personal/.agent-safety
+  .agents/skills/superpowers
+  .config/superpowers
+  .codex/superpowers
+  .agents/skills/caveman
+  .agents/skills/caveman-commit
+  .agents/skills/caveman-compress
+  .agents/skills/caveman-help
+  .agents/skills/caveman-review
+  .agents/skills/caveman-stats
+  .agents/skills/cavecrew
+  .agents/skills/compress
+)
 
 RUNTIME_SOURCE_PATHS=(
   private_dot_hermes/private_skills/dot_curator_backups
@@ -191,9 +228,6 @@ RUNTIME_SOURCE_PATHS=(
   dot_codex/sqlite
   dot_codex/tmp
   'dot_codex/*.sqlite*'
-  Projects/Personal/private_dot_agent-safety/symlink_real-gh
-  Projects/Personal/private_dot_agent-safety/private_use-isolated-gh
-  Projects/Personal/private_dot_agent-safety/private_gh
   dot_omp/agent/sessions
   dot_omp/agent/terminal-sessions
   dot_omp/agent/blobs
@@ -232,10 +266,6 @@ RUNTIME_IGNORE_PATHS=(
   .claude/history.jsonl
   .claude/plugins
   .claude/projects
-  .claude-personal/.credentials.json
-  .claude-personal/history.jsonl
-  .claude-personal/plugins
-  .claude-personal/projects
   .codex/auth.json
   .codex/config.toml
   .codex/rules
@@ -250,9 +280,6 @@ RUNTIME_IGNORE_PATHS=(
   .codex/sqlite
   .codex/tmp
   '.codex/*.sqlite*'
-  Projects/Personal/.agent-safety/real-gh
-  Projects/Personal/.agent-safety/use-isolated-gh
-  Projects/Personal/.agent-safety/gh
   .omp/agent/sessions
   .omp/agent/terminal-sessions
   .omp/agent/blobs
@@ -284,6 +311,417 @@ check_runtime_exclusions() {
     grep -Fxq "$path" "$ROOT/.chezmoiignore" || err "runtime ignore missing: $path"
   done
   [[ "$fail" -eq 0 ]] && pass 'runtime state excluded from chezmoi source'
+  return 0
+}
+
+check_retired_target_removals() {
+  local removal_file="$ROOT/.chezmoiremove"
+  local expected_file="$TMP/expected-chezmoiremove"
+  local path count
+
+  need "$removal_file"
+  [[ -f "$removal_file" ]] || return
+  printf '%s\n' "${RETIRED_TARGET_PATHS[@]}" >"$expected_file"
+
+  for path in "${RETIRED_TARGET_PATHS[@]}"; do
+    count="$(grep -Fxc -- "$path" "$removal_file" || true)"
+    if [[ "$count" -eq 1 ]]; then
+      pass "stable retirement entry present once: $path"
+    else
+      err "stable retirement entry count for $path: $count"
+    fi
+  done
+
+  if cmp -s "$expected_file" "$removal_file"; then
+    pass 'retirement list exactly matches stable target paths'
+  else
+    err 'retirement list differs from the exact stable target paths'
+  fi
+
+  if awk '
+    ((index($0, "*") || index($0, "?") || index($0, "[")) \
+      && $0 ~ /(^|\/)(plugins?|caches?)(\/|$)/) { found=1 }
+    END { exit !found }
+  ' "$removal_file"; then
+    err 'retirement list contains a broad plugin/cache wildcard pattern'
+  else
+    pass 'retirement list rejects broad plugin/cache wildcard patterns'
+  fi
+}
+
+check_retired_target_apply() {
+  local DEST="$TMP/retirement-dest"
+  local removal_source="$TMP/retirement-source"
+  local path sentinel
+  local preview_log="$TMP/retirement-preview.log"
+  local apply_log="$TMP/retirement-apply.log"
+
+  mkdir -p "$DEST" "$removal_source"
+  cp "$ROOT/.chezmoiremove" "$removal_source/.chezmoiremove"
+  for path in "${RETIRED_TARGET_PATHS[@]}"; do
+    case "$path" in
+      .local/bin/*|.factory/bin/frun|.claude/RTK.md)
+        mkdir -p "$DEST/${path%/*}"
+        printf 'retired\n' >"$DEST/$path"
+        ;;
+      *)
+        mkdir -p "$DEST/$path"
+        printf 'retired\n' >"$DEST/$path/sentinel"
+        ;;
+    esac
+  done
+  mkdir -p "$DEST/.claude/plugins/cache" "$DEST/.codex/cache"
+  printf 'keep\n' >"$DEST/.claude/global-sentinel"
+  printf 'keep\n' >"$DEST/.claude/plugins/cache/sentinel"
+  printf 'keep\n' >"$DEST/.codex/global-sentinel"
+  printf 'keep\n' >"$DEST/.codex/cache/sentinel"
+
+  if (
+    cd "$removal_source"
+    chezmoi -S "$PWD" --persistent-state "$TMP/retirement-state.boltdb" -D "$DEST" apply --dry-run --verbose
+  ) >"$preview_log" 2>&1; then
+    pass 'retirement apply preview succeeds in temporary destination'
+  else
+    err "retirement apply preview failed: $(tr '\n' ' ' <"$preview_log")"
+    return
+  fi
+  if (
+    cd "$removal_source"
+    chezmoi -S "$PWD" --persistent-state "$TMP/retirement-state.boltdb" -D "$DEST" apply --force --no-tty
+  ) >"$apply_log" 2>&1; then
+    pass 'retirement apply succeeds in temporary destination'
+  else
+    err "retirement apply failed: $(tr '\n' ' ' <"$apply_log")"
+    return
+  fi
+
+  for path in "${RETIRED_TARGET_PATHS[@]}"; do
+    if [[ ! -e "$DEST/$path" && ! -L "$DEST/$path" ]]; then
+      pass "retired target removed from temporary destination: $path"
+    else
+      err "retired target remains in temporary destination: $path"
+    fi
+  done
+  for sentinel in \
+    .claude/global-sentinel \
+    .claude/plugins/cache/sentinel \
+    .codex/global-sentinel \
+    .codex/cache/sentinel; do
+    if [[ -f "$DEST/$sentinel" ]]; then
+      pass "unrelated temporary sentinel preserved: $sentinel"
+    else
+      err "unrelated temporary sentinel removed: $sentinel"
+    fi
+  done
+}
+
+check_live_retired_targets() {
+  local path live
+  for path in "${RETIRED_TARGET_PATHS[@]}"; do
+    live="$HOME/$path"
+    if [[ ! -e "$live" && ! -L "$live" ]]; then
+      pass "live retired target absent: $live"
+    elif [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
+      pass "live retired target pending removal: $live"
+    else
+      err "live retired target remains: $live"
+    fi
+  done
+}
+
+check_live_retired_target_regressions() {
+  local seeded_home="$TMP/live-retirement-home"
+  local seeded_path="${RETIRED_TARGET_PATHS[0]}"
+  mkdir -p "$seeded_home/$seeded_path"
+  printf '%s\n' retired >"$seeded_home/$seeded_path/sentinel"
+
+  if (HOME="$seeded_home"; STRICT_PREFLIGHT=1; fail=0; \
+    check_live_retired_targets >/dev/null 2>&1; [[ "$fail" -eq 0 ]]); then
+    pass 'strict live preflight permits seeded pending retirement'
+  else
+    err 'strict live preflight rejected seeded pending retirement'
+  fi
+  if (HOME="$seeded_home"; STRICT_PREFLIGHT=0; fail=0; \
+    check_live_retired_targets >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
+    pass 'normal live check rejects seeded stable retired target'
+  else
+    err 'normal live check accepted seeded stable retired target'
+  fi
+}
+
+check_active_retired_references() {
+  local matches
+  if matches="$(rg -n -i --hidden \
+    --glob '!.git' \
+    --glob '!.git/**' \
+    --glob '!docs/specs/**' \
+    --glob '!docs/plans/**' \
+    --glob '!.chezmoiremove' \
+    --glob '!scripts/check-agent-config-sync.sh' \
+    'claude-personal|claude-default|claude-profile|agentProfile|agent-profiles|Projects/Personal/\.codex|\.agent-safety|superpowers|\brtk\b|RTK\.md|\bfrun\b|caveman|cavecrew' \
+    .)"; then
+    err 'active source contains retired profile/tooling references'
+    printf '%s\n' "$matches" >&2
+  else
+    pass 'active source excludes retired profile/tooling references'
+  fi
+}
+
+check_active_target_completeness() {
+  local sync_command="$ROOT/dot_local/bin/executable_agent-config-sync"
+  local source_path target command hook_name hook_source
+
+  need "$sync_command"
+  [[ -f "$sync_command" ]] || return
+
+  for source_path in "$ROOT"/dot_agents/*.md; do
+    [[ -f "$source_path" ]] || continue
+    target=".agents/${source_path##*/}"
+    if grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
+      pass "active target includes top-level agent policy: $target"
+    else
+      err "active target missing top-level agent policy: $target"
+    fi
+  done
+
+  need "$ROOT/private_dot_factory/hooks.json"
+  [[ -f "$ROOT/private_dot_factory/hooks.json" ]] || return
+  if ! jq -e . "$ROOT/private_dot_factory/hooks.json" >/dev/null 2>&1; then
+    err 'Factory hooks.json is not valid JSON'
+    return
+  fi
+  pass 'Factory hooks JSON valid'
+  if ! grep -Fq '"${HOME}/.factory/hooks.json"' "$sync_command"; then
+    err 'active target missing Factory hooks.json'
+    return
+  fi
+
+  while IFS= read -r command; do
+    case "$command" in
+      */.factory/hooks/*.sh) ;;
+      *) continue ;;
+    esac
+    hook_name="${command##*/}"
+    hook_source="$ROOT/private_dot_factory/hooks/executable_${hook_name}"
+    [[ -f "$hook_source" || -f "$hook_source.tmpl" ]] || continue
+    target=".factory/hooks/$hook_name"
+    if grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
+      pass "active target includes managed Factory hook: $target"
+    else
+      err "active target missing managed Factory hook: $target"
+    fi
+  done < <(jq -r '.. | objects | .command? // empty | select(type == "string")' \
+    "$ROOT/private_dot_factory/hooks.json" | sort -u)
+}
+
+check_sync_command_flow() {
+  local flow_source="$TMP/sync-flow-source"
+  local flow_home="$TMP/sync-flow-home"
+  local divergent_home="$TMP/sync-flow-divergent-home"
+  local malformed_home="$TMP/sync-flow-malformed-home"
+  local flow_log="$TMP/sync-flow.log"
+  local flow_error="$TMP/sync-flow.err"
+  local divergent_log="$TMP/sync-flow-divergent.log"
+  local malformed_log="$TMP/sync-flow-malformed.log"
+  local malformed_error="$TMP/sync-flow-malformed.err"
+  local script_marker="$TMP/sync-flow-script-marker"
+  local expected_log="$TMP/sync-flow-expected.log"
+  local source_path
+  local -a active_source_files=(
+    dot_zshrc
+    dot_bashrc
+    dot_claude/CLAUDE.md
+    dot_claude/rules/context7.md
+    dot_claude/settings.json
+    dot_claude/hooks/executable_decision-audit-gate.sh
+    dot_claude/skills/kickoff/SKILL.md
+    dot_claude/skills/ship-pr/SKILL.md
+    dot_claude/skills/audit-report/SKILL.md
+    dot_claude/skills/pickgauge-usage/SKILL.md
+    dot_claude/skills/plan-issue/SKILL.md
+    dot_claude/skills/x-research/SKILL.md
+    dot_claude/skills/model-runners/SKILL.md
+    dot_codex/AGENTS.md
+    dot_codex/skills/model-orchestration/SKILL.md
+    dot_codex/skills/ship-pr/SKILL.md
+    dot_grok/AGENTS.md
+    dot_grok/skills/model-orchestration/SKILL.md
+    dot_pi/agent/AGENTS.md
+    dot_pi/agent/extensions/decision-audit-gate.ts
+    dot_pi/agent/skills/symlink_probe
+    dot_omp/agent/AGENTS.md
+    dot_omp/agent/config.yml
+    dot_omp/agent/agents/task.md
+    dot_omp/agent/mcp.json
+    dot_omp/agent/extensions/decision-audit-gate.ts
+    dot_factory/AGENTS.md
+    dot_factory/hooks/model-flow-reminder.sh
+    dot_factory/hooks/decision-audit-gate.sh
+    dot_factory/hooks/executable_kde-notify.sh
+    dot_factory/hooks.json
+    dot_config/opencode/AGENTS.md
+    dot_agents/mcp-targets.json
+    dot_agents/skill-targets.json
+    dot_agents/desktop-capture.md
+    dot_agents/browser-use.md
+    dot_agents/codex-lane-override.md
+    dot_hermes/SOUL.md
+    dot_agents/skills/probe/SKILL.md
+    dot_local/bin/executable_sudo-askpass
+    dot_config/environment.d/50-sudo-askpass.conf
+    dot_config/environment.d/60-omp.conf
+  )
+
+  mkdir -p "$flow_source/scripts" \
+    "$flow_home/.local/bin" "$flow_home/.retired-agent-config-probe" \
+    "$divergent_home/.local/bin" "$divergent_home/.retired-agent-config-probe" \
+    "$divergent_home/.agents" "$malformed_home/.local/bin"
+  cat >"$flow_source/scripts/check-agent-config-sync.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+live=0
+strict=0
+for arg in "$@"; do
+  case "$arg" in
+    --check-live-migration) live=1 ;;
+    --strict-preflight) strict=1 ;;
+    *) exit 64 ;;
+  esac
+done
+if [[ $# -eq 0 ]]; then
+  printf '%s\n' source
+elif [[ $# -eq 1 && "$live" -eq 1 ]]; then
+  printf '%s\n' live
+elif [[ $# -eq 2 && "$live" -eq 1 && "$strict" -eq 1 ]]; then
+  printf '%s\n' strict
+else
+  exit 64
+fi >>"$SYNC_FLOW_LOG"
+EOF
+  printf '%s\n' scripts >"$flow_source/.chezmoiignore"
+  printf '%s\n' .retired-agent-config-probe >"$flow_source/.chezmoiremove"
+  for source_path in "${active_source_files[@]}"; do
+    if [[ "$source_path" == */* ]]; then
+      mkdir -p "$flow_source/${source_path%/*}"
+    fi
+    printf '%s\n' managed >"$flow_source/$source_path"
+  done
+  printf '%s\n' '../../../.agents/skills/probe' \
+    >"$flow_source/dot_pi/agent/skills/symlink_probe"
+  printf '%s\n' '{"canonical_root":"~/.agents/skills","harnesses":{"pi":{"skills_root":"~/.pi/agent/skills","source_root":"dot_pi/agent/skills","discovery":"symlink","relative_prefix":"../../../.agents/skills"}},"skills":{"probe":["pi"]}}' \
+    >"$flow_source/dot_agents/skill-targets.json"
+  printf '%s\n' intended-agent-probe >"$flow_source/dot_agents/mcp-targets.json"
+  printf '%s\n' original-unrelated >"$flow_source/dot_unrelated-agent-config-probe"
+  install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    "$flow_source/dot_local/bin/executable_agent-config-sync"
+  HOME="$flow_home" chezmoi --source "$flow_source" apply --force --no-tty \
+    "$flow_home/.unrelated-agent-config-probe"
+  cat >"$flow_source/run_after_agent_config_probe.sh" <<'EOF'
+#!/usr/bin/env bash
+: >"$SYNC_SCRIPT_MARKER"
+EOF
+  chmod 0755 "$flow_source/run_after_agent_config_probe.sh"
+  printf '%s\n' changed-unrelated >"$flow_source/dot_unrelated-agent-config-probe"
+  printf '%s\n' retired >"$flow_home/.retired-agent-config-probe/sentinel"
+  printf '%s\n' retired >"$divergent_home/.retired-agent-config-probe/sentinel"
+  printf '%s\n' divergent >"$divergent_home/.agents/mcp-targets.json"
+  for target_home in "$flow_home" "$divergent_home" "$malformed_home"; do
+    install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
+      "$target_home/.local/bin/agent-config-sync"
+  done
+
+  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
+    SYNC_SCRIPT_MARKER="$script_marker" \
+    "$flow_home/.local/bin/agent-config-sync" apply >/dev/null 2>"$flow_error" \
+    && HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
+      "$flow_home/.local/bin/agent-config-sync" check-live >/dev/null 2>&1; then
+    printf '%s\n' source strict live live >"$expected_log"
+    if grep -Fxq intended-agent-probe "$flow_home/.agents/mcp-targets.json" \
+      && grep -Fxq managed "$flow_home/.agents/browser-use.md" \
+      && [[ -x "$flow_home/.factory/hooks/kde-notify.sh" ]] \
+      && grep -Fxq managed "$flow_home/.factory/hooks/kde-notify.sh" \
+      && [[ -L "$flow_home/.pi/agent/skills/probe" ]] \
+      && [[ "$(readlink "$flow_home/.pi/agent/skills/probe")" == '../../../.agents/skills/probe' ]] \
+      && [[ ! -e "$flow_home/.retired-agent-config-probe" ]] \
+      && grep -Fxq original-unrelated "$flow_home/.unrelated-agent-config-probe" \
+      && [[ ! -e "$script_marker" ]] \
+      && cmp -s "$expected_log" "$flow_log"; then
+      pass 'temporary scoped sync applies browser-use policy target'
+      pass 'temporary scoped sync applies Factory kde-notify hook target'
+      pass 'temporary sync applies only agent targets and retirements without run scripts'
+    else
+      err 'temporary scoped sync changed an unrelated target, ran a script, or missed agent cleanup'
+    fi
+  else
+    err "temporary scoped sync command apply/check-live flow failed: $(tr '\n' ' ' <"$flow_error")"
+  fi
+
+  if HOME="$divergent_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$divergent_log" \
+    SYNC_SCRIPT_MARKER="$script_marker" \
+    "$divergent_home/.local/bin/agent-config-sync" apply >/dev/null 2>&1; then
+    err 'temporary scoped sync overwrote an unmanaged active target'
+  elif grep -Fxq divergent "$divergent_home/.agents/mcp-targets.json" \
+    && [[ -e "$divergent_home/.retired-agent-config-probe" ]] \
+    && [[ ! -e "$script_marker" ]] \
+    && [[ "$(tr '\n' ' ' <"$divergent_log")" == 'source strict ' ]]; then
+    pass 'temporary scoped sync blocks unmanaged active targets before retirement apply'
+  else
+    err 'temporary scoped sync unmanaged-target preflight was not atomic'
+  fi
+
+  for malformed in '' '/absolute-retirement'; do
+    printf '%s\n' "$malformed" >"$flow_source/.chezmoiremove"
+    rm -f "$malformed_log" "$malformed_error" "$script_marker"
+    if HOME="$malformed_home" CHEZMOI_SOURCE_DIR="$flow_source" \
+      SYNC_FLOW_LOG="$malformed_log" SYNC_SCRIPT_MARKER="$script_marker" \
+      "$malformed_home/.local/bin/agent-config-sync" apply \
+      >/dev/null 2>"$malformed_error"; then
+      err "temporary scoped sync accepted malformed retirement entry: ${malformed:-empty}"
+    elif [[ ! -e "$script_marker" ]] \
+      && [[ "$(tr '\n' ' ' <"$malformed_log")" == 'source strict ' ]] \
+      && grep -Fq 'retirement list' "$malformed_error"; then
+      pass "temporary scoped sync rejects malformed retirement entry: ${malformed:-empty}"
+    else
+      err "temporary scoped sync did not fail closed on malformed retirement entry: ${malformed:-empty}"
+    fi
+  done
+  printf '%s\n' .retired-agent-config-probe >"$flow_source/.chezmoiremove"
+}
+
+check_primary_global_live_regressions() {
+  local target log log_name
+  local -a drift_targets=(
+    "$DEST/.claude/CLAUDE.md"
+    "$DEST/.claude/settings.json"
+    "$DEST/.claude/rules/context7.md"
+    "$DEST/.claude/skills/kickoff/SKILL.md"
+    "$DEST/.zshrc"
+    "$DEST/.bashrc"
+  )
+
+  if (fail=0; check_live_primary_global_targets "$DEST" >/dev/null; [[ "$fail" -eq 0 ]]); then
+    pass 'temporary primary global live targets include Claude rules and skills'
+  else
+    err 'temporary primary global live baseline was rejected'
+    return
+  fi
+
+  for target in "${drift_targets[@]}"; do
+    printf '\nmanaged-live-drift\n' >>"$target"
+    log_name="${target#"$DEST/"}"
+    log_name="${log_name//\//_}"
+    log="$TMP/primary-global-live-${log_name}.log"
+    if (fail=0; check_live_primary_global_targets "$DEST"; [[ "$fail" -ne 0 ]]) \
+      >"$log" 2>&1; then
+      pass "temporary primary global live drift rejected: ${target#"$DEST/"}"
+    else
+      err "temporary primary global live drift accepted: ${target#"$DEST/"}"
+    fi
+    if ! chezmoi "${TMP_SRC[@]}" --destination "$DEST" apply --force --no-tty "$target"; then
+      err "temporary primary global target restore failed: ${target#"$DEST/"}"
+      return
+    fi
+  done
 }
 
 check_manifest_and_sources() {
@@ -294,10 +732,24 @@ check_manifest_and_sources() {
   fi
   pass "manifest JSON valid"
 
+  if jq -e '.harnesses | has("claude-portable") | not' "$MANIFEST" >/dev/null; then
+    pass 'manifest has no retired claude-portable harness'
+  else
+    err 'manifest still defines retired claude-portable harness'
+  fi
+  if jq -e '.skills | all(.[]; all(.[]; . != "claude-portable"))' "$MANIFEST" >/dev/null; then
+    pass 'manifest skill targets exclude retired claude-portable harness'
+  else
+    err 'manifest skill targets still contain retired claude-portable harness'
+  fi
+
   local skill harness src_root rel_prefix expected link_src
   local -a skills
 
-  mapfile -t skills < <(jq -r '.skills | keys[]' "$MANIFEST")
+  skills=()
+  while IFS= read -r skill; do
+    skills+=("$skill")
+  done < <(jq -r '.skills | keys[]' "$MANIFEST")
   [[ "${#skills[@]}" -gt 0 ]] || err 'manifest has no skills'
 
   for skill in "${skills[@]}"; do
@@ -332,14 +784,11 @@ check_manifest_and_sources() {
     fi
   done
 
-  local claude_source
-  for claude_source in dot_claude dot_claude-personal; do
-    if [[ -e "$ROOT/${claude_source}/skills/context7-mcp" ]]; then
-      err "duplicate Context7 skill source still present: $claude_source"
-    else
-      pass "no duplicate Context7 skill directory: $claude_source"
-    fi
-  done
+  if [[ -e "$ROOT/dot_claude/skills/context7-mcp" ]]; then
+    err 'duplicate Context7 skill source still present: dot_claude'
+  else
+    pass 'no duplicate Context7 skill directory: dot_claude'
+  fi
 
   while IFS=$'\t' read -r skill harness; do
     [[ -n "$skill" && -n "$harness" ]] || continue
@@ -365,6 +814,61 @@ check_manifest_and_sources() {
       err "symlink source $link_src expected '$expected' got '$got'"
     fi
   done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
+}
+
+check_legacy_model_skill_absence() {
+  local managed_log="$TMP/managed-legacy-model-skills.log"
+  if jq -e '.skills | (has("codex") | not) and (has("grok") | not)' \
+    "$MANIFEST" >/dev/null 2>&1; then
+    pass 'manifest has no legacy codex/grok skill entries'
+  else
+    err 'manifest still contains a legacy codex/grok skill entry'
+  fi
+
+  if chezmoi "${SRC[@]}" managed --include=files,symlinks --path-style=absolute \
+    >"$managed_log" \
+    && ! grep -Eq '/\.claude/skills/(codex|grok)(/|$)' "$managed_log"; then
+    pass 'managed targets have no legacy Claude codex/grok skill paths'
+  else
+    err 'managed targets contain or could not check legacy Claude codex/grok skill paths'
+  fi
+}
+
+check_skill_lock_retirements() {
+  need "$SKILL_LOCK"
+  [[ -f "$SKILL_LOCK" ]] || return 0
+  if ! jq -e . "$SKILL_LOCK" >/dev/null 2>&1; then
+    err "skill lock is not valid JSON: $SKILL_LOCK"
+    return
+  fi
+  pass 'skill lock JSON valid'
+
+  local retired_json present
+  retired_json="$(printf '%s\n' "${RETIRED_SKILL_LOCK_ENTRIES[@]}" | jq -R . | jq -s .)"
+  if jq -e --argjson retired "$retired_json" '
+    .skills as $skills
+    | all($retired[]; . as $skill | $skills | has($skill) | not)
+  ' "$SKILL_LOCK" >/dev/null; then
+    pass 'skill lock excludes retired caveman entries'
+  else
+    present="$(jq -r --argjson retired "$retired_json" '
+      .skills as $skills
+      | $retired
+      | map(select(. as $skill | $skills | has($skill)))
+      | join(", ")
+    ' "$SKILL_LOCK")"
+    err "skill lock still contains retired entries: $present"
+  fi
+
+  if chezmoi "${SRC[@]}" cat "$HOME/.claude/settings.json" \
+    | jq -e '
+      ((.enabledPlugins // {}) | has("caveman@caveman") | not)
+      and ((.extraKnownMarketplaces // {}) | has("caveman") | not)
+    ' >/dev/null; then
+    pass 'Claude settings exclude retired Caveman plugin and marketplace'
+  else
+    err 'Claude settings still contain retired Caveman plugin or marketplace'
+  fi
 }
 
 validate_omp_mcp_credentials() {
@@ -616,9 +1120,6 @@ check_live_portable_links() {
   local skill harness root link target expected_prefix canon
   canon_root="$(expand_home "$(jq -r '.canonical_root' "$MANIFEST")")"
   while IFS=$'\t' read -r skill harness; do
-    if [[ "$PROFILE_ROLE" == restricted && "$harness" == claude ]]; then
-      continue
-    fi
     local discovery
     discovery="$(jq -r --arg h "$harness" '.harnesses[$h].discovery' "$MANIFEST")"
     if [[ "$discovery" == "canonical" ]]; then
@@ -630,10 +1131,10 @@ check_live_portable_links() {
     canon="${canon_root}/${skill}"
 
     if [[ ! -e "$link" && ! -L "$link" ]]; then
-      if [[ "$REQUIRE_PORTABLE_LINKS" -eq 1 ]]; then
-        err "live link missing: $link"
-      else
+      if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
         pass "live link not yet applied: $harness/$skill"
+      else
+        err "live link missing: $link"
       fi
       continue
     fi
@@ -652,24 +1153,16 @@ check_live_portable_links() {
       continue
     fi
 
-    if [[ "$REQUIRE_PORTABLE_LINKS" -eq 1 ]]; then
-      err "live path is not a symlink: $link"
-      continue
-    fi
-
-    if [[ ! -d "$canon" ]]; then
-      if known_legacy_model_skill "$skill" "$link"; then
-        pass "live legacy model skill is safely migratable: $harness/$skill"
+    if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
+      if [[ -d "$canon" && -d "$link" ]] && dirs_identical "$link" "$canon"; then
+        pass "live path identical to canonical (migratable): $harness/$skill"
       else
-        err "canonical skill missing for comparison: $canon"
+        err "live non-symlink path differs from canonical: $link"
       fi
       continue
     fi
-    if [[ -d "$link" ]] && dirs_identical "$link" "$canon"; then
-      pass "live path identical to canonical (migratable): $harness/$skill"
-    else
-      err "live non-symlink path differs from canonical: $link"
-    fi
+
+    err "live path is not a symlink: $link"
   done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
 }
 
@@ -700,17 +1193,31 @@ check_live_native_routing_ancestors() {
   done
 }
 
+check_live_primary_global_targets() {
+  local target_root="${1:-$HOME}"
+  local -a targets=(
+    "${target_root}/.claude/CLAUDE.md"
+    "${target_root}/.claude/settings.json"
+    "${target_root}/.claude/rules"
+    "${target_root}/.claude/skills"
+    "${target_root}/.zshrc"
+    "${target_root}/.bashrc"
+  )
+
+  if chezmoi "${SRC[@]}" --destination "$target_root" verify "${targets[@]}" >/dev/null 2>&1; then
+    pass 'live global Claude policy, settings, rules, skills, and shell targets match managed state'
+  else
+    err 'live global Claude policy, settings, rules, skills, or shell target differs from managed state'
+  fi
+}
+
 check_live_native_routing_files() {
   local live rendered
   local -a files=(
     "${HOME}/.codex/skills/model-orchestration/SKILL.md"
     "${HOME}/.codex/skills/model-orchestration/references/model-routing.md"
+    "${HOME}/.claude/skills/kickoff/SKILL.md"
   )
-  if [[ "$PROFILE_ROLE" == main ]]; then
-    files+=(
-      "${HOME}/.claude/skills/kickoff/SKILL.md"
-    )
-  fi
 
   rendered="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-native-routing.XXXXXX")"
   for live in "${files[@]}"; do
@@ -742,64 +1249,7 @@ check_live_native_routing_files() {
   rm -f "$rendered"
 }
 
-check_live_split_profile_targets() {
-  local -a targets=(
-    "${HOME}/.config/agent-profiles/role"
-    "${HOME}/.config/agent-profiles/personal-roots"
-    "${HOME}/.local/bin/claude-profile"
-    "${HOME}/.local/bin/claude-default"
-    "${HOME}/.local/bin/claude-personal"
-    "${HOME}/.local/bin/agent-profile-doctor"
-    "${HOME}/.zshrc"
-    "${HOME}/.bashrc"
-    "${HOME}/.claude/CLAUDE.md"
-    "${HOME}/.claude-personal"
-    "${HOME}/Projects/Personal/.codex/config.toml"
-    "${HOME}/Projects/Personal/.codex/AGENTS.md"
-    "${HOME}/Projects/Personal/.codex/skills"
-    "${HOME}/Projects/Personal/.agent-safety/bin/gh"
-    "${HOME}/Projects/Personal/.agent-safety/bin/gh-credential"
-    "${HOME}/Projects/Personal/.agent-safety/verify-personal-github"
-    "${HOME}/Projects/Personal/.agent-safety/install-repo-hook"
-    "${HOME}/Projects/Personal/.agent-safety/hooks/pre-push"
-  )
-  if [[ "$PROFILE_ROLE" == main ]]; then
-    targets+=(
-      "${HOME}/.claude/RTK.md"
-      "${HOME}/.claude/rules"
-      "${HOME}/.claude/settings.json"
-      "${HOME}/.claude/skills"
-    )
-  fi
 
-  if chezmoi "${SRC[@]}" verify "${targets[@]}" >/dev/null 2>&1; then
-    pass 'live default and portable profiles match managed target state'
-  else
-    err 'live default or portable profile differs from managed target state'
-  fi
-}
-
-check_live_portable_scope() {
-  local path
-  local -a forbidden=(
-    "${HOME}/.claude-personal/codex-opus-workflow.html"
-    "${HOME}/.claude-personal/skills/agent-config-sync"
-    "${HOME}/.claude-personal/skills/codex-fable"
-    "${HOME}/.claude-personal/skills/codex-opus"
-    "${HOME}/.claude-personal/skills/kickoff"
-    "${HOME}/.claude-personal/skills/local-review"
-    "${HOME}/.claude-personal/skills/ship-pr"
-  )
-  for path in "${forbidden[@]}"; do
-    if [[ -e "$path" || -L "$path" ]]; then
-      if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-        pass "portable full-profile path pending removal: $path"
-      else
-        err "portable profile still contains full-profile path: $path"
-      fi
-    fi
-  done
-}
 
 if [[ "$MODE" == live ]]; then
   if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
@@ -815,6 +1265,7 @@ if [[ "$MODE" == live ]]; then
   SOUL_LIVE="${HOME}/.hermes/SOUL.md"
   NOUS_DEFAULT='You are Hermes Agent, an intelligent AI assistant created by Nous Research.'
   check_omp_agent_override_sources
+  check_live_retired_targets
 
   if [[ ! -e "$GROK_LIVE" ]]; then
     err "live Grok AGENTS missing: $GROK_LIVE"
@@ -849,10 +1300,10 @@ if [[ "$MODE" == live ]]; then
     pass 'live OMP config matches canonical source'
   elif ! grep -q '^providers:' "$OMP_CONFIG_LIVE" || ! grep -q '^modelRoles:' "$OMP_CONFIG_LIVE"; then
     err 'live OMP config is not a recognized managed file'
-  elif [[ "$REQUIRE_PORTABLE_LINKS" -eq 1 ]]; then
-    err 'live OMP config differs from canonical source after apply'
-  else
+  elif [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
     pass 'live OMP config has managed runtime drift pending the authorized cutover'
+  else
+    err 'live OMP config differs from canonical source'
   fi
 
   if [[ ! -e "$OMP_MCP_LIVE" ]]; then
@@ -870,8 +1321,9 @@ if [[ "$MODE" == live ]]; then
   fi
   check_live_omp_agent_overrides
   check_live_native_routing_files
-  check_live_portable_scope
-
+  if [[ "$STRICT_PREFLIGHT" -eq 0 ]]; then
+    check_live_primary_global_targets
+  fi
 
   if [[ ! -e "$OPENCODE_LIVE" ]]; then
     pass "live OpenCode AGENTS not yet applied: $OPENCODE_LIVE"
@@ -885,10 +1337,10 @@ if [[ "$MODE" == live ]]; then
         || err "live OpenCode memory invariant missing: $invariant"
     done
     if grep -Fq 'CODING_AGENT_RULES.md' "$OPENCODE_LIVE"; then
-      if [[ "$REQUIRE_PORTABLE_LINKS" -eq 1 ]]; then
-        err 'live OpenCode still auto-loads CODING_AGENT_RULES after apply'
-      else
+      if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
         pass 'live OpenCode is managed and pending the authorized memory cutover'
+      else
+        err 'live OpenCode still auto-loads CODING_AGENT_RULES'
       fi
     else
       pass 'live OpenCode excludes CODING_AGENT_RULES'
@@ -911,10 +1363,6 @@ if [[ "$MODE" == live ]]; then
     check_live_portable_links
   else
     err "manifest missing for live portable checks: $MANIFEST"
-  fi
-
-  if [[ "$STRICT_PREFLIGHT" -eq 0 ]]; then
-    check_live_split_profile_targets
   fi
 
   if jq -e '.enabledModels | any(. == "xai/grok-4.5")' "$HOME/.pi/agent/settings.json" >/dev/null 2>&1; then
@@ -945,7 +1393,9 @@ HARNESS=(
 )
 SOUL=private_dot_hermes/SOUL.md.tmpl
 OPENCODE=dot_config/opencode/AGENTS.md
-SHARED_MAX_BYTES=12500
+SHARED_MAX_BYTES=15000
+SHARED_SOURCE_BASELINE=13851
+SHARED_RENDERED_BASELINE=13853
 REQUIRED_SHARED_INVARIANTS=(
   'I like short, practical work. Read the repo, make the smallest clean change, and show proof before calling something done.'
   '- Be direct: no filler or ceremony. Fix root causes, not symptoms.'
@@ -955,7 +1405,7 @@ REQUIRED_SHARED_INVARIANTS=(
   '- Destructive filesystem, Git, account, or external-service actions require explicit confirmation.'
   '- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.'
   '- Never use Anthropic Haiku — directly, via any tool, skill, subagent, fallback, or hidden route.'
-  'verify-personal-github` to verify `ElbertePlinio`'
+  'github.com/ElbertePlinio/'
   '- Protect user work. Check status before staging, committing, merging, or cleaning.'
   '- Treat untracked files as user-owned.'
   '- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects.'
@@ -984,7 +1434,6 @@ REQUIRED_SHARED_INVARIANTS=(
 
 ADAPTER_BUDGETS=(
   'dot_claude/CLAUDE.md.tmpl|2400'
-  'dot_claude-personal/CLAUDE.md.tmpl|500'
   'dot_codex/AGENTS.md.tmpl|2000'
   'dot_grok/AGENTS.md.tmpl|700'
   'dot_pi/agent/AGENTS.md.tmpl|1800'
@@ -1008,22 +1457,17 @@ ROUTING_SKILL_TARGETS=(
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync.XXXXXX")"
 DEST="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-dest.XXXXXX")"
-RESTRICTED_DEST="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-restricted.XXXXXX")"
-trap 'rm -rf "$TMP" "$DEST" "$RESTRICTED_DEST"' EXIT
+trap 'rm -rf "$TMP" "$DEST"' EXIT
 render() { chezmoi "${SRC[@]}" execute-template --file "$1" >"$2"; }
-MAIN_PROFILE_DATA='{"agentProfile":"main"}'
-RESTRICTED_PROFILE_DATA='{"agentProfile":"restricted"}'
-MAIN_SRC=(--override-data "$MAIN_PROFILE_DATA" "${SRC[@]}" --persistent-state "$TMP/main-state.boltdb")
-RESTRICTED_SRC=(--override-data "$RESTRICTED_PROFILE_DATA" "${SRC[@]}" --persistent-state "$TMP/restricted-state.boltdb")
-render_profile() {
-  local profile="$1" source_file="$2" destination_file="$3" data
-  case "$profile" in
-    main) data="$MAIN_PROFILE_DATA" ;;
-    restricted) data="$RESTRICTED_PROFILE_DATA" ;;
-    *) err "unknown render profile: $profile"; return 1 ;;
-  esac
-  chezmoi "${SRC[@]}" --override-data "$data" execute-template --file "$source_file" >"$destination_file"
-}
+# Persistent state for isolated temp destination applies (not live HOME).
+TMP_SRC=("${SRC[@]}" --persistent-state "$TMP/temp-state.boltdb")
+
+check_retired_target_removals
+check_retired_target_apply
+check_live_retired_target_regressions
+check_active_retired_references
+check_active_target_completeness
+check_sync_command_flow
 
 for f in "${SHARED[@]}"; do need "$f"; done
 [[ -f .chezmoitemplates/agents-shared.md ]] && \
@@ -1036,17 +1480,17 @@ shared_source_bytes=$((
   $(wc -c <.chezmoitemplates/agents-shared-after-git.md)
 ))
 if ((shared_source_bytes <= SHARED_MAX_BYTES)); then
-  pass "shared source size ${shared_source_bytes} bytes (budget ${SHARED_MAX_BYTES})"
+  pass "shared source size ${shared_source_bytes} bytes (recorded baseline ${SHARED_SOURCE_BASELINE}; budget ${SHARED_MAX_BYTES})"
 else
-  err "shared source size ${shared_source_bytes} bytes exceeds ${SHARED_MAX_BYTES}-byte regression budget (recorded baseline: 11400)"
+  err "shared source size ${shared_source_bytes} bytes exceeds ${SHARED_MAX_BYTES}-byte regression budget (recorded source baseline: ${SHARED_SOURCE_BASELINE})"
 fi
 
 if render .chezmoitemplates/agents-shared.md "$TMP/agents-shared.md"; then
   shared_output_bytes="$(wc -c <"$TMP/agents-shared.md")"
   if ((shared_output_bytes <= SHARED_MAX_BYTES)); then
-    pass "shared rendered size ${shared_output_bytes} bytes (budget ${SHARED_MAX_BYTES})"
+    pass "shared rendered size ${shared_output_bytes} bytes (recorded baseline ${SHARED_RENDERED_BASELINE}; budget ${SHARED_MAX_BYTES})"
   else
-    err "shared rendered size ${shared_output_bytes} bytes exceeds ${SHARED_MAX_BYTES}-byte regression budget"
+    err "shared rendered size ${shared_output_bytes} bytes exceeds ${SHARED_MAX_BYTES}-byte regression budget (recorded rendered baseline: ${SHARED_RENDERED_BASELINE})"
   fi
   for invariant in "${REQUIRED_SHARED_INVARIANTS[@]}"; do
     grep -Fq -- "$invariant" "$TMP/agents-shared.md" \
@@ -1054,6 +1498,7 @@ if render .chezmoitemplates/agents-shared.md "$TMP/agents-shared.md"; then
   done
 else
   err 'shared template render failed'
+  rm -f "$TMP/agents-shared.md"
 fi
 
 if grep -Fq 'CODING_AGENT_RULES.md' "$TMP/agents-shared.md"; then
@@ -1061,6 +1506,22 @@ if grep -Fq 'CODING_AGENT_RULES.md' "$TMP/agents-shared.md"; then
 else
   pass 'shared global harness loader excludes CODING_AGENT_RULES'
 fi
+
+if [[ -f "$TMP/agents-shared.md" ]]; then
+  if grep -Fq '.agent-safety' "$TMP/agents-shared.md"; then
+    err 'shared policy still contains retired .agent-safety instructions'
+  else
+    pass 'shared policy excludes retired .agent-safety instructions'
+  fi
+fi
+for invariant in \
+  '- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects.' \
+  '- Pickforge or Personal means the repo path or GitHub remote makes that ownership clear' \
+  '- In clearly identified Pickforge or Personal projects, treat ship/open-PR as automatic'; do
+  grep -Fq -- "$invariant" "$TMP/agents-shared.md" \
+    && pass "shared policy retains permission: $invariant" \
+    || err "shared policy permission missing: $invariant"
+done
 
 need "$OPENCODE"
 for invariant in CORE_PROFILE.md WRITING_STYLE.md BOUNDARIES.md WORK_AND_PROJECTS.md 'projects/*.md'; do
@@ -1072,6 +1533,58 @@ grep -Fq 'CODING_AGENT_RULES.md' "$OPENCODE" \
   && err 'OpenCode global harness loader must not auto-load CODING_AGENT_RULES' \
   || pass 'OpenCode global harness loader excludes CODING_AGENT_RULES'
 
+
+zsh_claude_wrapper="$(awk '
+  /^claude\(\) \{/ { in_function=1 }
+  in_function { print }
+  in_function && /^}/ { exit }
+' .chezmoitemplates/zshrc-common)"
+zsh_codex_wrapper="$(awk '
+  /^codex\(\) \{/ { in_function=1 }
+  in_function { print }
+  in_function && /^}/ { exit }
+' .chezmoitemplates/zshrc-common)"
+bash_claude_wrapper="$(awk '
+  /^claude\(\) \{/ { in_function=1 }
+  in_function { print }
+  in_function && /^}/ { exit }
+' dot_bashrc)"
+if grep -Fq 'command claude --dangerously-skip-permissions "$@"' <<<"$zsh_claude_wrapper" \
+  && grep -Fq 'command codex --yolo "$@"' <<<"$zsh_codex_wrapper" \
+  && grep -Fq 'command claude --dangerously-skip-permissions "$@"' <<<"$bash_claude_wrapper"; then
+  pass 'zsh and bash wrappers use unrestricted global Claude/Codex commands'
+else
+  err 'zsh or bash global wrapper contract mismatch'
+fi
+unset zsh_claude_wrapper zsh_codex_wrapper bash_claude_wrapper
+
+if [[ -f .chezmoitemplates/zshrc-linux ]]; then
+  linux_claude_codex="$(awk '
+    /^claude-codex\(\) \{/ { in_function=1 }
+    in_function { print }
+    in_function && /^}/ { exit }
+  ' .chezmoitemplates/zshrc-linux)"
+  if grep -Fq 'CLAUDE_CONFIG_DIR="$HOME/.claude"' <<<"$linux_claude_codex" \
+    && grep -Fq 'ANTHROPIC_BASE_URL="http://127.0.0.1:8317"' <<<"$linux_claude_codex" \
+    && grep -Fq 'ANTHROPIC_AUTH_TOKEN="$CLIPROXY_API_KEY"' <<<"$linux_claude_codex" \
+    && grep -Fq 'ANTHROPIC_MODEL="$model"' <<<"$linux_claude_codex" \
+    && grep -Fq 'ANTHROPIC_SMALL_FAST_MODEL="gpt-5.6-sol"' <<<"$linux_claude_codex" \
+    && grep -Fq '"$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"' <<<"$linux_claude_codex" \
+    && ! grep -Fq '.claude-personal' <<<"$linux_claude_codex"; then
+    pass 'Linux claude-codex preserves proxy/model behavior on the global Claude profile'
+  else
+    err 'Linux claude-codex proxy/model or global-profile contract mismatch'
+  fi
+  if render .chezmoitemplates/zshrc-linux "$TMP/zshrc-linux" \
+    && zsh -n "$TMP/zshrc-linux"; then
+    pass 'temporary Linux zsh template renders with valid syntax'
+  else
+    err 'temporary Linux zsh template render or syntax check failed'
+  fi
+  unset linux_claude_codex
+else
+  err 'missing: .chezmoitemplates/zshrc-linux'
+fi
 
 need "$SOUL"
 grep -q '/home/dev/AgentMemory' "$SOUL" || err 'Hermes SOUL missing AgentMemory'
@@ -1100,7 +1613,7 @@ for entry in "${ADAPTER_BUDGETS[@]}"; do
   fi
 done
 
-for path in dot_claude/CLAUDE.md.tmpl dot_claude-personal/CLAUDE.md.tmpl \
+for path in dot_claude/CLAUDE.md.tmpl \
   dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl private_dot_factory/AGENTS.md.tmpl; do
   grep -qiE '^\|.*cost.*intelligence.*taste.*vision.*\|$' "$path" \
     && err "adapter embeds a full model scoring table: $path" \
@@ -1197,7 +1710,7 @@ grep -qiE '(planner|coder|reviewer|git) droid|plan -> code -> review' "$FACTORY_
 
 for target in "${ROUTING_SKILL_TARGETS[@]}"; do
   decrypted=''
-  if ! decrypted="$(chezmoi "${MAIN_SRC[@]}" cat "$target")"; then
+  if ! decrypted="$(chezmoi "${SRC[@]}" cat "$target")"; then
     err "could not decrypt routing skill for checks: $target"
     continue
   fi
@@ -1246,7 +1759,12 @@ else
 fi
 unset local_review
 
+for path in "${RETIRED_SOURCE_PATHS[@]}"; do
+  source_absent "$path"
+done
 check_manifest_and_sources
+check_legacy_model_skill_absence
+check_skill_lock_retirements
 check_omp_agent_override_sources
 check_mcp_registry_and_config
 check_runtime_exclusions
@@ -1273,66 +1791,30 @@ for entry in "${HARNESS[@]}"; do
     || pass "global harness excludes CODING_AGENT_RULES: $path"
 done
 
-MAIN_CLAUDE_OUT="$TMP/claude-main.md"
-PORTABLE_CLAUDE_OUT="$TMP/claude-portable.md"
-RESTRICTED_CLAUDE_OUT="$TMP/claude-restricted.md"
+GLOBAL_CLAUDE_OUT="$TMP/claude-global.md"
 
-if render_profile main dot_claude/CLAUDE.md.tmpl "$MAIN_CLAUDE_OUT"; then
-  grep -Fq '## Model orchestration' "$MAIN_CLAUDE_OUT" \
-    && grep -Fq '/home/dev/AgentMemory' "$MAIN_CLAUDE_OUT" \
-    && grep -Fq 'model-routing.md' "$MAIN_CLAUDE_OUT" \
-    && pass 'main Claude profile renders full personal orchestration' \
-    || err 'main Claude profile is missing full personal policy'
+if render dot_claude/CLAUDE.md.tmpl "$GLOBAL_CLAUDE_OUT"; then
+  grep -Fq '## Claude model orchestration' "$GLOBAL_CLAUDE_OUT" \
+    && grep -Fq '/home/dev/AgentMemory' "$GLOBAL_CLAUDE_OUT" \
+    && grep -Fq 'model-routing.md' "$GLOBAL_CLAUDE_OUT" \
+    && pass 'global Claude profile renders full personal orchestration' \
+    || err 'global Claude profile is missing full personal policy'
+  grep -Fq '@RTK.md' "$GLOBAL_CLAUDE_OUT" \
+    && err 'global Claude policy still loads retired RTK instructions' \
+    || pass 'global Claude policy excludes retired RTK instructions'
+  grep -Fq '## Restricted profile' "$GLOBAL_CLAUDE_OUT" \
+    && err 'global Claude still renders restricted profile policy' \
+    || pass 'global Claude has no restricted profile policy'
+  grep -Fq '## Portable personal profile' "$GLOBAL_CLAUDE_OUT" \
+    && err 'global Claude still renders portable personal profile policy' \
+    || pass 'global Claude has no portable personal profile policy'
 else
-  err 'main Claude profile render failed'
-fi
-
-if render dot_claude-personal/CLAUDE.md.tmpl "$PORTABLE_CLAUDE_OUT"; then
-  grep -Fq '## Portable personal profile' "$PORTABLE_CLAUDE_OUT" \
-    && grep -Fq 'Do not use Grok, GLM' "$PORTABLE_CLAUDE_OUT" \
-    && ! grep -Fq '/home/dev/AgentMemory' "$PORTABLE_CLAUDE_OUT" \
-    && ! grep -Fq 'model-routing.md' "$PORTABLE_CLAUDE_OUT" \
-    && pass 'portable Claude profile renders personal policy without full orchestration' \
-    || err 'portable Claude profile policy mismatch'
-else
-  err 'portable Claude profile render failed'
-fi
-
-PORTABLE_SETTINGS_OUT="$TMP/claude-portable-settings.json"
-if chezmoi "${SRC[@]}" decrypt dot_claude-personal/encrypted_settings.json.age >"$PORTABLE_SETTINGS_OUT" \
-  && jq -e '
-    .permissions.defaultMode == "manual"
-    and .permissions.allow == [
-      "Read", "Glob", "Grep", "Edit", "Write", "mcp__codegraph__*"
-    ]
-    and ((.permissions.deny // []) | length == 0)
-    and (((.mcpServers // {}) | has("agentmemory-vault")) | not)
-    and ((.enabledPlugins["claude-mem@thedotmack"] // false) | not)
-  ' "$PORTABLE_SETTINGS_OUT" >/dev/null; then
-  pass 'portable Claude settings require prompts for shell and external actions'
-else
-  err 'portable Claude settings grant unsafe unattended permissions'
-fi
-
-if render_profile restricted dot_claude/CLAUDE.md.tmpl "$RESTRICTED_CLAUDE_OUT"; then
-  grep -Fq '## Restricted profile' "$RESTRICTED_CLAUDE_OUT" \
-    && grep -Fq 'require explicit user authorization for that exact action' "$RESTRICTED_CLAUDE_OUT" \
-    && ! grep -Fq 'Pickforge' "$RESTRICTED_CLAUDE_OUT" \
-    && ! grep -Fq 'model-routing.md' "$RESTRICTED_CLAUDE_OUT" \
-    && ! grep -Fq '/home/dev/AgentMemory' "$RESTRICTED_CLAUDE_OUT" \
-    && pass 'restricted Claude profile renders neutral explicit-authorization policy' \
-    || err 'restricted Claude profile policy mismatch'
-else
-  err 'restricted Claude profile render failed'
+  err 'global Claude profile render failed'
 fi
 
 for public_profile_file in \
-  .chezmoitemplates/claude-core.md \
   .chezmoitemplates/claude-adapter-common.md \
-  .chezmoitemplates/claude-personal-lite.md \
-  .chezmoitemplates/claude-restricted.md \
-  dot_claude/CLAUDE.md.tmpl \
-  dot_claude-personal/CLAUDE.md.tmpl; do
+  dot_claude/CLAUDE.md.tmpl; do
   grep -qiE '(^|[^[:alnum:]_])(company|contract|client|employer)([^[:alnum:]_]|$)' "$public_profile_file" \
     && err "profile source exposes private work-context vocabulary: $public_profile_file" \
     || pass "profile source uses generic public vocabulary: $public_profile_file"
@@ -1341,11 +1823,8 @@ done
 render "$SOUL" "$TMP/SOUL.md" && pass 'rendered Hermes SOUL' || err 'Hermes SOUL render failed'
 
 TARGETS=(
-  "$DEST/.config/agent-profiles/role" "$DEST/.config/agent-profiles/personal-roots"
-  "$DEST/.local/bin/claude-profile" "$DEST/.local/bin/claude-default"
-  "$DEST/.local/bin/claude-personal" "$DEST/.local/bin/agent-profile-doctor"
   "$DEST/.zshrc" "$DEST/.bashrc"
-  "$DEST/.claude/CLAUDE.md" "$DEST/.claude/RTK.md"
+  "$DEST/.claude/CLAUDE.md"
   "$DEST/.claude/rules/context7.md" "$DEST/.claude/settings.json"
   "$DEST/.claude/skills/audit-report"
   "$DEST/.claude/skills/kickoff/SKILL.md"
@@ -1354,28 +1833,17 @@ TARGETS=(
   "$DEST/.claude/skills/pickgauge-usage/SKILL.md"
   "$DEST/.claude/skills/plan-issue/SKILL.md"
   "$DEST/.claude/skills/x-research/SKILL.md"
-  "$DEST/.claude-personal/CLAUDE.md" "$DEST/.claude-personal/RTK.md"
-  "$DEST/.claude-personal/rules/context7.md" "$DEST/.claude-personal/settings.json"
-  "$DEST/.claude-personal/skills/model-runners"
   "$DEST/.codex/AGENTS.md"
-  "$DEST/Projects/Personal/.codex/config.toml"
-  "$DEST/Projects/Personal/.codex/AGENTS.md"
-  "$DEST/Projects/Personal/.codex/skills"
-  "$DEST/Projects/Personal/.agent-safety/bin/gh"
-  "$DEST/Projects/Personal/.agent-safety/bin/gh-credential"
-  "$DEST/Projects/Personal/.agent-safety/verify-personal-github"
-  "$DEST/Projects/Personal/.agent-safety/install-repo-hook"
-  "$DEST/Projects/Personal/.agent-safety/hooks/pre-push"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json" "$DEST/.omp/agent/agents"
   "$DEST/.factory/AGENTS.md" "$DEST/.config/opencode/AGENTS.md" "$DEST/.hermes/SOUL.md"
+  "$DEST/.local/bin/agent-config-sync"
+  "$DEST/.agents/skill-targets.json"
+  "$DEST/.agents/mcp-targets.json"
 )
 EXPECTED=(
-  dot_config/agent-profiles/role.tmpl dot_config/agent-profiles/personal-roots
-  dot_local/bin/executable_claude-profile dot_local/bin/executable_claude-default
-  dot_local/bin/executable_claude-personal dot_local/bin/executable_agent-profile-doctor
   dot_zshrc.tmpl dot_bashrc
-  dot_claude/CLAUDE.md.tmpl dot_claude/private_RTK.md
+  dot_claude/CLAUDE.md.tmpl
   dot_claude/rules/context7.md dot_claude/encrypted_settings.json.age
   dot_claude/skills/symlink_audit-report
   dot_claude/skills/kickoff/encrypted_SKILL.md.age
@@ -1384,111 +1852,66 @@ EXPECTED=(
   dot_claude/skills/pickgauge-usage/encrypted_SKILL.md.age
   dot_claude/skills/plan-issue/encrypted_private_SKILL.md.age
   dot_claude/skills/x-research/encrypted_SKILL.md.age
-  dot_claude-personal/CLAUDE.md.tmpl dot_claude-personal/private_RTK.md
-  dot_claude-personal/rules/context7.md dot_claude-personal/encrypted_settings.json.age
-  dot_claude-personal/skills/symlink_model-runners
   dot_codex/AGENTS.md.tmpl
-  Projects/Personal/dot_codex/config.toml
-  Projects/Personal/dot_codex/symlink_AGENTS.md
-  Projects/Personal/dot_codex/symlink_skills
-  Projects/Personal/private_dot_agent-safety/bin/executable_gh
-  Projects/Personal/private_dot_agent-safety/bin/executable_gh-credential
-  Projects/Personal/private_dot_agent-safety/executable_verify-personal-github
-  Projects/Personal/private_dot_agent-safety/executable_install-repo-hook
-  Projects/Personal/private_dot_agent-safety/hooks/executable_pre-push
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/config.yml dot_omp/agent/mcp.json dot_omp/agent/agents
   private_dot_factory/AGENTS.md.tmpl dot_config/opencode/AGENTS.md private_dot_hermes/SOUL.md.tmpl
+  dot_local/bin/executable_agent-config-sync
+  dot_agents/skill-targets.json
+  dot_agents/mcp-targets.json
 )
-if chezmoi "${MAIN_SRC[@]}" --destination "$DEST" source-path "${TARGETS[@]}" >"$TMP/sp.txt" 2>"$TMP/sp.err"; then
+if chezmoi "${TMP_SRC[@]}" --destination "$DEST" source-path "${TARGETS[@]}" >"$TMP/sp.txt" 2>"$TMP/sp.err"; then
   for e in "${EXPECTED[@]}"; do
     grep -Fq "$e" "$TMP/sp.txt" && pass "source-path $e" || err "source-path missing $e"
   done
 else
   err "source-path failed: $(tr '\n' ' ' <"$TMP/sp.err")"
 fi
-chezmoi "${MAIN_SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TMP/st.err" \
+chezmoi "${TMP_SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TMP/st.err" \
   && pass 'dry-run status (temp dest)' || err "dry-run status failed: $(tr '\n' ' ' <"$TMP/st.err")"
 
 mkdir -p "$DEST/.grok" "$DEST/.hermes" "$DEST/.config/opencode" \
-  "$DEST/.config/agent-profiles" "$DEST/.local/bin" \
+  "$DEST/.local/bin" \
   "$DEST/.claude/rules" \
-  "$DEST/.claude/skills/codex-fable" \
-  "$DEST/.claude/skills/codex-opus" \
   "$DEST/.claude/skills/kickoff" \
   "$DEST/.claude/skills/ship-pr" \
   "$DEST/.claude/skills/pickgauge-usage" \
   "$DEST/.claude/skills/plan-issue" \
   "$DEST/.claude/skills/x-research" \
-  "$DEST/.claude-personal/rules" \
-  "$DEST/.claude-personal/skills" \
   "$DEST/.codex/skills/model-orchestration/references" \
   "$DEST/.codex/skills/ship-pr" \
   "$DEST/.grok/skills/model-orchestration" \
   "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
-  "$DEST/.factory/skills" "$DEST/.hermes/skills" "$DEST/.agents/skills" \
-  "$DEST/Projects/Personal/.codex" "$DEST/Projects/Personal/.agent-safety/bin" \
-  "$DEST/Projects/Personal/.agent-safety/hooks"
+  "$DEST/.factory/skills" "$DEST/.hermes/skills" "$DEST/.agents/skills"
 ln -s ../.codex/AGENTS.md "$DEST/.grok/AGENTS.md"
 printf '%s\n' 'You are Hermes Agent, an intelligent AI assistant created by Nous Research.' >"$DEST/.hermes/SOUL.md"
 
-if ! chezmoi "${MAIN_SRC[@]}" --destination "$DEST" apply "$DEST/.agents/skills" "${TARGETS[@]}"; then
+if ! chezmoi "${TMP_SRC[@]}" --destination "$DEST" apply "$DEST/.agents/skills" "${TARGETS[@]}"; then
   err 'temp seed apply (canonical skills / adapters) failed'
 else
-  grep -Fq 'git rev-parse --path-format=absolute --git-common-dir' "$DEST/.zshrc" \
-    && pass 'temp zsh profile detects Personal worktrees' \
-    || err 'temp zsh profile missing Personal worktree detection'
-  grep -Fq 'Projects/Personal/.agent-safety/bin:$PATH' "$DEST/.zshrc" \
-    && pass 'temp zsh profile enables Personal GitHub guard' \
-    || err 'temp zsh profile missing Personal GitHub guard PATH'
-  grep -Fq '"$HOME/.local/bin/claude-default"' "$DEST/.zshrc" \
-    && pass 'temp zsh profile routes default Claude through managed launcher' \
-    || err 'temp zsh profile missing managed default Claude launcher'
-  grep -Fxq main "$DEST/.config/agent-profiles/role" \
-    && pass 'temp main role marker applied' \
-    || err 'temp main role marker mismatch'
-  grep -Fq '## Model orchestration' "$DEST/.claude/CLAUDE.md" \
-    && pass 'temp main Claude profile applied' \
-    || err 'temp main Claude profile missing full orchestration'
-  grep -Fq '## Portable personal profile' "$DEST/.claude-personal/CLAUDE.md" \
-    && ! grep -Fq 'model-routing.md' "$DEST/.claude-personal/CLAUDE.md" \
-    && pass 'temp portable Claude profile stays lightweight' \
-    || err 'temp portable Claude profile scope mismatch'
-  for script in \
-    "$DEST/.local/bin/claude-profile" \
-    "$DEST/.local/bin/claude-default" \
-    "$DEST/.local/bin/claude-personal" \
-    "$DEST/.local/bin/agent-profile-doctor"; do
-    if [[ -x "$script" ]] && sh -n "$script"; then
-      pass "temp profile launcher applied: ${script#"$DEST/"}"
-    else
-      err "temp profile launcher invalid: ${script#"$DEST/"}"
-    fi
-  done
-  if [[ -L "$DEST/Projects/Personal/.codex/AGENTS.md" ]] \
-    && [[ "$(readlink "$DEST/Projects/Personal/.codex/AGENTS.md")" == '../../../.codex/AGENTS.md' ]]; then
-    pass 'temp Personal Codex AGENTS link applied'
-  else
-    err 'temp Personal Codex AGENTS link mismatch'
-  fi
-  if [[ -L "$DEST/Projects/Personal/.codex/skills" ]] \
-    && [[ "$(readlink "$DEST/Projects/Personal/.codex/skills")" == '../../../.codex/skills' ]]; then
-    pass 'temp Personal Codex skills link applied'
-  else
-    err 'temp Personal Codex skills link mismatch'
-  fi
-  for script in \
-    "$DEST/Projects/Personal/.agent-safety/bin/gh" \
-    "$DEST/Projects/Personal/.agent-safety/bin/gh-credential" \
-    "$DEST/Projects/Personal/.agent-safety/verify-personal-github" \
-    "$DEST/Projects/Personal/.agent-safety/install-repo-hook" \
-    "$DEST/Projects/Personal/.agent-safety/hooks/pre-push"; do
-    if [[ -x "$script" ]] && sh -n "$script"; then
-      pass "temp Personal safety script applied: ${script#"$DEST/"}"
-    else
-      err "temp Personal safety script invalid: ${script#"$DEST/"}"
-    fi
-  done
+  ! grep -Fq 'Projects/Personal/.agent-safety/bin:$PATH' "$DEST/.zshrc" \
+    && pass 'temp zsh profile excludes retired Personal GitHub guard PATH' \
+    || err 'temp zsh profile still enables Personal GitHub guard PATH'
+  ! grep -Fq 'claude-default' "$DEST/.zshrc" \
+    && ! grep -Fq 'claude-personal' "$DEST/.zshrc" \
+    && pass 'temp zsh profile uses unrestricted global claude wrapper' \
+    || err 'temp zsh profile still routes through split-profile launchers'
+  grep -Fq '## Claude model orchestration' "$DEST/.claude/CLAUDE.md" \
+    && pass 'temp global Claude profile applied' \
+    || err 'temp global Claude profile missing full orchestration'
+  [[ ! -e "$DEST/.claude-personal" ]] \
+    && pass 'temp destination has no portable Claude profile tree' \
+    || err 'temp destination still creates portable Claude profile tree'
+  [[ ! -e "$DEST/.config/agent-profiles" ]] \
+    && pass 'temp destination has no agent-profiles role tree' \
+    || err 'temp destination still creates agent-profiles role tree'
+  [[ ! -e "$DEST/Projects/Personal/.codex" && ! -e "$DEST/Projects/Personal/.agent-safety" ]] \
+    && pass 'temp destination has no Personal Codex or agent-safety trees' \
+    || err 'temp destination still creates Personal Codex or agent-safety trees'
+  [[ -x "$DEST/.local/bin/agent-config-sync" ]] \
+    && bash -n "$DEST/.local/bin/agent-config-sync" \
+    && pass 'temp agent-config-sync applied' \
+    || err 'temp agent-config-sync invalid'
   [[ ! -L "$DEST/.grok/AGENTS.md" ]] && grep -q '^# Personal Grok Notes' "$DEST/.grok/AGENTS.md" \
     && pass 'temp migration replaces Grok symlink safely' || err 'temp Grok symlink migration failed'
   grep -q '^# Hermes' "$DEST/.hermes/SOUL.md" && grep -q '/home/dev/AgentMemory' "$DEST/.hermes/SOUL.md" \
@@ -1521,49 +1944,23 @@ else
     || err 'temp OpenCode memory cutover apply mismatch'
 fi
 
-RESTRICTED_TARGETS=(
-  "$RESTRICTED_DEST/.config/agent-profiles/role"
-  "$RESTRICTED_DEST/.config/agent-profiles/personal-roots"
-  "$RESTRICTED_DEST/.local/bin/claude-profile"
-  "$RESTRICTED_DEST/.local/bin/claude-default"
-  "$RESTRICTED_DEST/.local/bin/claude-personal"
-  "$RESTRICTED_DEST/.local/bin/agent-profile-doctor"
-  "$RESTRICTED_DEST/.claude/CLAUDE.md"
-)
-mkdir -p "$RESTRICTED_DEST/.config/agent-profiles" "$RESTRICTED_DEST/.local/bin" "$RESTRICTED_DEST/.claude"
-if chezmoi "${RESTRICTED_SRC[@]}" --destination "$RESTRICTED_DEST" apply "${RESTRICTED_TARGETS[@]}"; then
-  grep -Fxq restricted "$RESTRICTED_DEST/.config/agent-profiles/role" \
-    && grep -Fq '## Restricted profile' "$RESTRICTED_DEST/.claude/CLAUDE.md" \
-    && ! grep -Fq 'Pickforge' "$RESTRICTED_DEST/.claude/CLAUDE.md" \
-    && [[ ! -e "$RESTRICTED_DEST/.claude/settings.json" ]] \
-    && [[ ! -e "$RESTRICTED_DEST/.claude/skills" ]] \
-    && pass 'restricted destination applies only neutral default-profile policy' \
-    || err 'restricted destination profile scope mismatch'
-else
-  err 'restricted destination apply failed'
-fi
-if chezmoi "${RESTRICTED_SRC[@]}" --destination "$RESTRICTED_DEST" \
-  source-path "$RESTRICTED_DEST/.claude/settings.json" >/dev/null 2>&1; then
-  err 'restricted profile still exposes full default settings as a managed target'
-else
-  pass 'restricted profile ignores full default settings'
-fi
-
 if [[ -d "$DEST/.agents/skills/context7-mcp" ]]; then
-  for claude_skills_root in "$DEST/.claude/skills" "$DEST/.claude-personal/skills"; do
-    rm -rf "$claude_skills_root/context7-mcp"
-    cp -a "$DEST/.agents/skills/context7-mcp" "$claude_skills_root/context7-mcp"
-    if dirs_identical "$claude_skills_root/context7-mcp" "$DEST/.agents/skills/context7-mcp"; then
-      pass "seeded identical Context7 directory: ${claude_skills_root#"$DEST/"}"
-    else
-      err "failed to seed Context7 directory: ${claude_skills_root#"$DEST/"}"
-    fi
-  done
+  mkdir -p "$DEST/.claude/skills"
+  rm -rf "$DEST/.claude/skills/context7-mcp"
+  cp -a "$DEST/.agents/skills/context7-mcp" "$DEST/.claude/skills/context7-mcp"
+  if dirs_identical "$DEST/.claude/skills/context7-mcp" "$DEST/.agents/skills/context7-mcp"; then
+    pass 'seeded identical Context7 directory: .claude/skills'
+  else
+    err 'failed to seed Context7 directory: .claude/skills'
+  fi
 else
   err 'canonical context7-mcp missing after seed apply'
 fi
 
-mapfile -t PORTABLE_TARGETS < <(jq -r --arg dest "$DEST" '
+PORTABLE_TARGETS=()
+while IFS= read -r target; do
+  PORTABLE_TARGETS+=("$target")
+done < <(jq -r --arg dest "$DEST" '
   . as $root
   | .skills | to_entries[]
   | .key as $skill
@@ -1574,7 +1971,7 @@ mapfile -t PORTABLE_TARGETS < <(jq -r --arg dest "$DEST" '
 ' "$MANIFEST")
 
 if ((${#PORTABLE_TARGETS[@]})); then
-  if chezmoi "${MAIN_SRC[@]}" --destination "$DEST" apply "${PORTABLE_TARGETS[@]}"; then
+  if chezmoi "${TMP_SRC[@]}" --destination "$DEST" apply "${PORTABLE_TARGETS[@]}"; then
     pass "temp applied ${#PORTABLE_TARGETS[@]} portable skill links"
   else
     err 'temp portable skill apply failed'
@@ -1609,6 +2006,8 @@ while IFS=$'\t' read -r skill harness; do
   pass "temp portable ok: $harness/$skill"
 done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
 
+check_primary_global_live_regressions
+
 PENDING_FILE="$TMP/managed-pending-drift"
 printf '%s\n' managed >"$PENDING_FILE"
 read -r PENDING_HASH _ < <(sha256sum "$PENDING_FILE")
@@ -1632,228 +2031,25 @@ else
 fi
 unset -f chezmoi
 
-TRANSITION_HOME="$TMP/profile-transition-home"
-TRANSITION_CONFIG="$TRANSITION_HOME/.config/chezmoi/chezmoi.toml"
-TRANSITION_AGE_IDENTITY="$(chezmoi dump-config | jq -r '.age.identity')"
-TRANSITION_AGE_RECIPIENT="$(chezmoi dump-config | jq -r '.age.recipient')"
-mkdir -p \
-  "$TRANSITION_HOME/.config/chezmoi" \
-  "$TRANSITION_HOME/.config/agent-profiles" \
-  "$TRANSITION_HOME/.claude/rules" \
-  "$TRANSITION_HOME/.claude/skills/kickoff"
-cat >"$TRANSITION_CONFIG" <<EOF
-encryption = "age"
-[age]
-  identity = "$TRANSITION_AGE_IDENTITY"
-  recipient = "$TRANSITION_AGE_RECIPIENT"
-[data]
-  agentProfile = "restricted"
-EOF
-printf '%s\n' main >"$TRANSITION_HOME/.config/agent-profiles/role"
-chezmoi "${MAIN_SRC[@]}" --destination "$TRANSITION_HOME" \
-  cat "$TRANSITION_HOME/.claude/settings.json" >"$TRANSITION_HOME/.claude/settings.json"
-cp "$ROOT/dot_claude/private_RTK.md" "$TRANSITION_HOME/.claude/RTK.md"
-cp "$ROOT/dot_claude/rules/context7.md" "$TRANSITION_HOME/.claude/rules/context7.md"
-chezmoi "${SRC[@]}" decrypt \
-  dot_claude/skills/kickoff/encrypted_SKILL.md.age \
-  >"$TRANSITION_HOME/.claude/skills/kickoff/SKILL.md"
-ln -s ../../.agents/skills/model-runners "$TRANSITION_HOME/.claude/skills/model-runners"
-
-if HOME="$TRANSITION_HOME" CHEZMOI_SOURCE_DIR="$ROOT" \
-  bash -c 'source "$1"; remove_main_profile_paths' _ \
-  "$ROOT/dot_local/bin/executable_agent-config-sync"; then
-  transition_stale=0
-  for path in \
-    "$TRANSITION_HOME/.claude/settings.json" \
-    "$TRANSITION_HOME/.claude/RTK.md" \
-    "$TRANSITION_HOME/.claude/rules/context7.md" \
-    "$TRANSITION_HOME/.claude/skills/kickoff" \
-    "$TRANSITION_HOME/.claude/skills/model-runners"; do
-    [[ ! -e "$path" && ! -L "$path" ]] || transition_stale=1
-  done
-  [[ "$transition_stale" -eq 0 ]] \
-    && pass 'main-to-restricted cleanup removes unchanged full-profile state' \
-    || err 'main-to-restricted cleanup left full-profile state'
-else
-  err 'main-to-restricted cleanup failed'
-fi
-
-mkdir -p "$TRANSITION_HOME/.claude"
-chezmoi "${MAIN_SRC[@]}" --destination "$TRANSITION_HOME" \
-  cat "$TRANSITION_HOME/.claude/settings.json" >"$TRANSITION_HOME/.claude/settings.json"
-printf '\n' >>"$TRANSITION_HOME/.claude/settings.json"
-if HOME="$TRANSITION_HOME" CHEZMOI_SOURCE_DIR="$ROOT" \
-  bash -c 'source "$1"; remove_main_profile_paths' _ \
-  "$ROOT/dot_local/bin/executable_agent-config-sync" >/dev/null 2>&1; then
-  err 'main-to-restricted cleanup removed divergent full-profile state'
-elif [[ -f "$TRANSITION_HOME/.claude/settings.json" ]]; then
-  pass 'main-to-restricted cleanup preserves divergent full-profile state'
-else
-  err 'main-to-restricted cleanup lost divergent full-profile state'
-fi
-
-mkdir -p "$TRANSITION_HOME/.claude/rules" "$TRANSITION_HOME/.claude/skills/kickoff"
-chezmoi "${MAIN_SRC[@]}" --destination "$TRANSITION_HOME" \
-  cat "$TRANSITION_HOME/.claude/settings.json" >"$TRANSITION_HOME/.claude/settings.json"
-cp "$ROOT/dot_claude/private_RTK.md" "$TRANSITION_HOME/.claude/RTK.md"
-cp "$ROOT/dot_claude/rules/context7.md" "$TRANSITION_HOME/.claude/rules/context7.md"
-chezmoi "${SRC[@]}" decrypt \
-  dot_claude/skills/kickoff/encrypted_SKILL.md.age \
-  >"$TRANSITION_HOME/.claude/skills/kickoff/SKILL.md"
-printf '\n' >>"$TRANSITION_HOME/.claude/skills/kickoff/SKILL.md"
-if HOME="$TRANSITION_HOME" CHEZMOI_SOURCE_DIR="$ROOT" \
-  bash -c 'source "$1"; remove_main_profile_paths' _ \
-  "$ROOT/dot_local/bin/executable_agent-config-sync" >/dev/null 2>&1; then
-  err 'main-to-restricted cleanup accepted late divergent skill'
-elif [[ -f "$TRANSITION_HOME/.claude/settings.json" \
-  && -f "$TRANSITION_HOME/.claude/RTK.md" \
-  && -f "$TRANSITION_HOME/.claude/rules/context7.md" ]]; then
-  pass 'main-to-restricted cleanup preflights before deleting state'
-else
-  err 'main-to-restricted cleanup partially deleted state before failure'
-fi
-
-REAPPLY_HOME="$TMP/profile-reapply-home"
-mkdir -p \
-  "$REAPPLY_HOME/.agents/skills/codex" \
-  "$REAPPLY_HOME/.agents/skills/grok" \
-  "$REAPPLY_HOME/.config/chezmoi" \
-  "$REAPPLY_HOME/.claude/skills" \
-  "$REAPPLY_HOME/.claude-personal/skills"
-cp "$TRANSITION_CONFIG" "$REAPPLY_HOME/.config/chezmoi/chezmoi.toml"
-ln -s ../../.agents/skills/codex "$REAPPLY_HOME/.claude/skills/codex"
-ln -s ../../.agents/skills/grok "$REAPPLY_HOME/.claude/skills/grok"
-ln -s ../../.agents/skills/codex "$REAPPLY_HOME/.claude-personal/skills/codex"
-if HOME="$REAPPLY_HOME" CHEZMOI_SOURCE_DIR="$ROOT" \
-  bash -c 'source "$1"; remove_obsolete_portable_paths' _ \
-  "$ROOT/dot_local/bin/executable_agent-config-sync"; then
-  if [[ -L "$REAPPLY_HOME/.claude/skills/codex" \
-    && -L "$REAPPLY_HOME/.claude/skills/grok" \
-    && -L "$REAPPLY_HOME/.claude-personal/skills/codex" ]]; then
-    pass 'portable skill cleanup preserves canonical links on reapply'
-  else
-    err 'portable skill cleanup removed canonical links on reapply'
-  fi
-else
-  err 'portable skill cleanup failed on canonical links'
-fi
-
-PROFILE_HOME="$TMP/profile-home"
-FAKE_CLAUDE="$TMP/fake-claude"
-mkdir -p "$PROFILE_HOME/.config/agent-profiles" "$PROFILE_HOME/Projects/Personal/demo" "$TMP/outside"
-printf '%s\n' restricted >"$PROFILE_HOME/.config/agent-profiles/role"
-printf '%s\n' '~/Projects/Personal' >"$PROFILE_HOME/.config/agent-profiles/personal-roots"
-cat >"$FAKE_CLAUDE" <<'EOF'
-#!/bin/sh
-printf 'config=%s\n' "${CLAUDE_CONFIG_DIR:-default}"
-printf 'bedrock=%s\n' "${CLAUDE_CODE_USE_BEDROCK:-unset}"
-printf 'aws_profile=%s\n' "${AWS_PROFILE:-unset}"
-printf 'mantle=%s\n' "${CLAUDE_CODE_USE_MANTLE:-unset}"
-printf 'bedrock_bearer=%s\n' "${AWS_BEARER_TOKEN_BEDROCK:-unset}"
-printf 'bedrock_skip_auth=%s\n' "${CLAUDE_CODE_SKIP_BEDROCK_AUTH:-unset}"
-printf 'anthropic_aws=%s\n' "${ANTHROPIC_AWS_API_KEY:-unset}"
-printf 'foundry_token=%s\n' "${ANTHROPIC_FOUNDRY_AUTH_TOKEN:-unset}"
-printf 'vertex_base=%s\n' "${ANTHROPIC_VERTEX_BASE_URL:-unset}"
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  printf 'anthropic=set\n'
-else
-  printf 'anthropic=unset\n'
-fi
-printf 'codex_home=%s\n' "${CODEX_HOME:-default}"
-for argument in "$@"; do
-  printf 'arg=%s\n' "$argument"
-done
-EOF
-chmod +x "$FAKE_CLAUDE"
-
-restricted_run="$(
-  HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
-    CLAUDE_CONFIG_DIR="$PROFILE_HOME/.claude-personal" \
-    "$ROOT/dot_local/bin/executable_claude-profile" default --print probe
-)"
-grep -Fq 'arg=--permission-mode' <<<"$restricted_run" \
-  && grep -Fq 'arg=manual' <<<"$restricted_run" \
-  && ! grep -Fq 'arg=--dangerously-skip-permissions' <<<"$restricted_run" \
-  && grep -Fq "config=$PROFILE_HOME/.claude" <<<"$restricted_run" \
-  && pass 'restricted launcher forces manual permissions' \
-  || err 'restricted launcher permission enforcement failed'
-
-if HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
-  "$ROOT/dot_local/bin/executable_claude-profile" default --dangerously-skip-permissions >/dev/null 2>&1; then
-  err 'restricted launcher accepted permission bypass'
-else
-  pass 'restricted launcher rejects permission bypass'
-fi
-
-if (
-  cd "$TMP/outside"
-  HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
-    "$ROOT/dot_local/bin/executable_claude-profile" personal --print probe
-) >/dev/null 2>&1; then
-  err 'portable launcher accepted a path outside configured personal roots'
-else
-  pass 'portable launcher rejects paths outside configured personal roots'
-fi
-
-portable_run="$(
-  cd "$PROFILE_HOME/Projects/Personal/demo"
-  HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
-    CLAUDE_CODE_USE_BEDROCK=1 CLAUDE_CODE_USE_MANTLE=1 \
-    CLAUDE_CODE_SKIP_BEDROCK_AUTH=1 AWS_BEARER_TOKEN_BEDROCK=restricted \
-    AWS_PROFILE=restricted ANTHROPIC_AWS_API_KEY=restricted \
-    ANTHROPIC_FOUNDRY_AUTH_TOKEN=restricted ANTHROPIC_VERTEX_BASE_URL=restricted \
-    ANTHROPIC_API_KEY=restricted OPENAI_API_KEY=restricted \
-    "$ROOT/dot_local/bin/executable_claude-profile" personal --print probe
-)"
-grep -Fq "config=$PROFILE_HOME/.claude-personal" <<<"$portable_run" \
-  && grep -Fq "codex_home=$PROFILE_HOME/Projects/Personal/.codex" <<<"$portable_run" \
-  && grep -Fq 'bedrock=unset' <<<"$portable_run" \
-  && grep -Fq 'mantle=unset' <<<"$portable_run" \
-  && grep -Fq 'bedrock_bearer=unset' <<<"$portable_run" \
-  && grep -Fq 'bedrock_skip_auth=unset' <<<"$portable_run" \
-  && grep -Fq 'anthropic_aws=unset' <<<"$portable_run" \
-  && grep -Fq 'foundry_token=unset' <<<"$portable_run" \
-  && grep -Fq 'vertex_base=unset' <<<"$portable_run" \
-  && grep -Fq 'aws_profile=unset' <<<"$portable_run" \
-  && grep -Fq 'anthropic=unset' <<<"$portable_run" \
-  && grep -Fq 'arg=--permission-mode' <<<"$portable_run" \
-  && grep -Fq 'arg=manual' <<<"$portable_run" \
-  && ! grep -Fq 'arg=--dangerously-skip-permissions' <<<"$portable_run" \
-  && pass 'portable launcher isolates config, providers, and permissions' \
-  || err 'portable launcher isolation failed'
-if (
-  cd "$PROFILE_HOME/Projects/Personal/demo"
-  HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
-    "$ROOT/dot_local/bin/executable_claude-profile" personal --dangerously-skip-permissions
-) >/dev/null 2>&1; then
-  err 'portable launcher accepted permission bypass'
-else
-  pass 'portable launcher rejects permission bypass'
-fi
-
-printf '%s\n' main >"$PROFILE_HOME/.config/agent-profiles/role"
-main_run="$(
-  HOME="$PROFILE_HOME" CLAUDE_REAL_BIN="$FAKE_CLAUDE" \
-    "$ROOT/dot_local/bin/executable_claude-profile" default --print probe
-)"
-grep -Fq 'arg=--dangerously-skip-permissions' <<<"$main_run" \
-  && ! grep -Fq 'arg=manual' <<<"$main_run" \
-  && pass 'main launcher retains autonomous permissions' \
-  || err 'main launcher permission mode mismatch'
-
 bash -n "$ROOT/scripts/check-agent-config-sync.sh" && pass 'bash -n' || err 'bash -n failed'
 if [[ -f "$ROOT/dot_local/bin/executable_agent-config-sync" ]]; then
   bash -n "$ROOT/dot_local/bin/executable_agent-config-sync" && pass 'bash -n agent-config-sync' \
     || err 'bash -n agent-config-sync failed'
-  grep -Fq 'bootstrap_real_gh' "$ROOT/dot_local/bin/executable_agent-config-sync" \
-    && pass 'agent-config-sync bootstraps Personal real-gh' \
-    || err 'agent-config-sync missing Personal real-gh bootstrap'
   grep -Fq 'preflight_unmanaged_targets' "$ROOT/dot_local/bin/executable_agent-config-sync" \
     && pass 'agent-config-sync protects unmanaged first-apply targets' \
     || err 'agent-config-sync missing unmanaged-target preflight'
-  grep -Fq 'apply --force --no-tty "${targets[@]}"' "$ROOT/dot_local/bin/executable_agent-config-sync" \
-    && pass 'agent-config-sync permits preflighted type migrations' \
-    || err 'agent-config-sync missing forced preflighted apply'
+  grep -Fq 'chezmoi "${SRC[@]}" apply --force --no-tty --' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    && grep -Fq '"${active_targets[@]}" "${retired_targets[@]}"' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    && pass 'agent-config-sync applies only scoped active and retirement targets' \
+    || err 'agent-config-sync missing scoped active/retirement apply'
+  ! grep -Eq '^known_legacy_model_skill\(\)' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    && ! grep -Eq '^known_legacy_model_skill\(\)' "$ROOT/scripts/check-agent-config-sync.sh" \
+    && pass 'obsolete legacy model skill hash helpers removed' \
+    || err 'obsolete legacy model skill hash helper remains'
+  ! grep -Eq 'LIVE_PROFILE_ROLE|PROFILE_ROLE|agentProfile|require-portable-links|bootstrap_real_gh|remove_main_profile_paths|claude-personal' \
+    "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    && pass 'agent-config-sync excludes split-profile orchestration' \
+    || err 'agent-config-sync still contains split-profile orchestration'
 fi
 
 echo

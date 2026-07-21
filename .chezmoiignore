@@ -34,8 +34,7 @@ scripts
 .pi/agent/pi-hermes-memory/.skills-migrated-to-extension-storage
 .pi/agent/pi-hermes-memory/sessions.db
 
-# Claude runtime state stays machine-owned. The safe default only manages
-# neutral rules; full stable configuration is applied when agentProfile=main.
+# Claude runtime state stays machine-owned.
 .claude.json
 .claude.json.backup
 .claude/.credentials.json
@@ -58,36 +57,6 @@ scripts
 .claude/telemetry
 .claude/todos
 .claude/usage-data
-{{- if ne (.agentProfile | default "restricted") "main" }}
-.claude/RTK.md
-.claude/codex-opus-workflow.html
-.claude/rules
-.claude/settings.json
-.claude/skills
-{{- end }}
-
-# Portable Claude runtime stays machine-owned; stable configuration is managed.
-.claude-personal/.credentials.json
-.claude-personal/backups
-.claude-personal/cache
-.claude-personal/debug
-.claude-personal/file-history
-.claude-personal/history.jsonl
-.claude-personal/ide
-.claude-personal/plans
-.claude-personal/plugins
-.claude-personal/projects
-.claude-personal/session-env
-.claude-personal/settings.local.json
-.claude-personal/shell-snapshots
-.claude-personal/stats-cache.json
-.claude-personal/statsig
-.claude-personal/tasks
-.claude-personal/teams
-.claude-personal/telemetry
-.claude-personal/todos
-.claude-personal/usage-data
-
 # Codex work profile and generated state stay machine-owned.
 .codex/.app-server-state-reconciled-v1
 .codex/.codex-global-state.json
@@ -126,48 +95,6 @@ scripts
 .codex/vendor_imports
 .codex/version.json
 .codex/visualizations
-
-# Personal Codex runtime and credentials stay machine-owned.
-Projects/Personal/.codex/.app-server-state-reconciled-v1
-Projects/Personal/.codex/.codex-global-state.json
-Projects/Personal/.codex/.codex-global-state.json.bak
-Projects/Personal/.codex/.personality_migration
-Projects/Personal/.codex/.tmp
-Projects/Personal/.codex/ambient-suggestions
-Projects/Personal/.codex/arg0
-Projects/Personal/.codex/archived_sessions
-Projects/Personal/.codex/auth.json
-Projects/Personal/.codex/browser
-Projects/Personal/.codex/cache
-Projects/Personal/.codex/chrome-native-hosts-v2.json
-Projects/Personal/.codex/computer-use
-Projects/Personal/.codex/external_agent_session_imports.json
-Projects/Personal/.codex/*.sqlite*
-Projects/Personal/.codex/history.jsonl
-Projects/Personal/.codex/hooks.json
-Projects/Personal/.codex/installation_id
-Projects/Personal/.codex/log
-Projects/Personal/.codex/mcp-oauth-locks
-Projects/Personal/.codex/memories
-Projects/Personal/.codex/models_cache.json
-Projects/Personal/.codex/node_repl
-Projects/Personal/.codex/pets
-Projects/Personal/.codex/plugins
-Projects/Personal/.codex/process_manager
-Projects/Personal/.codex/rules
-Projects/Personal/.codex/session_index.jsonl
-Projects/Personal/.codex/sessions
-Projects/Personal/.codex/shell_snapshots
-Projects/Personal/.codex/sqlite
-Projects/Personal/.codex/tmp
-Projects/Personal/.codex/vendor_imports
-Projects/Personal/.codex/version.json
-Projects/Personal/.codex/visualizations
-
-# Personal GitHub credentials and machine launcher stay unmanaged.
-Projects/Personal/.agent-safety/real-gh
-Projects/Personal/.agent-safety/use-isolated-gh
-Projects/Personal/.agent-safety/gh
 
 # OMP runtime and credential state — config and portable skills only
 .omp/agent/sessions

@@ -6,8 +6,8 @@ usage() {
 Usage: agent-config-sync <check|check-live|apply>
 
   check       Validate source templates and portable-skill symlink matrix
-  check-live  Read-only live migration / portable-link checks against $HOME
-  apply       Source check, live preflight, selective apply, then live check
+  check-live  Read-only live migration checks against $HOME
+  apply       Source check, live preflight, scoped agent apply, then live check
 EOF
   exit 1
 }
@@ -37,22 +37,8 @@ fi
 
 CHECK="$SOURCE/scripts/check-agent-config-sync.sh"
 MANIFEST="$SOURCE/dot_agents/skill-targets.json"
+RETIREMENT_LIST="$SOURCE/.chezmoiremove"
 SRC=(--source "$SOURCE")
-
-LIVE_PROFILE_ROLE=absent
-if [[ -r "${HOME}/.config/agent-profiles/role" ]]; then
-  LIVE_PROFILE_ROLE="$(tr -d '[:space:]' <"${HOME}/.config/agent-profiles/role")"
-fi
-[[ "$LIVE_PROFILE_ROLE" == absent || "$LIVE_PROFILE_ROLE" == main || "$LIVE_PROFILE_ROLE" == restricted ]] || {
-  echo "agent-config-sync: invalid installed profile role '$LIVE_PROFILE_ROLE'" >&2
-  exit 1
-}
-
-PROFILE_ROLE="$(chezmoi "${SRC[@]}" execute-template '{{ .agentProfile | default "restricted" }}')"
-[[ "$PROFILE_ROLE" == main || "$PROFILE_ROLE" == restricted ]] || {
-  echo "agent-config-sync: invalid desired profile role '$PROFILE_ROLE'" >&2
-  exit 1
-}
 
 cmd_check() {
   bash "$CHECK"
@@ -67,226 +53,85 @@ cmd_strict_preflight() {
 }
 
 portable_link_targets() {
-  jq -r --arg home "$HOME" --arg role "$PROFILE_ROLE" '
+  [[ -f "$MANIFEST" ]] || {
+    echo "agent-config-sync: portable skill manifest missing: $MANIFEST" >&2
+    return 1
+  }
+  jq -r --arg home "$HOME" '
     . as $root
     | .skills | to_entries[]
     | .key as $skill
     | .value[] as $harness
     | $root.harnesses[$harness] as $h
     | select($h.discovery == "symlink")
-    | select($role == "main" or $harness != "claude")
-    | ($h.skills_root | if startswith("~/") then $home + .[1:] elif . == "~" then $home else . end) + "/" + $skill
+    | ($h.skills_root
+        | if startswith("~/") then $home + .[1:]
+          elif . == "~" then $home
+          else .
+          end) + "/" + $skill
   ' "$MANIFEST"
 }
 
-bootstrap_real_gh() {
-  local safety_dir real_gh candidate
-  safety_dir="${HOME}/Projects/Personal/.agent-safety"
-  real_gh="${safety_dir}/real-gh"
+load_retired_targets() {
+  local path seen='|'
+  [[ -s "$RETIREMENT_LIST" ]] || {
+    echo "agent-config-sync: retirement list is missing or empty: $RETIREMENT_LIST" >&2
+    return 1
+  }
 
-  if [[ -e "$real_gh" || -L "$real_gh" ]]; then
-    [[ -x "$real_gh" ]] || {
-      echo "agent-config-sync: Personal GitHub real-gh exists but is not executable: $real_gh" >&2
+  while IFS= read -r path || [[ -n "$path" ]]; do
+    if [[ -z "$path" || ! "$path" =~ ^[A-Za-z0-9._/-]+$ \
+      || "$path" == /* || "$path" == */ || "$path" == *//* \
+      || "/$path/" == *"/../"* || "/$path/" == *"/./"* ]]; then
+      echo "agent-config-sync: retirement list contains malformed target: ${path:-<empty>}" >&2
       return 1
-    }
-    return
-  fi
-
-  for candidate in /usr/bin/gh /usr/local/bin/gh /opt/homebrew/bin/gh /opt/local/bin/gh; do
-    if [[ -x "$candidate" ]]; then
-      ln -s "$candidate" "$real_gh"
-      return
     fi
-  done
-
-  echo 'agent-config-sync: cannot find a system GitHub CLI for Personal real-gh' >&2
-  return 1
-}
-
-known_legacy_model_skill() {
-  local dir="$1"
-  local expected_hash actual_hash live
-  local -a entries
-  case "$dir" in
-    "${HOME}/.claude/skills/codex"|"${HOME}/.claude-personal/skills/codex")
-      expected_hash='bcf38f2d2b463edaf6a7d5cf7374616318dfe24e133053ca45f42621eaedcb5c'
-      ;;
-    "${HOME}/.claude/skills/grok")
-      expected_hash='fdd4ad1e3a40569ab80f0e1dc59fc5e197f39409b265b8bc01207cac82f39483'
-      ;;
-    *) return 1 ;;
-  esac
-  [[ -d "$dir" && ! -L "$dir" ]] || return 1
-  live="${dir}/SKILL.md"
-  shopt -s nullglob dotglob
-  entries=("$dir"/*)
-  shopt -u nullglob dotglob
-  [[ "${#entries[@]}" -eq 1 && "${entries[0]}" == "$live" && -f "$live" && ! -L "$live" ]] || return 1
-  read -r actual_hash _ < <(sha256sum "$live")
-  [[ "$actual_hash" == "$expected_hash" ]]
-}
-
-remove_known_legacy_model_skill() {
-  local dir="$1"
-  local expected="../../.agents/skills/$(basename "$dir")"
-  [[ -e "$dir" || -L "$dir" ]] || return 0
-  if [[ -L "$dir" ]]; then
-    [[ "$(readlink "$dir")" == "$expected" ]] && return 0
-    echo "agent-config-sync: refusing unexpected model skill link: $dir" >&2
-    return 1
-  fi
-  known_legacy_model_skill "$dir" || {
-    echo "agent-config-sync: refusing to replace divergent legacy model skill: $dir" >&2
-    return 1
-  }
-  rm -f "$dir/SKILL.md"
-  rmdir "$dir"
-}
-
-main_profile_was_managed() {
-  local target state
-  for target in \
-    "${HOME}/.claude/settings.json" \
-    "${HOME}/.claude/RTK.md"; do
-    state="$(chezmoi state get --bucket=entryState --key="$target" 2>/dev/null || true)"
-    [[ -n "$state" ]] && return 0
-  done
-  return 1
-}
-
-managed_regular_file_unchanged() {
-  local live="$1"
-  local state expected actual
-  [[ -f "$live" && ! -L "$live" ]] || return 1
-  state="$(chezmoi state get --bucket=entryState --key="$live" 2>/dev/null || true)"
-  expected="$(jq -r '.contentsSHA256 // empty' <<<"$state" 2>/dev/null || true)"
-  [[ -n "$expected" ]] || return 1
-  read -r actual _ < <(sha256sum "$live")
-  [[ "$actual" == "$expected" ]]
-}
-
-
-validate_main_managed_file() {
-  local live="$1"
-  local source_path="$2"
-  local format="$3"
-  local rendered="$source_path"
-  [[ -e "$live" || -L "$live" ]] || return 0
-  [[ -f "$live" && ! -L "$live" ]] || {
-    echo "agent-config-sync: refusing to remove unexpected main-profile path: $live" >&2
-    return 1
-  }
-  managed_regular_file_unchanged "$live" && return 0
-  if [[ "$format" == encrypted ]]; then
-    rendered="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-main-profile.XXXXXX")"
-    chezmoi "${SRC[@]}" decrypt "$source_path" >"$rendered" || {
-      rm -f "$rendered"
-      echo "agent-config-sync: cannot render managed main-profile source: $source_path" >&2
+    if [[ "$seen" == *"|$path|"* ]]; then
+      echo "agent-config-sync: retirement list contains duplicate target: $path" >&2
       return 1
-    }
-  fi
-  if ! cmp -s "$live" "$rendered"; then
-    [[ "$format" != encrypted ]] || rm -f "$rendered"
-    echo "agent-config-sync: refusing to remove divergent main-profile file: $live" >&2
-    return 1
-  fi
-  [[ "$format" != encrypted ]] || rm -f "$rendered"
-}
-
-remove_main_managed_file() {
-  rm -f "$1"
-}
-
-validate_main_managed_skill() {
-  local skill="$1"
-  local source_name="${2:-encrypted_SKILL.md.age}"
-  local dir="${HOME}/.claude/skills/${skill}"
-  local live="${dir}/SKILL.md"
-  local source_path="${SOURCE}/dot_claude/skills/${skill}/${source_name}"
-  local -a entries
-  [[ -e "$dir" || -L "$dir" ]] || return 0
-  [[ -d "$dir" && ! -L "$dir" ]] || {
-    echo "agent-config-sync: refusing to remove unexpected main-profile skill: $dir" >&2
-    return 1
-  }
-  shopt -s nullglob dotglob
-  entries=("$dir"/*)
-  shopt -u nullglob dotglob
-  [[ "${#entries[@]}" -eq 1 && "${entries[0]}" == "$live" ]] || {
-    echo "agent-config-sync: refusing to remove divergent main-profile skill: $dir" >&2
-    return 1
-  }
-  validate_main_managed_file "$live" "$source_path" encrypted
-}
-
-remove_main_managed_skill() {
-  local skill="$1"
-  local dir="${HOME}/.claude/skills/${skill}"
-  rm -f "${dir}/SKILL.md"
-  rmdir "$dir" 2>/dev/null || true
-}
-
-remove_main_profile_paths() {
-  local skill link expected
-  local -a native_skills=(kickoff ship-pr pickgauge-usage plan-issue x-research)
-  [[ "$PROFILE_ROLE" == restricted ]] || return 0
-  if [[ "$LIVE_PROFILE_ROLE" != main ]] && ! main_profile_was_managed; then
-    return 0
-  fi
-
-  validate_main_managed_file "${HOME}/.claude/settings.json" \
-    "${SOURCE}/dot_claude/encrypted_settings.json.age" encrypted
-  validate_main_managed_file "${HOME}/.claude/RTK.md" \
-    "${SOURCE}/dot_claude/private_RTK.md" plain
-  validate_main_managed_file "${HOME}/.claude/rules/context7.md" \
-    "${SOURCE}/dot_claude/rules/context7.md" plain
-
-  for skill in "${native_skills[@]}"; do
-    if [[ "$skill" == plan-issue ]]; then
-      validate_main_managed_skill "$skill" encrypted_private_SKILL.md.age
-    else
-      validate_main_managed_skill "$skill"
     fi
-  done
+    seen="${seen}${path}|"
+    retired_targets+=("$HOME/$path")
+  done <"$RETIREMENT_LIST"
 
-  while IFS= read -r skill; do
-    link="${HOME}/.claude/skills/${skill}"
-    [[ -e "$link" || -L "$link" ]] || continue
-    expected="../../.agents/skills/${skill}"
-    [[ -L "$link" && "$(readlink "$link")" == "$expected" ]] || {
-      echo "agent-config-sync: refusing to remove divergent main-profile skill link: $link" >&2
-      return 1
-    }
-  done < <(jq -r '.skills | to_entries[] | select(.value | index("claude")) | .key' "$MANIFEST")
-
-  remove_main_managed_file "${HOME}/.claude/settings.json"
-  remove_main_managed_file "${HOME}/.claude/RTK.md"
-  remove_main_managed_file "${HOME}/.claude/rules/context7.md"
-  rmdir "${HOME}/.claude/rules" 2>/dev/null || true
-
-  for skill in "${native_skills[@]}"; do
-    remove_main_managed_skill "$skill"
-  done
-
-  while IFS= read -r skill; do
-    rm -f "${HOME}/.claude/skills/${skill}"
-  done < <(jq -r '.skills | to_entries[] | select(.value | index("claude")) | .key' "$MANIFEST")
+  if [[ "${#retired_targets[@]}" -eq 0 ]]; then
+    echo "agent-config-sync: retirement list produced no targets" >&2
+    return 1
+  fi
 }
 
 preflight_unmanaged_targets() {
-  local target state
+  local target state managed_output
   local -a managed_targets
-  mapfile -d '' -t managed_targets < <(
-    chezmoi "${SRC[@]}" managed \
-      --include=files,symlinks \
-      --path-style=absolute \
-      --nul-path-separator \
-      "$@"
-  )
+  if [[ "$#" -eq 0 ]]; then
+    echo "agent-config-sync: active target list is empty" >&2
+    return 1
+  fi
+
+  managed_targets=()
+  if ! managed_output="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-managed.XXXXXX")"; then
+    echo "agent-config-sync: managed target enumeration failure: cannot create temporary file" >&2
+    return 1
+  fi
+  if ! chezmoi "${SRC[@]}" managed \
+    --include=files,symlinks \
+    --path-style=absolute \
+    --nul-path-separator -- "$@" >"$managed_output"; then
+    rm -f "$managed_output"
+    echo "agent-config-sync: managed active target enumeration failure" >&2
+    return 1
+  fi
+  while IFS= read -r -d '' target; do
+    managed_targets+=("$target")
+  done <"$managed_output"
+  rm -f "$managed_output"
+  if [[ "${#managed_targets[@]}" -eq 0 ]]; then
+    echo "agent-config-sync: managed active target enumeration empty" >&2
+    return 1
+  fi
 
   for target in "${managed_targets[@]}"; do
     [[ -e "$target" || -L "$target" ]] || continue
-    known_legacy_model_skill "$target" && continue
     state="$(chezmoi state get --bucket=entryState --key="$target" 2>/dev/null || true)"
     [[ -n "$state" ]] && continue
     if chezmoi "${SRC[@]}" verify "$target" >/dev/null 2>&1; then
@@ -297,134 +142,17 @@ preflight_unmanaged_targets() {
   done
 }
 
-remove_obsolete_portable_skill() {
-  local skill="$1"
-  local dir="${HOME}/.claude-personal/skills/${skill}"
-  local live="${dir}/SKILL.md"
-  local source_age="${SOURCE}/dot_claude/skills/${skill}/encrypted_SKILL.md.age"
-  local rendered actual_hash legacy_hash
-  local source_matches=0
-  local -a entries
-
-  case "$skill" in
-    codex-fable) legacy_hash='ff2e124c935ae773d1be21aac4c990fe773e4979547ea88086925abfecb55a96' ;;
-    codex-opus) legacy_hash='7cdb683091226a41760b265da01d22011ad97f01e47b904730ff0410bba874e0' ;;
-    kickoff) legacy_hash='d15b84f6030291cb1598cf833778124fe771483f4172d04645f5da736f0ac317' ;;
-    ship-pr) legacy_hash='2b3cd186b5d339dca2907cf963cccaaf7b71a75cfc0339556fb1d752e91dd82d' ;;
-    *) echo "agent-config-sync: unknown obsolete portable skill: $skill" >&2; return 1 ;;
-  esac
-
-  [[ -e "$dir" || -L "$dir" ]] || return 0
-  [[ -d "$dir" && ! -L "$dir" ]] || {
-    echo "agent-config-sync: refusing to remove unexpected portable skill path: $dir" >&2
-    return 1
-  }
-  shopt -s nullglob dotglob
-  entries=("$dir"/*)
-  shopt -u nullglob dotglob
-  [[ "${#entries[@]}" -eq 1 && "${entries[0]}" == "$live" && -f "$live" && ! -L "$live" ]] || {
-    echo "agent-config-sync: refusing to remove modified portable skill directory: $dir" >&2
-    return 1
-  }
-
-  rendered="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-portable-skill.XXXXXX")"
-  if chezmoi "${SRC[@]}" decrypt "$source_age" >"$rendered" && cmp -s "$live" "$rendered"; then
-    source_matches=1
-  fi
-  rm -f "$rendered"
-  read -r actual_hash _ < <(sha256sum "$live")
-  if [[ "$source_matches" -ne 1 && "$actual_hash" != "$legacy_hash" ]]; then
-    echo "agent-config-sync: refusing to remove divergent portable skill: $live" >&2
-    return 1
-  fi
-
-  rm -f "$live"
-  rmdir "$dir"
-}
-
-remove_obsolete_portable_paths() {
-  remove_known_legacy_model_skill "${HOME}/.claude/skills/codex"
-  remove_known_legacy_model_skill "${HOME}/.claude/skills/grok"
-  remove_known_legacy_model_skill "${HOME}/.claude-personal/skills/codex"
-
-  local skill link target workflow workflow_hash
-  for skill in codex-fable codex-opus kickoff ship-pr; do
-    remove_obsolete_portable_skill "$skill"
-  done
-
-  for skill in agent-config-sync local-review; do
-    link="${HOME}/.claude-personal/skills/${skill}"
-    [[ -e "$link" || -L "$link" ]] || continue
-    target="../../.agents/skills/${skill}"
-    [[ -L "$link" && "$(readlink "$link")" == "$target" ]] || {
-      echo "agent-config-sync: refusing to remove divergent portable skill link: $link" >&2
-      return 1
-    }
-    rm -f "$link"
-  done
-
-  workflow="${HOME}/.claude-personal/codex-opus-workflow.html"
-  if [[ -e "$workflow" || -L "$workflow" ]]; then
-    [[ -f "$workflow" && ! -L "$workflow" ]] || {
-      echo "agent-config-sync: refusing to remove unexpected portable workflow: $workflow" >&2
-      return 1
-    }
-    read -r workflow_hash _ < <(sha256sum "$workflow")
-    if ! cmp -s "$workflow" "${SOURCE}/dot_claude/codex-opus-workflow.html" \
-      && [[ "$workflow_hash" != 'de5efd7678c7d537090486178690e6b3a5805947fadd322ac65a807977bfd40d' ]]; then
-      echo "agent-config-sync: refusing to remove divergent portable workflow: $workflow" >&2
-      return 1
-    fi
-    rm -f "$workflow"
-  fi
-}
-
 cmd_apply() {
-  cmd_check
-  cmd_strict_preflight
-
-  mkdir -p \
-    "${HOME}/.config/agent-profiles" \
-    "${HOME}/.pi/agent/extensions" \
-    "${HOME}/.omp/agent/extensions" \
-    "${HOME}/.factory/hooks" \
-    "${HOME}/.claude/hooks" \
-    "${HOME}/.claude-personal/rules" \
-    "${HOME}/.claude-personal/skills" \
-    "${HOME}/.codex/skills/model-orchestration/references" \
-    "${HOME}/.codex/skills/ship-pr" \
-    "${HOME}/.grok/skills/model-orchestration" \
-    "${HOME}/Projects/Personal/.codex" \
-    "${HOME}/Projects/Personal/.agent-safety/bin" \
-    "${HOME}/Projects/Personal/.agent-safety/hooks"
-
-  local -a targets=(
-    "${HOME}/.config/agent-profiles/role"
-    "${HOME}/.config/agent-profiles/personal-roots"
-    "${HOME}/.local/bin/claude-profile"
-    "${HOME}/.local/bin/claude-default"
-    "${HOME}/.local/bin/claude-personal"
-    "${HOME}/.local/bin/agent-profile-doctor"
+  local link portable_output
+  local -a active_targets=(
     "${HOME}/.zshrc"
     "${HOME}/.bashrc"
     "${HOME}/.claude/CLAUDE.md"
-    "${HOME}/.claude-personal/CLAUDE.md"
-    "${HOME}/.claude-personal/RTK.md"
-    "${HOME}/.claude-personal/rules"
-    "${HOME}/.claude-personal/settings.json"
-    "${HOME}/.claude-personal/skills/model-runners"
     "${HOME}/.codex/AGENTS.md"
-    "${HOME}/.codex/skills/model-orchestration/SKILL.md"
-    "${HOME}/.codex/skills/model-orchestration/references/model-routing.md"
-    "${HOME}/Projects/Personal/.codex/config.toml"
-    "${HOME}/Projects/Personal/.codex/AGENTS.md"
-    "${HOME}/Projects/Personal/.codex/skills"
-    "${HOME}/Projects/Personal/.agent-safety/bin/gh"
-    "${HOME}/Projects/Personal/.agent-safety/bin/gh-credential"
-    "${HOME}/Projects/Personal/.agent-safety/verify-personal-github"
-    "${HOME}/Projects/Personal/.agent-safety/install-repo-hook"
-    "${HOME}/Projects/Personal/.agent-safety/hooks/pre-push"
+    "${HOME}/.codex/skills/model-orchestration"
+    "${HOME}/.codex/skills/ship-pr"
     "${HOME}/.grok/AGENTS.md"
+    "${HOME}/.grok/skills/model-orchestration"
     "${HOME}/.pi/agent/AGENTS.md"
     "${HOME}/.pi/agent/extensions/decision-audit-gate.ts"
     "${HOME}/.omp/agent/AGENTS.md"
@@ -435,11 +163,13 @@ cmd_apply() {
     "${HOME}/.factory/AGENTS.md"
     "${HOME}/.factory/hooks/model-flow-reminder.sh"
     "${HOME}/.factory/hooks/decision-audit-gate.sh"
+    "${HOME}/.factory/hooks/kde-notify.sh"
     "${HOME}/.factory/hooks.json"
     "${HOME}/.config/opencode/AGENTS.md"
     "${HOME}/.agents/mcp-targets.json"
     "${HOME}/.agents/skill-targets.json"
     "${HOME}/.agents/desktop-capture.md"
+    "${HOME}/.agents/browser-use.md"
     "${HOME}/.agents/codex-lane-override.md"
     "${HOME}/.hermes/SOUL.md"
     "${HOME}/.agents/skills"
@@ -447,46 +177,51 @@ cmd_apply() {
     "${HOME}/.local/bin/sudo-askpass"
     "${HOME}/.config/environment.d/50-sudo-askpass.conf"
     "${HOME}/.config/environment.d/60-omp.conf"
-    "${HOME}/.codex/skills/model-orchestration"
-    "${HOME}/.codex/skills/ship-pr"
-    "${HOME}/.grok/skills/model-orchestration"
+    "${HOME}/.claude/rules"
+    "${HOME}/.claude/settings.json"
+    "${HOME}/.claude/hooks/decision-audit-gate.sh"
+    "${HOME}/.claude/skills/kickoff"
+    "${HOME}/.claude/skills/ship-pr"
+    "${HOME}/.claude/skills/pickgauge-usage"
+    "${HOME}/.claude/skills/plan-issue"
+    "${HOME}/.claude/skills/x-research"
   )
+  local -a retired_targets=()
 
-  if [[ "$PROFILE_ROLE" == main ]]; then
-    mkdir -p \
-      "${HOME}/.claude/rules" \
-      "${HOME}/.claude/skills/kickoff" \
-      "${HOME}/.claude/skills/ship-pr" \
-      "${HOME}/.claude/skills/pickgauge-usage" \
-      "${HOME}/.claude/skills/plan-issue" \
-      "${HOME}/.claude/skills/x-research"
-    targets+=(
-      "${HOME}/.claude/RTK.md"
-      "${HOME}/.claude/rules"
-      "${HOME}/.claude/settings.json"
-      "${HOME}/.claude/hooks/decision-audit-gate.sh"
-      "${HOME}/.claude/skills/model-runners"
-      "${HOME}/.claude/skills/kickoff"
-      "${HOME}/.claude/skills/ship-pr"
-      "${HOME}/.claude/skills/audit-report"
-      "${HOME}/.claude/skills/pickgauge-usage"
-      "${HOME}/.claude/skills/plan-issue"
-      "${HOME}/.claude/skills/x-research"
-    )
+  cmd_check
+  cmd_strict_preflight
+  mkdir -p \
+    "${HOME}/.claude/rules" \
+    "${HOME}/.claude/hooks" \
+    "${HOME}/.claude/skills" \
+    "${HOME}/.codex/skills" \
+    "${HOME}/.grok/skills" \
+    "${HOME}/.pi/agent/extensions" \
+    "${HOME}/.pi/agent/skills" \
+    "${HOME}/.omp/agent/extensions" \
+    "${HOME}/.omp/agent/skills" \
+    "${HOME}/.factory/hooks" \
+    "${HOME}/.config/opencode" \
+    "${HOME}/.config/environment.d" \
+    "${HOME}/.agents/skills" \
+    "${HOME}/.hermes" \
+    "${HOME}/.local/bin"
+  if ! portable_output="$(portable_link_targets)"; then
+    echo "agent-config-sync: cannot build portable skill targets" >&2
+    return 1
   fi
-
-  local link
   while IFS= read -r link; do
-    [[ -n "$link" ]] && targets+=("$link")
-  done < <(portable_link_targets)
-
-  preflight_unmanaged_targets "${targets[@]}"
-  remove_obsolete_portable_paths
-  remove_main_profile_paths
-  bootstrap_real_gh
-
-  chezmoi "${SRC[@]}" apply --force --no-tty "${targets[@]}"
-  bash "$CHECK" --check-live-migration --require-portable-links
+    [[ -n "$link" ]] && active_targets+=("$link")
+  done <<<"$portable_output"
+  if [[ "${#active_targets[@]}" -eq 0 ]]; then
+    echo "agent-config-sync: active target list is empty" >&2
+    return 1
+  fi
+  load_retired_targets
+  preflight_unmanaged_targets "${active_targets[@]}"
+  chezmoi "${SRC[@]}" apply --force --no-tty -- \
+    "${active_targets[@]}" "${retired_targets[@]}"
+  bash "$CHECK" --check-live-migration
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

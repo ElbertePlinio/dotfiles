@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-if command -v rtk >/dev/null 2>&1 && rtk gain >/dev/null 2>&1; then
-  exec rtk "$@"
-else
-  exec "$@"
-fi
