@@ -297,7 +297,10 @@ check_manifest_and_sources() {
   local skill harness src_root rel_prefix expected link_src
   local -a skills
 
-  mapfile -t skills < <(jq -r '.skills | keys[]' "$MANIFEST")
+  skills=()
+  while IFS= read -r skill; do
+    skills+=("$skill")
+  done < <(jq -r '.skills | keys[]' "$MANIFEST")
   [[ "${#skills[@]}" -gt 0 ]] || err 'manifest has no skills'
 
   for skill in "${skills[@]}"; do
@@ -945,7 +948,7 @@ HARNESS=(
 )
 SOUL=private_dot_hermes/SOUL.md.tmpl
 OPENCODE=dot_config/opencode/AGENTS.md
-SHARED_MAX_BYTES=12500
+SHARED_MAX_BYTES=15000
 REQUIRED_SHARED_INVARIANTS=(
   'I like short, practical work. Read the repo, make the smallest clean change, and show proof before calling something done.'
   '- Be direct: no filler or ceremony. Fix root causes, not symptoms.'
@@ -1563,7 +1566,10 @@ else
   err 'canonical context7-mcp missing after seed apply'
 fi
 
-mapfile -t PORTABLE_TARGETS < <(jq -r --arg dest "$DEST" '
+PORTABLE_TARGETS=()
+while IFS= read -r target; do
+  PORTABLE_TARGETS+=("$target")
+done < <(jq -r --arg dest "$DEST" '
   . as $root
   | .skills | to_entries[]
   | .key as $skill

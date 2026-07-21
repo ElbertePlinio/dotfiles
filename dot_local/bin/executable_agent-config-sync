@@ -276,7 +276,10 @@ remove_main_profile_paths() {
 preflight_unmanaged_targets() {
   local target state
   local -a managed_targets
-  mapfile -d '' -t managed_targets < <(
+  managed_targets=()
+  while IFS= read -r -d '' target; do
+    managed_targets+=("$target")
+  done < <(
     chezmoi "${SRC[@]}" managed \
       --include=files,symlinks \
       --path-style=absolute \
