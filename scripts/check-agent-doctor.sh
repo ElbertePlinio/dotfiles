@@ -379,6 +379,10 @@ next_test; setup_case; make_healthy_alpha; run_doctor --config --json
 assert_rc 64 '--config followed by an option is usage error'
 next_test; setup_case; make_healthy_alpha; run_doctor --only --json
 assert_rc 64 '--only followed by an option is usage error'
+next_test; setup_case; make_healthy_alpha; run_doctor --config -h
+assert_rc 64 '--config followed by a short option is usage error'
+next_test; setup_case; make_healthy_alpha; run_doctor --only -h
+assert_rc 64 '--only followed by a short option is usage error'
 next_test; setup_case; make_healthy_alpha; cp "$CONFIG" "$HOME_DIR/--option-looking"; run_doctor --config="$HOME_DIR/--option-looking" --json
 assert_rc 0 '--config equals form accepts an option-looking path'
 

@@ -75,14 +75,14 @@ trap 'handle_signal HUP 129' HUP
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
-      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || usage_error '--config requires a path'
+      [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || usage_error '--config requires a path'
       CONFIG="$2"
       shift 2
       ;;
     --config=*) CONFIG="${1#*=}"; [[ -n "$CONFIG" ]] || usage_error '--config requires a path'; shift ;;
     --json) JSON_MODE=1; shift ;;
     --only)
-      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || usage_error '--only requires a harness name'
+      [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || usage_error '--only requires a harness name'
       ONLY="$2"
       shift 2
       ;;
