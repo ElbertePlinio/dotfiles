@@ -9,7 +9,7 @@ Covers shell, terminal emulators, editors, git, KDE theming, and AI tooling conf
 On a fresh machine:
 
 ```bash
-# 1. Install bootstrap dependencies (agent-config-sync requires system gh)
+# 1. Install bootstrap dependencies
 sudo pacman -S chezmoi age git github-cli
 
 # 2. Restore your chezmoi age identity (see "Secrets" section)
@@ -88,10 +88,10 @@ Daily sync workflow:
 ```bash
 agent-config-sync check       # source templates + portable skill matrix
 agent-config-sync check-live  # read-only live validation against $HOME
-agent-config-sync apply       # source check, strict preflight, full managed apply, live check
+agent-config-sync apply       # source check, strict preflight, scoped agent apply, live check
 ```
 
-`apply` runs a full managed-source `chezmoi apply` so `.chezmoiremove` retirements execute. Do not sync credentials, sessions, histories, caches, or other machine-owned runtime state.
+`apply` targets only the managed agent configuration and the stable paths listed in `.chezmoiremove`; it does not apply unrelated dotfiles or root run scripts. Do not sync credentials, sessions, histories, caches, or other machine-owned runtime state.
 
 ## Secrets (age encryption)
 

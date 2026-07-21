@@ -7,7 +7,7 @@ Usage: agent-config-sync <check|check-live|apply>
 
   check       Validate source templates and portable-skill symlink matrix
   check-live  Read-only live migration checks against $HOME
-  apply       Source check, live preflight, full managed apply, then live check
+  apply       Source check, live preflight, scoped agent apply, then live check
 EOF
   exit 1
 }
@@ -36,6 +36,8 @@ if [[ -z "$SOURCE" || ! -f "$SOURCE/scripts/check-agent-config-sync.sh" ]]; then
 fi
 
 CHECK="$SOURCE/scripts/check-agent-config-sync.sh"
+MANIFEST="$SOURCE/dot_agents/skill-targets.json"
+RETIREMENT_LIST="$SOURCE/.chezmoiremove"
 SRC=(--source "$SOURCE")
 
 cmd_check() {
@@ -50,32 +52,62 @@ cmd_strict_preflight() {
   bash "$CHECK" --check-live-migration --strict-preflight
 }
 
-known_legacy_model_skill() {
-  local dir="$1"
-  local expected_hash actual_hash live
-  local -a entries
-  case "$dir" in
-    "${HOME}/.claude/skills/codex")
-      expected_hash='bcf38f2d2b463edaf6a7d5cf7374616318dfe24e133053ca45f42621eaedcb5c'
-      ;;
-    "${HOME}/.claude/skills/grok")
-      expected_hash='fdd4ad1e3a40569ab80f0e1dc59fc5e197f39409b265b8bc01207cac82f39483'
-      ;;
-    *) return 1 ;;
-  esac
-  [[ -d "$dir" && ! -L "$dir" ]] || return 1
-  live="${dir}/SKILL.md"
-  shopt -s nullglob dotglob
-  entries=("$dir"/*)
-  shopt -u nullglob dotglob
-  [[ "${#entries[@]}" -eq 1 && "${entries[0]}" == "$live" && -f "$live" && ! -L "$live" ]] || return 1
-  read -r actual_hash _ < <(sha256sum "$live")
-  [[ "$actual_hash" == "$expected_hash" ]]
+portable_link_targets() {
+  [[ -f "$MANIFEST" ]] || {
+    echo "agent-config-sync: portable skill manifest missing: $MANIFEST" >&2
+    return 1
+  }
+  jq -r --arg home "$HOME" '
+    . as $root
+    | .skills | to_entries[]
+    | .key as $skill
+    | .value[] as $harness
+    | $root.harnesses[$harness] as $h
+    | select($h.discovery == "symlink")
+    | ($h.skills_root
+        | if startswith("~/") then $home + .[1:]
+          elif . == "~" then $home
+          else .
+          end) + "/" + $skill
+  ' "$MANIFEST"
+}
+
+load_retired_targets() {
+  local path seen='|'
+  [[ -s "$RETIREMENT_LIST" ]] || {
+    echo "agent-config-sync: retirement list is missing or empty: $RETIREMENT_LIST" >&2
+    return 1
+  }
+
+  while IFS= read -r path || [[ -n "$path" ]]; do
+    if [[ -z "$path" || ! "$path" =~ ^[A-Za-z0-9._/-]+$ \
+      || "$path" == /* || "$path" == */ || "$path" == *//* \
+      || "/$path/" == *"/../"* || "/$path/" == *"/./"* ]]; then
+      echo "agent-config-sync: retirement list contains malformed target: ${path:-<empty>}" >&2
+      return 1
+    fi
+    if [[ "$seen" == *"|$path|"* ]]; then
+      echo "agent-config-sync: retirement list contains duplicate target: $path" >&2
+      return 1
+    fi
+    seen="${seen}${path}|"
+    retired_targets+=("$HOME/$path")
+  done <"$RETIREMENT_LIST"
+
+  if [[ "${#retired_targets[@]}" -eq 0 ]]; then
+    echo "agent-config-sync: retirement list produced no targets" >&2
+    return 1
+  fi
 }
 
 preflight_unmanaged_targets() {
   local target state managed_output
   local -a managed_targets
+  if [[ "$#" -eq 0 ]]; then
+    echo "agent-config-sync: active target list is empty" >&2
+    return 1
+  fi
+
   managed_targets=()
   if ! managed_output="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-managed.XXXXXX")"; then
     echo "agent-config-sync: managed target enumeration failure: cannot create temporary file" >&2
@@ -84,9 +116,9 @@ preflight_unmanaged_targets() {
   if ! chezmoi "${SRC[@]}" managed \
     --include=files,symlinks \
     --path-style=absolute \
-    --nul-path-separator >"$managed_output"; then
+    --nul-path-separator -- "$@" >"$managed_output"; then
     rm -f "$managed_output"
-    echo "agent-config-sync: managed target enumeration failure" >&2
+    echo "agent-config-sync: managed active target enumeration failure" >&2
     return 1
   fi
   while IFS= read -r -d '' target; do
@@ -94,13 +126,12 @@ preflight_unmanaged_targets() {
   done <"$managed_output"
   rm -f "$managed_output"
   if [[ "${#managed_targets[@]}" -eq 0 ]]; then
-    echo "agent-config-sync: managed target enumeration empty" >&2
+    echo "agent-config-sync: managed active target enumeration empty" >&2
     return 1
   fi
 
   for target in "${managed_targets[@]}"; do
     [[ -e "$target" || -L "$target" ]] || continue
-    known_legacy_model_skill "$target" && continue
     state="$(chezmoi state get --bucket=entryState --key="$target" 2>/dev/null || true)"
     [[ -n "$state" ]] && continue
     if chezmoi "${SRC[@]}" verify "$target" >/dev/null 2>&1; then
@@ -112,11 +143,82 @@ preflight_unmanaged_targets() {
 }
 
 cmd_apply() {
+  local link portable_output
+  local -a active_targets=(
+    "${HOME}/.zshrc"
+    "${HOME}/.bashrc"
+    "${HOME}/.claude/CLAUDE.md"
+    "${HOME}/.codex/AGENTS.md"
+    "${HOME}/.codex/skills/model-orchestration"
+    "${HOME}/.codex/skills/ship-pr"
+    "${HOME}/.grok/AGENTS.md"
+    "${HOME}/.grok/skills/model-orchestration"
+    "${HOME}/.pi/agent/AGENTS.md"
+    "${HOME}/.pi/agent/extensions/decision-audit-gate.ts"
+    "${HOME}/.omp/agent/AGENTS.md"
+    "${HOME}/.omp/agent/config.yml"
+    "${HOME}/.omp/agent/agents"
+    "${HOME}/.omp/agent/mcp.json"
+    "${HOME}/.omp/agent/extensions/decision-audit-gate.ts"
+    "${HOME}/.factory/AGENTS.md"
+    "${HOME}/.factory/hooks/model-flow-reminder.sh"
+    "${HOME}/.factory/hooks/decision-audit-gate.sh"
+    "${HOME}/.factory/hooks.json"
+    "${HOME}/.config/opencode/AGENTS.md"
+    "${HOME}/.agents/mcp-targets.json"
+    "${HOME}/.agents/skill-targets.json"
+    "${HOME}/.agents/desktop-capture.md"
+    "${HOME}/.agents/codex-lane-override.md"
+    "${HOME}/.hermes/SOUL.md"
+    "${HOME}/.agents/skills"
+    "${HOME}/.local/bin/agent-config-sync"
+    "${HOME}/.local/bin/sudo-askpass"
+    "${HOME}/.config/environment.d/50-sudo-askpass.conf"
+    "${HOME}/.config/environment.d/60-omp.conf"
+    "${HOME}/.claude/rules"
+    "${HOME}/.claude/settings.json"
+    "${HOME}/.claude/hooks/decision-audit-gate.sh"
+    "${HOME}/.claude/skills/kickoff"
+    "${HOME}/.claude/skills/ship-pr"
+    "${HOME}/.claude/skills/pickgauge-usage"
+    "${HOME}/.claude/skills/plan-issue"
+    "${HOME}/.claude/skills/x-research"
+  )
+  local -a retired_targets=()
+
   cmd_check
   cmd_strict_preflight
-  preflight_unmanaged_targets
-  # Full managed-source apply so .chezmoiremove entries execute.
-  chezmoi "${SRC[@]}" apply --force --no-tty
+  mkdir -p \
+    "${HOME}/.claude/rules" \
+    "${HOME}/.claude/hooks" \
+    "${HOME}/.claude/skills" \
+    "${HOME}/.codex/skills" \
+    "${HOME}/.grok/skills" \
+    "${HOME}/.pi/agent/extensions" \
+    "${HOME}/.pi/agent/skills" \
+    "${HOME}/.omp/agent/extensions" \
+    "${HOME}/.omp/agent/skills" \
+    "${HOME}/.factory/hooks" \
+    "${HOME}/.config/opencode" \
+    "${HOME}/.config/environment.d" \
+    "${HOME}/.agents/skills" \
+    "${HOME}/.hermes" \
+    "${HOME}/.local/bin"
+  if ! portable_output="$(portable_link_targets)"; then
+    echo "agent-config-sync: cannot build portable skill targets" >&2
+    return 1
+  fi
+  while IFS= read -r link; do
+    [[ -n "$link" ]] && active_targets+=("$link")
+  done <<<"$portable_output"
+  if [[ "${#active_targets[@]}" -eq 0 ]]; then
+    echo "agent-config-sync: active target list is empty" >&2
+    return 1
+  fi
+  load_retired_targets
+  preflight_unmanaged_targets "${active_targets[@]}"
+  chezmoi "${SRC[@]}" apply --force --no-tty -- \
+    "${active_targets[@]}" "${retired_targets[@]}"
   bash "$CHECK" --check-live-migration
 }
 

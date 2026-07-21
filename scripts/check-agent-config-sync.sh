@@ -55,23 +55,6 @@ managed_regular_file_unchanged() {
   [[ "$actual" == "$expected" ]]
 }
 
-known_legacy_model_skill() {
-  local skill="$1" dir="$2" expected_hash actual_hash live
-  local -a entries
-  case "$skill" in
-    codex) expected_hash='bcf38f2d2b463edaf6a7d5cf7374616318dfe24e133053ca45f42621eaedcb5c' ;;
-    grok) expected_hash='fdd4ad1e3a40569ab80f0e1dc59fc5e197f39409b265b8bc01207cac82f39483' ;;
-    *) return 1 ;;
-  esac
-  [[ -d "$dir" && ! -L "$dir" ]] || return 1
-  live="$dir/SKILL.md"
-  shopt -s nullglob dotglob
-  entries=("$dir"/*)
-  shopt -u nullglob dotglob
-  [[ "${#entries[@]}" -eq 1 && "${entries[0]}" == "$live" && -f "$live" && ! -L "$live" ]] || return 1
-  read -r actual_hash _ < <(sha256sum "$live")
-  [[ "$actual_hash" == "$expected_hash" ]]
-}
 validate_omp_agent_override() {
   local role="$1" path="$2"
 
@@ -432,6 +415,40 @@ check_retired_target_apply() {
   done
 }
 
+check_live_retired_targets() {
+  local path live
+  for path in "${RETIRED_TARGET_PATHS[@]}"; do
+    live="$HOME/$path"
+    if [[ ! -e "$live" && ! -L "$live" ]]; then
+      pass "live retired target absent: $live"
+    elif [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
+      pass "live retired target pending removal: $live"
+    else
+      err "live retired target remains: $live"
+    fi
+  done
+}
+
+check_live_retired_target_regressions() {
+  local seeded_home="$TMP/live-retirement-home"
+  local seeded_path="${RETIRED_TARGET_PATHS[0]}"
+  mkdir -p "$seeded_home/$seeded_path"
+  printf '%s\n' retired >"$seeded_home/$seeded_path/sentinel"
+
+  if (HOME="$seeded_home"; STRICT_PREFLIGHT=1; fail=0; \
+    check_live_retired_targets >/dev/null 2>&1; [[ "$fail" -eq 0 ]]); then
+    pass 'strict live preflight permits seeded pending retirement'
+  else
+    err 'strict live preflight rejected seeded pending retirement'
+  fi
+  if (HOME="$seeded_home"; STRICT_PREFLIGHT=0; fail=0; \
+    check_live_retired_targets >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
+    pass 'normal live check rejects seeded stable retired target'
+  else
+    err 'normal live check accepted seeded stable retired target'
+  fi
+}
+
 check_active_retired_references() {
   local matches
   if matches="$(rg -n -i --hidden \
@@ -454,22 +471,62 @@ check_sync_command_flow() {
   local flow_source="$TMP/sync-flow-source"
   local flow_home="$TMP/sync-flow-home"
   local divergent_home="$TMP/sync-flow-divergent-home"
-  local enumeration_home="$TMP/sync-flow-enumeration-home"
-  local enumeration_tmp="$TMP/sync-flow-enumeration-tmp"
-  local mock_bin="$TMP/sync-flow-mock-bin"
+  local malformed_home="$TMP/sync-flow-malformed-home"
   local flow_log="$TMP/sync-flow.log"
+  local flow_error="$TMP/sync-flow.err"
   local divergent_log="$TMP/sync-flow-divergent.log"
-  local enumeration_log="$TMP/sync-flow-enumeration.log"
-  local enumeration_error="$TMP/sync-flow-enumeration.err"
-  local apply_marker="$TMP/sync-flow-apply-called"
+  local malformed_log="$TMP/sync-flow-malformed.log"
+  local malformed_error="$TMP/sync-flow-malformed.err"
+  local script_marker="$TMP/sync-flow-script-marker"
   local expected_log="$TMP/sync-flow-expected.log"
-  local mode
+  local source_path
+  local -a active_source_files=(
+    dot_zshrc
+    dot_bashrc
+    dot_claude/CLAUDE.md
+    dot_claude/rules/context7.md
+    dot_claude/settings.json
+    dot_claude/hooks/executable_decision-audit-gate.sh
+    dot_claude/skills/kickoff/SKILL.md
+    dot_claude/skills/ship-pr/SKILL.md
+    dot_claude/skills/audit-report/SKILL.md
+    dot_claude/skills/pickgauge-usage/SKILL.md
+    dot_claude/skills/plan-issue/SKILL.md
+    dot_claude/skills/x-research/SKILL.md
+    dot_claude/skills/model-runners/SKILL.md
+    dot_codex/AGENTS.md
+    dot_codex/skills/model-orchestration/SKILL.md
+    dot_codex/skills/ship-pr/SKILL.md
+    dot_grok/AGENTS.md
+    dot_grok/skills/model-orchestration/SKILL.md
+    dot_pi/agent/AGENTS.md
+    dot_pi/agent/extensions/decision-audit-gate.ts
+    dot_pi/agent/skills/symlink_probe
+    dot_omp/agent/AGENTS.md
+    dot_omp/agent/config.yml
+    dot_omp/agent/agents/task.md
+    dot_omp/agent/mcp.json
+    dot_omp/agent/extensions/decision-audit-gate.ts
+    dot_factory/AGENTS.md
+    dot_factory/hooks/model-flow-reminder.sh
+    dot_factory/hooks/decision-audit-gate.sh
+    dot_factory/hooks.json
+    dot_config/opencode/AGENTS.md
+    dot_agents/mcp-targets.json
+    dot_agents/skill-targets.json
+    dot_agents/desktop-capture.md
+    dot_agents/codex-lane-override.md
+    dot_hermes/SOUL.md
+    dot_agents/skills/probe/SKILL.md
+    dot_local/bin/executable_sudo-askpass
+    dot_config/environment.d/50-sudo-askpass.conf
+    dot_config/environment.d/60-omp.conf
+  )
 
-  mkdir -p "$flow_source/scripts" "$flow_source/dot_config" \
+  mkdir -p "$flow_source/scripts" \
     "$flow_home/.local/bin" "$flow_home/.retired-agent-config-probe" \
     "$divergent_home/.local/bin" "$divergent_home/.retired-agent-config-probe" \
-    "$divergent_home/.config" "$enumeration_home/.local/bin" \
-    "$enumeration_tmp" "$mock_bin"
+    "$divergent_home/.agents" "$malformed_home/.local/bin"
   cat >"$flow_source/scripts/check-agent-config-sync.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -494,104 +551,112 @@ fi >>"$SYNC_FLOW_LOG"
 EOF
   printf '%s\n' scripts >"$flow_source/.chezmoiignore"
   printf '%s\n' .retired-agent-config-probe >"$flow_source/.chezmoiremove"
-  printf '%s\n' managed >"$flow_source/dot_config/agent-sync-probe"
+  for source_path in "${active_source_files[@]}"; do
+    if [[ "$source_path" == */* ]]; then
+      mkdir -p "$flow_source/${source_path%/*}"
+    fi
+    printf '%s\n' managed >"$flow_source/$source_path"
+  done
+  printf '%s\n' '../../../.agents/skills/probe' \
+    >"$flow_source/dot_pi/agent/skills/symlink_probe"
+  printf '%s\n' '{"canonical_root":"~/.agents/skills","harnesses":{"pi":{"skills_root":"~/.pi/agent/skills","source_root":"dot_pi/agent/skills","discovery":"symlink","relative_prefix":"../../../.agents/skills"}},"skills":{"probe":["pi"]}}' \
+    >"$flow_source/dot_agents/skill-targets.json"
+  printf '%s\n' intended-agent-probe >"$flow_source/dot_agents/mcp-targets.json"
+  printf '%s\n' original-unrelated >"$flow_source/dot_unrelated-agent-config-probe"
+  install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    "$flow_source/dot_local/bin/executable_agent-config-sync"
+  HOME="$flow_home" chezmoi --source "$flow_source" apply --force --no-tty \
+    "$flow_home/.unrelated-agent-config-probe"
+  cat >"$flow_source/run_after_agent_config_probe.sh" <<'EOF'
+#!/usr/bin/env bash
+: >"$SYNC_SCRIPT_MARKER"
+EOF
+  chmod 0755 "$flow_source/run_after_agent_config_probe.sh"
+  printf '%s\n' changed-unrelated >"$flow_source/dot_unrelated-agent-config-probe"
   printf '%s\n' retired >"$flow_home/.retired-agent-config-probe/sentinel"
   printf '%s\n' retired >"$divergent_home/.retired-agent-config-probe/sentinel"
-  printf '%s\n' divergent >"$divergent_home/.config/agent-sync-probe"
-  install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
-    "$flow_home/.local/bin/agent-config-sync"
-  install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
-    "$divergent_home/.local/bin/agent-config-sync"
-  install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
-    "$enumeration_home/.local/bin/agent-config-sync"
-  cat >"$mock_bin/chezmoi" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-for arg in "$@"; do
-  case "$arg" in
-    managed)
-      if [[ "$MOCK_MANAGED_MODE" == empty ]]; then
-        exit 0
-      fi
-      exit 70
-      ;;
-    apply)
-      : >"$MOCK_APPLY_MARKER"
-      exit 0
-      ;;
-  esac
-done
-exit 71
-EOF
-  chmod 0755 "$mock_bin/chezmoi"
+  printf '%s\n' divergent >"$divergent_home/.agents/mcp-targets.json"
+  for target_home in "$flow_home" "$divergent_home" "$malformed_home"; do
+    install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
+      "$target_home/.local/bin/agent-config-sync"
+  done
 
   if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
-    "$flow_home/.local/bin/agent-config-sync" apply >/dev/null 2>&1 \
+    SYNC_SCRIPT_MARKER="$script_marker" \
+    "$flow_home/.local/bin/agent-config-sync" apply >/dev/null 2>"$flow_error" \
     && HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
       "$flow_home/.local/bin/agent-config-sync" check-live >/dev/null 2>&1; then
     printf '%s\n' source strict live live >"$expected_log"
-    if [[ -f "$flow_home/.config/agent-sync-probe" ]] \
-      && grep -Fxq managed "$flow_home/.config/agent-sync-probe" \
+    if grep -Fxq intended-agent-probe "$flow_home/.agents/mcp-targets.json" \
+      && [[ -L "$flow_home/.pi/agent/skills/probe" ]] \
+      && [[ "$(readlink "$flow_home/.pi/agent/skills/probe")" == '../../../.agents/skills/probe' ]] \
       && [[ ! -e "$flow_home/.retired-agent-config-probe" ]] \
+      && grep -Fxq original-unrelated "$flow_home/.unrelated-agent-config-probe" \
+      && [[ ! -e "$script_marker" ]] \
       && cmp -s "$expected_log" "$flow_log"; then
-      pass 'temporary sync command runs source check, strict preflight, full apply, and live checks'
+      pass 'temporary sync applies only agent targets and retirements without run scripts'
     else
-      err 'temporary sync command flow or full-apply result mismatch'
+      err 'temporary scoped sync changed an unrelated target, ran a script, or missed agent cleanup'
     fi
   else
-    err 'temporary sync command apply/check-live flow failed'
+    err "temporary scoped sync command apply/check-live flow failed: $(tr '\n' ' ' <"$flow_error")"
   fi
 
   if HOME="$divergent_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$divergent_log" \
+    SYNC_SCRIPT_MARKER="$script_marker" \
     "$divergent_home/.local/bin/agent-config-sync" apply >/dev/null 2>&1; then
-    err 'temporary sync command overwrote an unmanaged divergent target'
-  elif [[ "$(cat "$divergent_home/.config/agent-sync-probe")" == divergent ]] \
+    err 'temporary scoped sync overwrote an unmanaged active target'
+  elif grep -Fxq divergent "$divergent_home/.agents/mcp-targets.json" \
     && [[ -e "$divergent_home/.retired-agent-config-probe" ]] \
+    && [[ ! -e "$script_marker" ]] \
     && [[ "$(tr '\n' ' ' <"$divergent_log")" == 'source strict ' ]]; then
-    pass 'temporary sync command blocks unmanaged targets before full apply'
+    pass 'temporary scoped sync blocks unmanaged active targets before retirement apply'
   else
-    err 'temporary sync command unmanaged-target preflight was not atomic'
+    err 'temporary scoped sync unmanaged-target preflight was not atomic'
   fi
 
-  for mode in failure empty; do
-    rm -f "$apply_marker" "$enumeration_log" "$enumeration_error"
-    if HOME="$enumeration_home" CHEZMOI_SOURCE_DIR="$flow_source" \
-      SYNC_FLOW_LOG="$enumeration_log" MOCK_MANAGED_MODE="$mode" \
-      MOCK_APPLY_MARKER="$apply_marker" TMPDIR="$enumeration_tmp" \
-      PATH="$mock_bin:$PATH" \
-      "$enumeration_home/.local/bin/agent-config-sync" apply \
-      >/dev/null 2>"$enumeration_error"; then
-      err "temporary sync command accepted managed enumeration $mode"
-    elif [[ ! -e "$apply_marker" ]] \
-      && ! compgen -G "$enumeration_tmp/agent-config-sync-managed.*" >/dev/null \
-      && [[ "$(tr '\n' ' ' <"$enumeration_log")" == 'source strict ' ]] \
-      && grep -Fq "managed target enumeration $mode" "$enumeration_error"; then
-      pass "temporary sync command blocks apply on managed enumeration $mode"
+  for malformed in '' '/absolute-retirement'; do
+    printf '%s\n' "$malformed" >"$flow_source/.chezmoiremove"
+    rm -f "$malformed_log" "$malformed_error" "$script_marker"
+    if HOME="$malformed_home" CHEZMOI_SOURCE_DIR="$flow_source" \
+      SYNC_FLOW_LOG="$malformed_log" SYNC_SCRIPT_MARKER="$script_marker" \
+      "$malformed_home/.local/bin/agent-config-sync" apply \
+      >/dev/null 2>"$malformed_error"; then
+      err "temporary scoped sync accepted malformed retirement entry: ${malformed:-empty}"
+    elif [[ ! -e "$script_marker" ]] \
+      && [[ "$(tr '\n' ' ' <"$malformed_log")" == 'source strict ' ]] \
+      && grep -Fq 'retirement list' "$malformed_error"; then
+      pass "temporary scoped sync rejects malformed retirement entry: ${malformed:-empty}"
     else
-      err "temporary sync command did not fail closed on managed enumeration $mode"
+      err "temporary scoped sync did not fail closed on malformed retirement entry: ${malformed:-empty}"
     fi
   done
+  printf '%s\n' .retired-agent-config-probe >"$flow_source/.chezmoiremove"
 }
 
 check_primary_global_live_regressions() {
-  local target log
-  local -a targets=(
+  local target log log_name
+  local -a drift_targets=(
     "$DEST/.claude/CLAUDE.md"
     "$DEST/.claude/settings.json"
+    "$DEST/.claude/rules/context7.md"
+    "$DEST/.claude/skills/kickoff/SKILL.md"
     "$DEST/.zshrc"
     "$DEST/.bashrc"
   )
 
   if (fail=0; check_live_primary_global_targets "$DEST" >/dev/null; [[ "$fail" -eq 0 ]]); then
-    pass 'temporary primary global live targets match managed state'
+    pass 'temporary primary global live targets include Claude rules and skills'
   else
     err 'temporary primary global live baseline was rejected'
     return
   fi
 
-  for target in "${targets[@]}"; do
+  for target in "${drift_targets[@]}"; do
     printf '\nmanaged-live-drift\n' >>"$target"
-    log="$TMP/primary-global-live-$(basename "$target").log"
+    log_name="${target#"$DEST/"}"
+    log_name="${log_name//\//_}"
+    log="$TMP/primary-global-live-${log_name}.log"
     if (fail=0; check_live_primary_global_targets "$DEST"; [[ "$fail" -ne 0 ]]) \
       >"$log" 2>&1; then
       pass "temporary primary global live drift rejected: ${target#"$DEST/"}"
@@ -695,6 +760,24 @@ check_manifest_and_sources() {
       err "symlink source $link_src expected '$expected' got '$got'"
     fi
   done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
+}
+
+check_legacy_model_skill_absence() {
+  local managed_log="$TMP/managed-legacy-model-skills.log"
+  if jq -e '.skills | (has("codex") | not) and (has("grok") | not)' \
+    "$MANIFEST" >/dev/null 2>&1; then
+    pass 'manifest has no legacy codex/grok skill entries'
+  else
+    err 'manifest still contains a legacy codex/grok skill entry'
+  fi
+
+  if chezmoi "${SRC[@]}" managed --include=files,symlinks --path-style=absolute \
+    >"$managed_log" \
+    && ! grep -Eq '/\.claude/skills/(codex|grok)(/|$)' "$managed_log"; then
+    pass 'managed targets have no legacy Claude codex/grok skill paths'
+  else
+    err 'managed targets contain or could not check legacy Claude codex/grok skill paths'
+  fi
 }
 
 check_skill_lock_retirements() {
@@ -1017,9 +1100,7 @@ check_live_portable_links() {
     fi
 
     if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-      if known_legacy_model_skill "$skill" "$link"; then
-        pass "live legacy model skill is safely migratable: $harness/$skill"
-      elif [[ -d "$canon" && -d "$link" ]] && dirs_identical "$link" "$canon"; then
+      if [[ -d "$canon" && -d "$link" ]] && dirs_identical "$link" "$canon"; then
         pass "live path identical to canonical (migratable): $harness/$skill"
       else
         err "live non-symlink path differs from canonical: $link"
@@ -1063,14 +1144,16 @@ check_live_primary_global_targets() {
   local -a targets=(
     "${target_root}/.claude/CLAUDE.md"
     "${target_root}/.claude/settings.json"
+    "${target_root}/.claude/rules"
+    "${target_root}/.claude/skills"
     "${target_root}/.zshrc"
     "${target_root}/.bashrc"
   )
 
   if chezmoi "${SRC[@]}" --destination "$target_root" verify "${targets[@]}" >/dev/null 2>&1; then
-    pass 'live primary global Claude and shell targets match managed state'
+    pass 'live global Claude policy, settings, rules, skills, and shell targets match managed state'
   else
-    err 'live primary global Claude or shell target differs from managed state'
+    err 'live global Claude policy, settings, rules, skills, or shell target differs from managed state'
   fi
 }
 
@@ -1128,6 +1211,7 @@ if [[ "$MODE" == live ]]; then
   SOUL_LIVE="${HOME}/.hermes/SOUL.md"
   NOUS_DEFAULT='You are Hermes Agent, an intelligent AI assistant created by Nous Research.'
   check_omp_agent_override_sources
+  check_live_retired_targets
 
   if [[ ! -e "$GROK_LIVE" ]]; then
     err "live Grok AGENTS missing: $GROK_LIVE"
@@ -1326,6 +1410,7 @@ TMP_SRC=("${SRC[@]}" --persistent-state "$TMP/temp-state.boltdb")
 
 check_retired_target_removals
 check_retired_target_apply
+check_live_retired_target_regressions
 check_active_retired_references
 check_sync_command_flow
 
@@ -1623,6 +1708,7 @@ for path in "${RETIRED_SOURCE_PATHS[@]}"; do
   source_absent "$path"
 done
 check_manifest_and_sources
+check_legacy_model_skill_absence
 check_skill_lock_retirements
 check_omp_agent_override_sources
 check_mcp_registry_and_config
@@ -1803,8 +1889,6 @@ else
     || err 'temp OpenCode memory cutover apply mismatch'
 fi
 
-check_primary_global_live_regressions
-
 if [[ -d "$DEST/.agents/skills/context7-mcp" ]]; then
   mkdir -p "$DEST/.claude/skills"
   rm -rf "$DEST/.claude/skills/context7-mcp"
@@ -1867,6 +1951,8 @@ while IFS=$'\t' read -r skill harness; do
   pass "temp portable ok: $harness/$skill"
 done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
 
+check_primary_global_live_regressions
+
 PENDING_FILE="$TMP/managed-pending-drift"
 printf '%s\n' managed >"$PENDING_FILE"
 read -r PENDING_HASH _ < <(sha256sum "$PENDING_FILE")
@@ -1897,9 +1983,14 @@ if [[ -f "$ROOT/dot_local/bin/executable_agent-config-sync" ]]; then
   grep -Fq 'preflight_unmanaged_targets' "$ROOT/dot_local/bin/executable_agent-config-sync" \
     && pass 'agent-config-sync protects unmanaged first-apply targets' \
     || err 'agent-config-sync missing unmanaged-target preflight'
-  grep -Fq 'chezmoi "${SRC[@]}" apply --force --no-tty' "$ROOT/dot_local/bin/executable_agent-config-sync" \
-    && pass 'agent-config-sync uses full managed-source apply' \
-    || err 'agent-config-sync missing full managed-source apply'
+  grep -Fq 'chezmoi "${SRC[@]}" apply --force --no-tty --' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    && grep -Fq '"${active_targets[@]}" "${retired_targets[@]}"' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    && pass 'agent-config-sync applies only scoped active and retirement targets' \
+    || err 'agent-config-sync missing scoped active/retirement apply'
+  ! grep -Eq '^known_legacy_model_skill\(\)' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    && ! grep -Eq '^known_legacy_model_skill\(\)' "$ROOT/scripts/check-agent-config-sync.sh" \
+    && pass 'obsolete legacy model skill hash helpers removed' \
+    || err 'obsolete legacy model skill hash helper remains'
   ! grep -Eq 'LIVE_PROFILE_ROLE|PROFILE_ROLE|agentProfile|require-portable-links|bootstrap_real_gh|remove_main_profile_paths|claude-personal' \
     "$ROOT/dot_local/bin/executable_agent-config-sync" \
     && pass 'agent-config-sync excludes split-profile orchestration' \
