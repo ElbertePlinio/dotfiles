@@ -52,13 +52,6 @@ Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious 
 - For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation. If the repo has a more specific design skill, use it as an overlay on the general workflow.
 - Tiny fixes already determined by the repo's existing tokens or components can use the skill's light path.
 
-## Personal project isolation
-
-- When `~/Projects/Personal/.agent-safety` exists, access defaults to `~/Projects/Personal` and descendants. Outside access requires the exact path and action in the request.
-- Do not follow symlinks outside it or reuse company context, credentials, caches, or config.
-- Before Personal GitHub mutations or pushes, run `~/Projects/Personal/.agent-safety/verify-personal-github` to verify `ElbertePlinio`. Stop on failure; never switch accounts.
-- `claude-acorns` is company-only and forbidden there; use only a user-approved personal profile.
-
 ## Git and pull requests
 
 - Protect user work. Check status before staging, committing, merging, or cleaning.
