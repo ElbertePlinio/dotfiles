@@ -917,6 +917,12 @@ if [[ "$MODE" == live ]]; then
     check_live_split_profile_targets
   fi
 
+  if jq -e '.enabledModels | any(. == "xai/grok-4.5")' "$HOME/.pi/agent/settings.json" >/dev/null 2>&1; then
+    pass 'live Pi enabled models include native Grok 4.5'
+  else
+    err 'live Pi enabled models missing native Grok 4.5'
+  fi
+
   echo
   [[ "$fail" -eq 0 ]] && { echo "PASSED: live migration checks"; exit 0; }
   echo "FAILED: live migration checks"; exit 1
@@ -1116,6 +1122,13 @@ for entry in "${ADAPTER_OWNER_POINTERS[@]}"; do
     || err "$harness adapter missing routing owner pointer: $pointer"
 done
 
+grep -Fq '| Grok 4.5 | `xai/grok-4.5` | high | 3 | 7 | 6 | yes |' dot_pi/agent/AGENTS.md.tmpl \
+  && pass 'Pi routing table includes calibrated native Grok 4.5' \
+  || err 'Pi routing table missing calibrated native Grok 4.5'
+grep -Fq '| Grok 4.5 | `xai-oauth/grok-4.5` | high | 3 | 7 | 6 | yes |' dot_omp/agent/AGENTS.md.tmpl \
+  && pass 'OMP routing table includes calibrated Grok 4.5' \
+  || err 'OMP routing table missing calibrated Grok 4.5'
+
 if grep -Fq 'await agent(prompt' dot_omp/agent/AGENTS.md.tmpl \
   && grep -Fq '`parallel()`' dot_omp/agent/AGENTS.md.tmpl \
   && grep -Fq 'The main model owns scope' dot_omp/agent/AGENTS.md.tmpl; then
@@ -1140,6 +1153,12 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
     jq -e 'any(.. | strings; ascii_downcase | contains("haiku"))' >/dev/null <<<"$pi_settings" \
       && err 'Pi settings contain a forbidden Haiku selector' \
       || pass 'Pi settings contain no Haiku selector'
+    jq -e '.enabledModels | any(. == "xai/grok-4.5")' >/dev/null <<<"$pi_settings" \
+      && pass 'Pi enabled models include native Grok 4.5' \
+      || err 'Pi enabled models missing native Grok 4.5'
+    jq -e '.defaultProvider == "xai" and .defaultModel == "grok-4.5" and .defaultThinkingLevel == "high"' >/dev/null <<<"$pi_settings" \
+      && pass 'Pi canonical bootstrap defaults to native Grok 4.5 at high effort' \
+      || err 'Pi canonical native Grok 4.5 bootstrap default is missing or misconfigured'
   else
     err 'Pi settings JSON invalid'
   fi
