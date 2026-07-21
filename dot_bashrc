@@ -17,5 +17,5 @@ alias claude-mem='bun "/home/dev/.claude/plugins/marketplaces/thedotmack/plugin/
 alias ccu='bunx ccusage --compact'
 
 claude() {
-  "$HOME/.local/bin/claude-default" "$@"
+  command claude --dangerously-skip-permissions "$@"
 }

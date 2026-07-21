@@ -8,12 +8,6 @@
       "discovery": "symlink",
       "relative_prefix": "../../.agents/skills"
     },
-    "claude-portable": {
-      "skills_root": "~/.claude-personal/skills",
-      "source_root": "dot_claude-personal/skills",
-      "discovery": "symlink",
-      "relative_prefix": "../../.agents/skills"
-    },
     "codex": {
       "skills_root": "~/.agents/skills",
       "source_root": "dot_agents/skills",
@@ -62,14 +56,12 @@
     ],
     "context7-mcp": [
       "claude",
-      "claude-portable",
       "codex",
       "pi",
       "omp"
     ],
     "design-director": [
       "claude",
-      "claude-portable",
       "codex",
       "grok",
       "pi",
@@ -78,7 +70,6 @@
     ],
     "improve": [
       "claude",
-      "claude-portable",
       "codex",
       "grok",
       "pi",
@@ -87,7 +78,6 @@
     ],
     "find-skills": [
       "claude",
-      "claude-portable",
       "codex",
       "grok",
       "pi",
@@ -108,7 +98,6 @@
     ],
     "model-runners": [
       "claude",
-      "claude-portable",
       "codex",
       "grok",
       "pi",
@@ -117,7 +106,6 @@
     ],
     "codebase-design": [
       "claude",
-      "claude-portable",
       "codex",
       "grok",
       "pi",
@@ -126,7 +114,6 @@
     ],
     "diagnosing-bugs": [
       "claude",
-      "claude-portable",
       "codex",
       "grok",
       "pi",
