@@ -521,6 +521,8 @@ check_sync_command_flow() {
   local malformed_home="$TMP/sync-flow-malformed-home"
   local flow_log="$TMP/sync-flow.log"
   local flow_error="$TMP/sync-flow.err"
+  local all_absent_log="$TMP/sync-flow-all-absent.log"
+  local all_absent_error="$TMP/sync-flow-all-absent.err"
   local divergent_log="$TMP/sync-flow-divergent.log"
   local malformed_log="$TMP/sync-flow-malformed.log"
   local malformed_error="$TMP/sync-flow-malformed.err"
@@ -599,7 +601,10 @@ else
 fi >>"$SYNC_FLOW_LOG"
 EOF
   printf '%s\n' scripts >"$flow_source/.chezmoiignore"
-  printf '%s\n' .retired-agent-config-probe >"$flow_source/.chezmoiremove"
+  printf '%s\n' \
+    .retired-agent-config-probe \
+    .absent-retired-agent-config-probe \
+    >"$flow_source/.chezmoiremove"
   for source_path in "${active_source_files[@]}"; do
     if [[ "$source_path" == */* ]]; then
       mkdir -p "$flow_source/${source_path%/*}"
@@ -642,18 +647,47 @@ EOF
       && grep -Fxq managed "$flow_home/.factory/hooks/kde-notify.sh" \
       && [[ -L "$flow_home/.pi/agent/skills/probe" ]] \
       && [[ "$(readlink "$flow_home/.pi/agent/skills/probe")" == '../../../.agents/skills/probe' ]] \
-      && [[ ! -e "$flow_home/.retired-agent-config-probe" ]] \
+      && [[ ! -e "$flow_home/.retired-agent-config-probe" \
+        && ! -L "$flow_home/.retired-agent-config-probe" ]] \
+      && [[ ! -e "$flow_home/.absent-retired-agent-config-probe" \
+        && ! -L "$flow_home/.absent-retired-agent-config-probe" ]] \
       && grep -Fxq original-unrelated "$flow_home/.unrelated-agent-config-probe" \
       && [[ ! -e "$script_marker" ]] \
       && cmp -s "$expected_log" "$flow_log"; then
       pass 'temporary scoped sync applies browser-use policy target'
       pass 'temporary scoped sync applies Factory kde-notify hook target'
+      pass 'temporary scoped sync removes present retirement and skips absent retirement'
       pass 'temporary sync applies only agent targets and retirements without run scripts'
     else
       err 'temporary scoped sync changed an unrelated target, ran a script, or missed agent cleanup'
     fi
   else
     err "temporary scoped sync command apply/check-live flow failed: $(tr '\n' ' ' <"$flow_error")"
+  fi
+
+  printf '%s\n' intended-agent-probe-all-retirements-absent \
+    >"$flow_source/dot_agents/mcp-targets.json"
+  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$all_absent_log" \
+    SYNC_SCRIPT_MARKER="$script_marker" \
+    "$flow_home/.local/bin/agent-config-sync" apply >/dev/null 2>"$all_absent_error" \
+    && HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$all_absent_log" \
+      "$flow_home/.local/bin/agent-config-sync" check-live >/dev/null 2>&1; then
+    printf '%s\n' source strict live live >"$expected_log"
+    if grep -Fxq intended-agent-probe-all-retirements-absent \
+      "$flow_home/.agents/mcp-targets.json" \
+      && [[ ! -e "$flow_home/.retired-agent-config-probe" \
+        && ! -L "$flow_home/.retired-agent-config-probe" ]] \
+      && [[ ! -e "$flow_home/.absent-retired-agent-config-probe" \
+        && ! -L "$flow_home/.absent-retired-agent-config-probe" ]] \
+      && [[ ! -e "$script_marker" ]] \
+      && cmp -s "$expected_log" "$all_absent_log"; then
+      pass 'temporary scoped sync applies active targets when all retirements are absent'
+      pass 'temporary scoped sync live check succeeds when all retirements are absent'
+    else
+      err 'temporary scoped sync missed active apply or live check with all retirements absent'
+    fi
+  else
+    err "temporary scoped sync all-absent retirement flow failed: $(tr '\n' ' ' <"$all_absent_error")"
   fi
 
   if HOME="$divergent_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$divergent_log" \
@@ -685,7 +719,10 @@ EOF
       err "temporary scoped sync did not fail closed on malformed retirement entry: ${malformed:-empty}"
     fi
   done
-  printf '%s\n' .retired-agent-config-probe >"$flow_source/.chezmoiremove"
+  printf '%s\n' \
+    .retired-agent-config-probe \
+    .absent-retired-agent-config-probe \
+    >"$flow_source/.chezmoiremove"
 }
 
 check_primary_global_live_regressions() {
@@ -2038,8 +2075,9 @@ if [[ -f "$ROOT/dot_local/bin/executable_agent-config-sync" ]]; then
   grep -Fq 'preflight_unmanaged_targets' "$ROOT/dot_local/bin/executable_agent-config-sync" \
     && pass 'agent-config-sync protects unmanaged first-apply targets' \
     || err 'agent-config-sync missing unmanaged-target preflight'
-  grep -Fq 'chezmoi "${SRC[@]}" apply --force --no-tty --' "$ROOT/dot_local/bin/executable_agent-config-sync" \
-    && grep -Fq '"${active_targets[@]}" "${retired_targets[@]}"' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+  grep -Fq 'apply_targets=("${active_targets[@]}")' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+    && grep -Fq 'chezmoi "${SRC[@]}" apply --force --no-tty -- "${apply_targets[@]}"' \
+      "$ROOT/dot_local/bin/executable_agent-config-sync" \
     && pass 'agent-config-sync applies only scoped active and retirement targets' \
     || err 'agent-config-sync missing scoped active/retirement apply'
   ! grep -Eq '^known_legacy_model_skill\(\)' "$ROOT/dot_local/bin/executable_agent-config-sync" \
