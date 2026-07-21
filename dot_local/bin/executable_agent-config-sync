@@ -73,7 +73,7 @@ portable_link_targets() {
 }
 
 load_retired_targets() {
-  local path seen='|'
+  local path live seen='|'
   [[ -s "$RETIREMENT_LIST" ]] || {
     echo "agent-config-sync: retirement list is missing or empty: $RETIREMENT_LIST" >&2
     return 1
@@ -91,13 +91,11 @@ load_retired_targets() {
       return 1
     fi
     seen="${seen}${path}|"
-    retired_targets+=("$HOME/$path")
+    live="$HOME/$path"
+    if [[ -e "$live" || -L "$live" ]]; then
+      apply_targets+=("$live")
+    fi
   done <"$RETIREMENT_LIST"
-
-  if [[ "${#retired_targets[@]}" -eq 0 ]]; then
-    echo "agent-config-sync: retirement list produced no targets" >&2
-    return 1
-  fi
 }
 
 preflight_unmanaged_targets() {
@@ -186,7 +184,7 @@ cmd_apply() {
     "${HOME}/.claude/skills/plan-issue"
     "${HOME}/.claude/skills/x-research"
   )
-  local -a retired_targets=()
+  local -a apply_targets=()
 
   cmd_check
   cmd_strict_preflight
@@ -217,10 +215,10 @@ cmd_apply() {
     echo "agent-config-sync: active target list is empty" >&2
     return 1
   fi
+  apply_targets=("${active_targets[@]}")
   load_retired_targets
   preflight_unmanaged_targets "${active_targets[@]}"
-  chezmoi "${SRC[@]}" apply --force --no-tty -- \
-    "${active_targets[@]}" "${retired_targets[@]}"
+  chezmoi "${SRC[@]}" apply --force --no-tty -- "${apply_targets[@]}"
   bash "$CHECK" --check-live-migration
 }
 
