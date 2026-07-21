@@ -26,6 +26,15 @@ pass() { printf 'OK  %s\n' "$*"; }
 err()  { printf 'ERR %s\n' "$*" >&2; fail=1; }
 need() { [[ -f "$1" ]] || err "missing: $1"; }
 
+source_absent() {
+  local path="$1"
+  if [[ -e "$ROOT/$path" || -L "$ROOT/$path" ]]; then
+    err "retired source remains: $path"
+  else
+    pass "retired source absent: $path"
+  fi
+}
+
 expand_home() {
   local p="$1"
   if [[ "$p" == "~/"* ]]; then
@@ -158,11 +167,39 @@ check_live_omp_agent_overrides() {
 
 
 MANIFEST="$ROOT/dot_agents/skill-targets.json"
+SKILL_LOCK="$ROOT/dot_agents/dot_skill-lock.json"
 MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"
 OMP_MCP="$ROOT/dot_omp/agent/mcp.json"
 OMP_AGENT_OVERRIDES_DIR="$ROOT/dot_omp/agent/agents"
 OMP_TASK_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/task.md"
 OMP_REVIEWER_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/reviewer.md"
+
+RETIRED_SOURCE_PATHS=(
+  dot_claude-personal
+  dot_config/agent-profiles
+  dot_config/rtk
+  Projects/Personal/dot_codex
+  Projects/Personal/private_dot_agent-safety
+  dot_local/bin/executable_claude-profile
+  dot_local/bin/executable_claude-default
+  dot_local/bin/executable_claude-personal
+  dot_local/bin/executable_agent-profile-doctor
+  dot_claude/private_RTK.md
+  private_dot_factory/bin/executable_frun
+  .chezmoitemplates/claude-restricted.md
+  .chezmoitemplates/claude-personal-lite.md
+)
+
+RETIRED_SKILL_LOCK_ENTRIES=(
+  caveman
+  caveman-commit
+  caveman-compress
+  caveman-help
+  caveman-review
+  caveman-stats
+  cavecrew
+  compress
+)
 
 RUNTIME_SOURCE_PATHS=(
   private_dot_hermes/private_skills/dot_curator_backups
@@ -284,6 +321,7 @@ check_runtime_exclusions() {
     grep -Fxq "$path" "$ROOT/.chezmoiignore" || err "runtime ignore missing: $path"
   done
   [[ "$fail" -eq 0 ]] && pass 'runtime state excluded from chezmoi source'
+  return 0
 }
 
 check_manifest_and_sources() {
@@ -293,6 +331,17 @@ check_manifest_and_sources() {
     return
   fi
   pass "manifest JSON valid"
+
+  if jq -e '.harnesses | has("claude-portable") | not' "$MANIFEST" >/dev/null; then
+    pass 'manifest has no retired claude-portable harness'
+  else
+    err 'manifest still defines retired claude-portable harness'
+  fi
+  if jq -e '.skills | all(.[]; all(.[]; . != "claude-portable"))' "$MANIFEST" >/dev/null; then
+    pass 'manifest skill targets exclude retired claude-portable harness'
+  else
+    err 'manifest skill targets still contain retired claude-portable harness'
+  fi
 
   local skill harness src_root rel_prefix expected link_src
   local -a skills
@@ -368,6 +417,33 @@ check_manifest_and_sources() {
       err "symlink source $link_src expected '$expected' got '$got'"
     fi
   done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
+}
+
+check_skill_lock_retirements() {
+  need "$SKILL_LOCK"
+  [[ -f "$SKILL_LOCK" ]] || return 0
+  if ! jq -e . "$SKILL_LOCK" >/dev/null 2>&1; then
+    err "skill lock is not valid JSON: $SKILL_LOCK"
+    return
+  fi
+  pass 'skill lock JSON valid'
+
+  local retired_json present
+  retired_json="$(printf '%s\n' "${RETIRED_SKILL_LOCK_ENTRIES[@]}" | jq -R . | jq -s .)"
+  if jq -e --argjson retired "$retired_json" '
+    .skills as $skills
+    | all($retired[]; . as $skill | $skills | has($skill) | not)
+  ' "$SKILL_LOCK" >/dev/null; then
+    pass 'skill lock excludes retired caveman entries'
+  else
+    present="$(jq -r --argjson retired "$retired_json" '
+      .skills as $skills
+      | $retired
+      | map(select(. as $skill | $skills | has($skill)))
+      | join(", ")
+    ' "$SKILL_LOCK")"
+    err "skill lock still contains retired entries: $present"
+  fi
 }
 
 validate_omp_mcp_credentials() {
@@ -1057,6 +1133,7 @@ if render .chezmoitemplates/agents-shared.md "$TMP/agents-shared.md"; then
   done
 else
   err 'shared template render failed'
+  rm -f "$TMP/agents-shared.md"
 fi
 
 if grep -Fq 'CODING_AGENT_RULES.md' "$TMP/agents-shared.md"; then
@@ -1064,6 +1141,22 @@ if grep -Fq 'CODING_AGENT_RULES.md' "$TMP/agents-shared.md"; then
 else
   pass 'shared global harness loader excludes CODING_AGENT_RULES'
 fi
+
+if [[ -f "$TMP/agents-shared.md" ]]; then
+  if grep -Fq '.agent-safety' "$TMP/agents-shared.md"; then
+    err 'shared policy still contains retired .agent-safety instructions'
+  else
+    pass 'shared policy excludes retired .agent-safety instructions'
+  fi
+fi
+for invariant in \
+  '- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects.' \
+  '- Pickforge or Personal means the repo path or GitHub remote makes that ownership clear' \
+  '- In clearly identified Pickforge or Personal projects, treat ship/open-PR as automatic'; do
+  grep -Fq -- "$invariant" "$TMP/agents-shared.md" \
+    && pass "shared policy retains permission: $invariant" \
+    || err "shared policy permission missing: $invariant"
+done
 
 need "$OPENCODE"
 for invariant in CORE_PROFILE.md WRITING_STYLE.md BOUNDARIES.md WORK_AND_PROJECTS.md 'projects/*.md'; do
@@ -1075,6 +1168,23 @@ grep -Fq 'CODING_AGENT_RULES.md' "$OPENCODE" \
   && err 'OpenCode global harness loader must not auto-load CODING_AGENT_RULES' \
   || pass 'OpenCode global harness loader excludes CODING_AGENT_RULES'
 
+
+if [[ -f .chezmoitemplates/zshrc-linux ]]; then
+  linux_claude_codex="$(awk '
+    /^claude-codex\(\) \{/ { in_function=1 }
+    in_function { print }
+    in_function && /^}/ { exit }
+  ' .chezmoitemplates/zshrc-linux)"
+  if grep -Fq 'CLAUDE_CONFIG_DIR="$HOME/.claude"' <<<"$linux_claude_codex" \
+    && ! grep -Fq '.claude-personal' <<<"$linux_claude_codex"; then
+    pass 'Linux claude-codex selects only the global Claude profile'
+  else
+    err 'Linux claude-codex does not select only the global Claude profile'
+  fi
+  unset linux_claude_codex
+else
+  err 'missing: .chezmoitemplates/zshrc-linux'
+fi
 
 need "$SOUL"
 grep -q '/home/dev/AgentMemory' "$SOUL" || err 'Hermes SOUL missing AgentMemory'
@@ -1249,7 +1359,11 @@ else
 fi
 unset local_review
 
+for path in "${RETIRED_SOURCE_PATHS[@]}"; do
+  source_absent "$path"
+done
 check_manifest_and_sources
+check_skill_lock_retirements
 check_omp_agent_override_sources
 check_mcp_registry_and_config
 check_runtime_exclusions
@@ -1286,6 +1400,9 @@ if render_profile main dot_claude/CLAUDE.md.tmpl "$MAIN_CLAUDE_OUT"; then
     && grep -Fq 'model-routing.md' "$MAIN_CLAUDE_OUT" \
     && pass 'main Claude profile renders full personal orchestration' \
     || err 'main Claude profile is missing full personal policy'
+  grep -Fq '@RTK.md' "$MAIN_CLAUDE_OUT" \
+    && err 'global Claude policy still loads retired RTK instructions' \
+    || pass 'global Claude policy excludes retired RTK instructions'
 else
   err 'main Claude profile render failed'
 fi
