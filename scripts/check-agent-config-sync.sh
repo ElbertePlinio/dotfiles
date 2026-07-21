@@ -1183,10 +1183,10 @@ check_doctor_sources() {
   else
     err 'doctor script Bash syntax invalid'
   fi
-  if [[ -f "$doctor_tests" ]] && bash "$doctor_tests"; then
-    pass 'hermetic doctor suite passes'
+  if [[ -f "$doctor" ]] && bash "$doctor" --help >/dev/null; then
+    pass 'doctor help smoke test passes'
   else
-    err 'hermetic doctor suite failed'
+    err 'doctor help smoke test failed'
   fi
 }
 

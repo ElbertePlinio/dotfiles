@@ -14,6 +14,7 @@ CATALOG="${AGENT_DOCTOR_CATALOG:-}"
 TMP=''
 RESULTS=''
 SOURCE=''
+ACTIVE_PID=''
 
 usage() {
   cat <<'EOF'
@@ -48,19 +49,40 @@ expand_home() {
 cleanup() {
   [[ -n "$TMP" ]] && rm -rf "$TMP"
 }
-trap cleanup EXIT HUP INT TERM
+handle_signal() {
+  local signal="$1" code="$2"
+  trap - INT TERM HUP
+  if [[ -n "$ACTIVE_PID" ]]; then
+    local attempts=0
+    kill -"$signal" -- "-$ACTIVE_PID" 2>/dev/null || kill -"$signal" "$ACTIVE_PID" 2>/dev/null || true
+    while kill -0 "$ACTIVE_PID" 2>/dev/null && [[ "$attempts" -lt 10 ]]; do
+      sleep 0.1
+      attempts=$((attempts + 1))
+    done
+    if kill -0 "$ACTIVE_PID" 2>/dev/null; then
+      kill -KILL -- "-$ACTIVE_PID" 2>/dev/null || kill -KILL "$ACTIVE_PID" 2>/dev/null || true
+    fi
+    wait "$ACTIVE_PID" 2>/dev/null || true
+    ACTIVE_PID=''
+  fi
+  exit "$code"
+}
+trap cleanup EXIT
+trap 'handle_signal INT 130' INT
+trap 'handle_signal TERM 143' TERM
+trap 'handle_signal HUP 129' HUP
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
-      [[ $# -ge 2 && -n "$2" ]] || usage_error '--config requires a path'
+      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || usage_error '--config requires a path'
       CONFIG="$2"
       shift 2
       ;;
     --config=*) CONFIG="${1#*=}"; [[ -n "$CONFIG" ]] || usage_error '--config requires a path'; shift ;;
     --json) JSON_MODE=1; shift ;;
     --only)
-      [[ $# -ge 2 && -n "$2" ]] || usage_error '--only requires a harness name'
+      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || usage_error '--only requires a harness name'
       ONLY="$2"
       shift 2
       ;;
@@ -126,7 +148,15 @@ validate_catalog() {
         (.value.displayName | type == "string" and length > 0) and
         (.value.binary | type == "string" and length > 0) and
         (.value.versionArgs | type == "array" and all(.[]; type == "string")) and
-        (.value.configPaths | type == "array" and all(.[]; type == "string" and length > 0))))
+        (.value.configPaths | type == "array" and all(.[]; type == "string" and length > 0)) and
+        ((.value.mcp? // null) as $m | $m == null or
+          ($m | type == "object" and (.path | type == "string" and length > 0) and
+            (.root | type == "string" and length > 0) and
+            ((has("disabledKey") | not) or (.disabledKey | type == "string" and length > 0)))))) and
+    (.harnesses.pi.providerAuth as $auth |
+      ($auth.path | type == "string" and length > 0) and
+      ($auth.modelsPath | type == "string" and length > 0) and
+      ($auth.env | type == "object" and all(.[]; type == "array" and all(.[]; type == "string" and length > 0))))
   ' "$CATALOG" >/dev/null 2>&1
 }
 
@@ -139,6 +169,7 @@ validate_requirements() {
     (.providers | type == "object") and
     (.mcp | type == "object") and
     (($req.harnesses - ($cat[0].harnesses | keys)) | length == 0) and
+    (($req.providers | keys) - ["pi"] | length == 0) and
     ((($req.providers | keys) - $req.harnesses) | length == 0) and
     ((($req.mcp | keys) - $req.harnesses) | length == 0) and
     (all(.providers[];
@@ -155,25 +186,28 @@ sanitize_line() {
 run_capture() {
   local seconds="$1" output="$2"
   shift 2
-  local pid elapsed=0 rc
-  # Monitor mode gives the child its own process group on Bash 3.2. Killing that
-  # group reaches normal descendants; a child that deliberately escapes it may survive.
+  local pid ticks=0 max_ticks rc
+  max_ticks=$((seconds * 10))
+  # Monitor mode gives the child its own process group on Bash 3.2.
   set -m
-  "$@" >"$output" 2>&1 &
+  "$@" </dev/null >"$output" 2>&1 &
   pid=$!
+  ACTIVE_PID="$pid"
   set +m
   while kill -0 "$pid" 2>/dev/null; do
-    if [[ "$elapsed" -ge "$seconds" ]]; then
+    if [[ "$ticks" -ge "$max_ticks" ]]; then
       kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-      sleep 1
+      sleep 0.1
       kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
+      ACTIVE_PID=''
       return 124
     fi
-    sleep 1
-    elapsed=$((elapsed + 1))
+    sleep 0.1
+    ticks=$((ticks + 1))
   done
   if wait "$pid"; then rc=0; else rc=$?; fi
+  ACTIVE_PID=''
   return "$rc"
 }
 
@@ -247,20 +281,33 @@ check_harness() {
 }
 
 check_providers() {
-  local harness provider auth_path
+  local harness provider auth_path models_path api_key env_name present=0
   while IFS=$'\t' read -r harness provider; do
-    if [[ "$harness" == pi ]]; then
-      auth_path="$(jq -r '.harnesses.pi.providerAuth.path' "$CATALOG")"
-      auth_path="$(expand_home "$auth_path")"
-      if [[ ! -f "$auth_path" ]]; then
-        add_check "provider.$harness.$provider" fail true "$harness" "$auth_path is missing"
-      elif ! jq -e --arg provider "$provider" 'type == "object" and has($provider)' "$auth_path" >/dev/null 2>&1; then
-        add_check "provider.$harness.$provider" fail true "$harness" "provider credential entry $provider is absent"
-      else
-        add_check "provider.$harness.$provider" pass true "$harness" "provider credential entry $provider is present"
-      fi
+    present=0
+    auth_path="$(expand_home "$(jq -r '.harnesses.pi.providerAuth.path' "$CATALOG")")"
+    models_path="$(expand_home "$(jq -r '.harnesses.pi.providerAuth.modelsPath' "$CATALOG")")"
+    if [[ -f "$auth_path" ]] && jq -e --arg provider "$provider" 'type == "object" and has($provider)' "$auth_path" >/dev/null 2>&1; then
+      present=1
+    fi
+    while [[ "$present" -eq 0 ]] && IFS= read -r env_name; do
+      [[ -n "$env_name" ]] && printenv "$env_name" >/dev/null 2>&1 && present=1
+    done < <(jq -r --arg provider "$provider" '.harnesses.pi.providerAuth.env[$provider][]? // empty' "$CATALOG")
+    api_key=''
+    if [[ "$present" -eq 0 && -f "$models_path" ]]; then
+      api_key="$(jq -r --arg provider "$provider" '(.providers[$provider].apiKey // .[$provider].apiKey // empty) | select(type == "string")' "$models_path" 2>/dev/null || true)"
+      case "$api_key" in
+        '') ;;
+        '! '*) present=1 ;;
+        '!'*) present=1 ;;
+        '${'*'}') env_name="${api_key#'${'}"; env_name="${env_name%'}'}"; printenv "$env_name" >/dev/null 2>&1 && present=1 ;;
+        '$'*) env_name="${api_key#'$'}"; [[ "$env_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && printenv "$env_name" >/dev/null 2>&1 && present=1 ;;
+        *) present=1 ;;
+      esac
+    fi
+    if [[ "$present" -eq 1 ]]; then
+      add_check "provider.$harness.$provider" pass true "$harness" "provider credential configuration for $provider is present; remote validity was not checked"
     else
-      add_check "provider.$harness.$provider" unknown true "$harness" 'safe local credential inspection is not supported'
+      add_check "provider.$harness.$provider" fail true "$harness" "provider credential configuration for $provider is absent"
     fi
   done < <(jq -r --arg only "$ONLY" '.providers | to_entries[] | select($only == "" or .key == $only) | .key as $h | .value[] | [$h,.] | @tsv' "$CONFIG")
 }
@@ -270,7 +317,7 @@ mcp_descriptor() {
 }
 
 check_mcp() {
-  local harness server configured_path path root type url status output code command_name resolved env_name static_ok args_y
+  local harness server configured_path path root disabled_key type url status output code command_name resolved env_name static_ok args_y
   while IFS=$'\t' read -r harness server; do
     command_name=''
     if ! mcp_descriptor "$harness"; then
@@ -291,13 +338,43 @@ check_mcp() {
       [[ "$DEEP" -eq 1 ]] && add_check "mcp.$harness.$server.deep" skip true "$harness" 'deep check skipped because static registry entry is missing'
       continue
     fi
-    type="$(jq -r --arg root "$root" --arg server "$server" '.[$root][$server].type // (if (.[$root][$server].url? | type) == "string" then "http" else "stdio" end)' "$path" 2>/dev/null || true)"
-    url="$(jq -r --arg root "$root" --arg server "$server" '.[$root][$server].url // empty' "$path" 2>/dev/null || true)"
+    disabled_key="$(jq -r --arg h "$harness" '.harnesses[$h].mcp.disabledKey // empty' "$CATALOG")"
+    if ! jq -e --arg root "$root" --arg server "$server" --arg disabled "$disabled_key" '
+      ((.[$root][$server] | has("enabled") | not) or .[$root][$server].enabled != false)
+      and ($disabled == "" or (((.[$disabled] // []) | type) == "array" and ((.[$disabled] // []) | index($server)) == null))
+    ' "$path" >/dev/null 2>&1; then
+      add_check "mcp.$harness.$server.static" fail true "$harness" "MCP server $server is disabled"
+      [[ "$DEEP" -eq 1 ]] && add_check "mcp.$harness.$server.deep" skip true "$harness" 'deep check skipped because the server is disabled'
+      continue
+    fi
+    type="$(jq -r --arg root "$root" --arg server "$server" '.[$root][$server] | if has("type") then .type elif (.url? | type) == "string" then "http" else "stdio" end | if type == "string" then . else "__invalid__" end' "$path" 2>/dev/null || true)"
+    url="$(jq -r --arg root "$root" --arg server "$server" '.[$root][$server].url // empty | if type == "string" then . else "" end' "$path" 2>/dev/null || true)"
     static_ok=1
-    if [[ "$type" != http && "$type" != remote ]]; then
+    case "$type" in
+      http|remote)
+        if [[ ! "$url" =~ ^https?://[^/[:space:]]+(/[^[:space:]]*)?$ ]]; then
+          add_check "mcp.$harness.$server.static" fail true "$harness" "MCP server $server remote registration has an invalid HTTP URL"
+          static_ok=0
+        elif ! jq -e --arg root "$root" --arg server "$server" '
+          .[$root][$server] as $entry
+          | ((($entry.headers // {}) | type) == "object" and all(($entry.headers // {})[]; type == "string"))
+            and ((($entry.env // {}) | type) == "object" and all(($entry.env // {})[]; type == "string"))
+        ' "$path" >/dev/null 2>&1; then
+          add_check "mcp.$harness.$server.static" fail true "$harness" "MCP server $server remote registration is malformed"
+          static_ok=0
+        fi
+        ;;
+      stdio|local) ;;
+      *)
+        add_check "mcp.$harness.$server.static" fail true "$harness" "MCP server $server has an unsupported transport type"
+        static_ok=0
+        ;;
+    esac
+    if [[ "$static_ok" -eq 1 && "$type" != http && "$type" != remote ]]; then
       if ! jq -e --arg root "$root" --arg server "$server" '
         .[$root][$server] as $entry
-        | ($entry.command | type == "string" and length > 0)
+        | (($entry.command | type == "string" and length > 0)
+            or ($entry.command | type == "array" and length > 0 and all(.[]; type == "string")))
           and ((($entry.args // []) | type) == "array" and all($entry.args[]?; type == "string"))
           and ((($entry.env // {}) | type) == "object" and all(($entry.env // {})[]; type == "string"))
       ' "$path" >/dev/null 2>&1; then
@@ -305,7 +382,7 @@ check_mcp() {
         static_ok=0
       fi
       if [[ "$static_ok" -eq 1 ]]; then
-        command_name="$(jq -r --arg root "$root" --arg server "$server" '.[$root][$server].command' "$path")"
+        command_name="$(jq -r --arg root "$root" --arg server "$server" '.[$root][$server].command | if type == "array" then .[0] else . end' "$path")"
         case "$command_name" in
           '~'|'~/'*) resolved="$(expand_home "$command_name")" ;;
           */*) resolved="$command_name" ;;
@@ -316,28 +393,29 @@ check_mcp() {
           static_ok=0
         fi
       fi
-      while [[ "$static_ok" -eq 1 ]] && IFS= read -r env_name; do
-        [[ -n "$env_name" ]] || continue
-        if ! printenv "$env_name" >/dev/null 2>&1; then
-          add_check "mcp.$harness.$server.env.$env_name" fail true "$harness" "MCP server $server requires unset environment variable $env_name"
-          static_ok=0
-        else
-          add_check "mcp.$harness.$server.env.$env_name" pass true "$harness" "MCP server $server environment variable $env_name is set"
-        fi
-      done < <(jq -r --arg root "$root" --arg server "$server" '
-        .[$root][$server].env // {} | to_entries[] | .value
-        | if test("^\\$[A-Za-z_][A-Za-z0-9_]*$") then sub("^\\$"; "")
-          elif test("^\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}$") then sub("^\\$\\{"; "") | sub("\\}$"; "")
-          elif test("^\\{env:[A-Za-z_][A-Za-z0-9_]*\\}$") then sub("^\\{env:"; "") | sub("\\}$"; "")
-          else empty end
-      ' "$path" 2>/dev/null)
     fi
+    while [[ "$static_ok" -eq 1 ]] && IFS= read -r env_name; do
+      [[ -n "$env_name" ]] || continue
+      if ! printenv "$env_name" >/dev/null 2>&1; then
+        add_check "mcp.$harness.$server.env.$env_name" fail true "$harness" "MCP server $server requires unset environment variable $env_name"
+        static_ok=0
+      else
+        add_check "mcp.$harness.$server.env.$env_name" pass true "$harness" "MCP server $server environment variable $env_name is set"
+      fi
+    done < <(jq -r --arg root "$root" --arg server "$server" '
+      [((.[$root][$server].env // {}) | to_entries[]?.value), ((.[$root][$server].headers // {}) | to_entries[]?.value)][]
+      | select(type == "string")
+      | if test("^\\$[A-Za-z_][A-Za-z0-9_]*$") then sub("^\\$"; "")
+        elif test("^\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}$") then sub("^\\$\\{"; "") | sub("\\}$"; "")
+        elif test("^\\{env:[A-Za-z_][A-Za-z0-9_]*\\}$") then sub("^\\{env:"; "") | sub("\\}$"; "")
+        else empty end
+    ' "$path" 2>/dev/null)
     if [[ "$static_ok" -eq 1 ]]; then
       add_check "mcp.$harness.$server.static" pass true "$harness" "MCP server $server registration is valid"
     fi
     [[ "$DEEP" -eq 1 ]] || continue
     if [[ "$type" != http && "$type" != remote ]]; then
-      args_y="$(jq -r --arg root "$root" --arg server "$server" '[.[$root][$server].args[]? | select(. == "-y" or . == "--yes")] | length' "$path")"
+      args_y="$(jq -r --arg root "$root" --arg server "$server" '[.[$root][$server].args[]?, (.[$root][$server].command | arrays[]?)] | map(select(. == "-y" or . == "--yes")) | length' "$path")"
       if [[ "$command_name" == npx && "$args_y" -gt 0 ]]; then
         add_check "mcp.$harness.$server.deep" unknown true "$harness" 'deep check explicitly refuses npx -y stdio execution'
       else
@@ -390,9 +468,11 @@ check_online() {
     while IFS= read -r text; do PROBE_ARGS+=("$text"); done < <(jq -r --arg h "$harness" '.harnesses[$h].onlineProbe[]' "$CATALOG")
     output="$TMP/online-$harness"
     if run_capture 7 "$output" "$resolved" "${PROBE_ARGS[@]}"; then
-      if grep -Eqi 'not[ -]?(logged|authenticated)|loggedIn[^[:alnum:]]*false|0 credentials|no credentials' "$output"; then
+      if grep -Eqi 'could not determine if authenticated' "$output"; then
+        add_check "online.$harness.auth" unknown true "$harness" 'authentication status response could not be normalized'
+      elif grep -Eqi 'not[ -]?(logged|authenticated)|loggedIn[^[:alnum:]]*false|authenticated[^[:alnum:]]*false|0 credentials|no credentials' "$output"; then
         add_check "online.$harness.auth" fail true "$harness" 'authentication probe reports no active credential'
-      elif grep -Eqi 'logged[ -]?in|authenticated|loggedIn[^[:alnum:]]*true|[1-9][0-9]* credentials?' "$output"; then
+      elif grep -Eqi '(^|[^[:alnum:]])(logged[ -]?in|authenticated[^[:alnum:]]*true|loggedIn[^[:alnum:]]*true|[1-9][0-9]* credentials?)' "$output"; then
         add_check "online.$harness.auth" pass true "$harness" 'authentication probe reports configured credentials'
       else
         add_check "online.$harness.auth" unknown true "$harness" 'authentication status response could not be normalized'

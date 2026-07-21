@@ -27,6 +27,10 @@ resolve_source() {
       return
     fi
   fi
+  if [[ -d "${HOME}/.local/share/chezmoi" ]]; then
+    printf '%s\n' "${HOME}/.local/share/chezmoi"
+    return
+  fi
   printf '%s\n' ''
 }
 

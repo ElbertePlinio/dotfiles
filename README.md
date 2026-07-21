@@ -121,7 +121,10 @@ agent-config-sync doctor --ascii         # ASCII symbols for limited terminals
 
 Human output uses symbols and automatic terminal colors. `NO_COLOR` and
 `--color=never` disable color. The doctor never logs in, installs packages,
-starts MCP OAuth, executes stdio MCP servers, or prints credential values.
+starts MCP OAuth, executes stdio MCP servers or configured credential commands,
+prints credential values, or
+claims that locally detected credentials are remotely valid. Run the full
+hermetic validation explicitly with `bash scripts/check-agent-doctor.sh`.
 
 ## Secrets (age encryption)
 

@@ -105,8 +105,8 @@ write_catalog() {
       "binary": "pi",
       "versionArgs": ["--version"],
       "configPaths": ["~/.pi/agent/settings.json"],
-      "providerAuth": {"path": "~/.pi/agent/auth.json"},
-      "mcp": {"path": "~/.pi/agent/mcp.json", "root": "mcpServers"}
+      "providerAuth": {"path": "~/.pi/agent/auth.json", "modelsPath": "~/.pi/agent/models.json", "env": {"anthropic": ["ANTHROPIC_API_KEY"], "openai": ["OPENAI_API_KEY"]}},
+      "mcp": {"path": "~/.pi/agent/mcp.json", "root": "mcpServers", "disabledKey": "disabledServers"}
     },
     "online": {
       "displayName": "Online",
@@ -120,7 +120,21 @@ write_catalog() {
       "binary": "deep",
       "versionArgs": ["--version"],
       "configPaths": ["~/.deep/config.json"],
-      "mcp": {"path": "~/.deep/mcp.json", "root": "mcpServers"}
+      "mcp": {"path": "~/.deep/mcp.json", "root": "mcpServers", "disabledKey": "disabledServers"}
+    },
+    "opencode": {
+      "displayName": "OpenCode",
+      "binary": "opencode",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.config/opencode/opencode.json"],
+      "mcp": {"path": "~/.config/opencode/opencode.json", "root": "mcp", "disabledKey": "disabledServers"}
+    },
+    "omp": {
+      "displayName": "OMP",
+      "binary": "omp",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.omp/agent/config.json"],
+      "mcp": {"path": "~/.omp/agent/mcp.json", "root": "mcpServers", "disabledKey": "disabledServers"}
     }
   }
 }
@@ -159,7 +173,7 @@ setup_case() {
   link_tool sed
   link_tool printenv
   write_catalog
-  unset NO_COLOR MOCK_ONLINE_MODE MOCK_CURL_MODE SECRET_SENTINEL NPM_MARKER
+  unset NO_COLOR MOCK_ONLINE_MODE MOCK_CURL_MODE SECRET_SENTINEL NPM_MARKER ANTHROPIC_API_KEY OPENAI_API_KEY CONTEXT7_API_KEY
 }
 
 make_healthy_alpha() {
@@ -309,6 +323,76 @@ assert_contains 'source Git checkout is clean' 'Git source cleanliness is checke
 next_test; printf 'private\n' >"$source_dir/SECRET_PATH_SENTINEL"; run_doctor --color=never
 assert_contains 'source Git checkout has 1 dirty item(s)' 'dirty Git source reports only a count'
 next_test; assert_not_contains 'SECRET_PATH_SENTINEL' 'dirty Git source never prints paths'
+
+next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{"alpha":["provider"]}'; run_doctor --json
+assert_rc 2 'schema v1 rejects non-Pi provider requirement keys'
+
+next_test; setup_case; make_harness pi pi '.pi/agent/settings.json'; mkdir -p "$HOME_DIR/.pi/agent"; printf '{"anthropic":{"token":"SECRET_AUTH_VALUE"}}\n' >"$HOME_DIR/.pi/agent/auth.json"; write_requirements '["pi"]' '{"pi":["anthropic"]}'; run_doctor --json
+assert_json 'any(.checks[]; .id == "provider.pi.anthropic" and .status == "pass" and (.message | contains("remote validity was not checked")))' 'Pi auth key satisfies local credential presence without validity claim'
+next_test; assert_not_contains 'SECRET_AUTH_VALUE' 'Pi auth credential value is never printed'
+next_test; setup_case; make_harness pi pi '.pi/agent/settings.json'; export ANTHROPIC_API_KEY='SECRET_ENV_VALUE'; write_requirements '["pi"]' '{"pi":["anthropic"]}'; run_doctor --json
+assert_json 'any(.checks[]; .id == "provider.pi.anthropic" and .status == "pass")' 'catalogued built-in Pi environment mapping satisfies credential presence'
+next_test; assert_not_contains 'SECRET_ENV_VALUE' 'Pi provider environment value is never printed'
+next_test; setup_case; make_harness pi pi '.pi/agent/settings.json'; mkdir -p "$HOME_DIR/.pi/agent"; printf '{"providers":{"custom":{"apiKey":"SECRET_LITERAL_VALUE"}}}\n' >"$HOME_DIR/.pi/agent/models.json"; write_requirements '["pi"]' '{"pi":["custom"]}'; run_doctor --json
+assert_json 'any(.checks[]; .id == "provider.pi.custom" and .status == "pass")' 'Pi models literal apiKey satisfies credential presence'
+next_test; assert_not_contains 'SECRET_LITERAL_VALUE' 'Pi models literal apiKey is never printed'
+next_test; setup_case; make_harness pi pi '.pi/agent/settings.json'; mkdir -p "$HOME_DIR/.pi/agent"; printf '{"providers":{"custom":{"apiKey":"${CUSTOM_API_KEY}"}}}\n' >"$HOME_DIR/.pi/agent/models.json"; export CUSTOM_API_KEY='SECRET_REF_VALUE'; write_requirements '["pi"]' '{"pi":["custom"]}'; run_doctor --json
+assert_json 'any(.checks[]; .id == "provider.pi.custom" and .status == "pass")' 'Pi models environment apiKey reference requires a set variable'
+next_test; assert_not_contains 'SECRET_REF_VALUE' 'Pi models referenced environment value is never printed'
+next_test; unset CUSTOM_API_KEY; run_doctor --json
+assert_json 'any(.checks[]; .id == "provider.pi.custom" and .status == "fail")' 'Pi models unset environment apiKey reference fails credential presence'
+next_test; setup_case; make_harness pi pi '.pi/agent/settings.json'; mkdir -p "$HOME_DIR/.pi/agent"; COMMAND_MARKER="$CASE_DIR/credential-command-ran"; export COMMAND_MARKER; printf '{"providers":{"custom":{"apiKey":"!touch SECRET_COMMAND_VALUE"}}}\n' >"$HOME_DIR/.pi/agent/models.json"; write_requirements '["pi"]' '{"pi":["custom"]}'; run_doctor --json
+assert_json 'any(.checks[]; .id == "provider.pi.custom" and .status == "pass")' 'Pi models credential command counts as configured without execution'
+next_test; if [ ! -e "$COMMAND_MARKER" ]; then pass 'Pi credential command is not executed'; else fail 'Pi credential command executed'; fi
+next_test; assert_not_contains 'SECRET_COMMAND_VALUE' 'Pi credential command content is never printed'
+
+next_test; setup_case; make_harness opencode opencode '.config/opencode/opencode.json'; write_mock context7 'exit 0'; printf '%s\n' '{"mcp":{"context7":{"type":"local","command":["context7","--stdio"]}}}' >"$HOME_DIR/.config/opencode/opencode.json"; write_requirements '["opencode"]' '{}' '{"opencode":["context7"]}'; run_doctor --json
+assert_json 'any(.checks[]; .id == "mcp.opencode.context7.static" and .status == "pass")' 'OpenCode local MCP accepts its real command-array shape'
+next_test; setup_case; make_harness deep deep '.deep/config.json'; write_mock worker 'exit 0'; printf '%s\n' '{"mcpServers":{"worker":{"command":"worker","enabled":false}}}' >"$HOME_DIR/.deep/mcp.json"; write_requirements '["deep"]' '{}' '{"deep":["worker"]}'; run_doctor --json
+assert_json 'any(.checks[]; .id == "mcp.deep.worker.static" and .status == "fail" and (.message | contains("disabled")))' 'enabled false fails a required MCP server'
+next_test; setup_case; make_harness omp omp '.omp/agent/config.json'; mkdir -p "$HOME_DIR/.omp/agent"; write_mock worker 'exit 0'; printf '%s\n' '{"mcpServers":{"worker":{"command":"worker"}},"disabledServers":["worker"]}' >"$HOME_DIR/.omp/agent/mcp.json"; write_requirements '["omp"]' '{}' '{"omp":["worker"]}'; run_doctor --json
+assert_json 'any(.checks[]; .id == "mcp.omp.worker.static" and .status == "fail" and (.message | contains("disabled")))' 'OMP disabledServers fails a required MCP server'
+next_test; setup_case; make_harness opencode opencode '.config/opencode/opencode.json'; printf '%s\n' '{"mcp":{"context7":{"type":"remote","url":"https://fixture.invalid/mcp","enabled":false}}}' >"$HOME_DIR/.config/opencode/opencode.json"; write_requirements '["opencode"]' '{}' '{"opencode":["context7"]}'; run_doctor --json
+assert_json 'any(.checks[]; .id == "mcp.opencode.context7.static" and .status == "fail" and (.message | contains("disabled")))' 'OpenCode enabled false fails a required MCP server'
+
+for remote_case in \
+  '{"type":"http"}' \
+  '{"type":"http","url":123}' \
+  '{"type":"sse","url":"https://fixture.invalid/mcp"}' \
+  '{"type":"remote","url":"ftp://fixture.invalid/mcp"}'; do
+  next_test; setup_case; make_harness deep deep '.deep/config.json'; printf '{"mcpServers":{"remote":%s}}\n' "$remote_case" >"$HOME_DIR/.deep/mcp.json"; write_requirements '["deep"]' '{}' '{"deep":["remote"]}'; run_doctor --json
+  assert_json 'any(.checks[]; .id == "mcp.deep.remote.static" and .status == "fail")' 'malformed remote MCP transport fails static validation'
+done
+
+next_test; setup_case; make_harness opencode opencode '.config/opencode/opencode.json'; printf '%s\n' '{"mcp":{"context7":{"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"}}}}' >"$HOME_DIR/.config/opencode/opencode.json"; write_requirements '["opencode"]' '{}' '{"opencode":["context7"]}'; run_doctor --json
+assert_json 'any(.checks[]; .id == "mcp.opencode.context7.env.CONTEXT7_API_KEY" and .status == "fail")' 'OpenCode remote header placeholder reports an unset variable by name'
+next_test; export CONTEXT7_API_KEY='SECRET_CONTEXT7_VALUE'; run_doctor --json
+assert_json 'any(.checks[]; .id == "mcp.opencode.context7.env.CONTEXT7_API_KEY" and .status == "pass")' 'OpenCode remote header placeholder accepts a set variable'
+next_test; assert_not_contains 'SECRET_CONTEXT7_VALUE' 'remote header environment value is never printed'
+
+next_test; setup_case; make_harness online online '.online/config.json'; write_mock online 'if [ "${1:-}" = "--version" ]; then echo online; else echo "authenticated: false"; fi'; run_doctor --online --json
+assert_json 'any(.checks[]; .id == "online.online.auth" and .status == "fail")' 'explicit authenticated false never passes'
+next_test; setup_case; make_harness online online '.online/config.json'; write_mock online 'if [ "${1:-}" = "--version" ]; then echo online; else echo "could not determine if authenticated"; fi'; run_doctor --online --json
+assert_json 'any(.checks[]; .id == "online.online.auth" and .status == "unknown")' 'ambiguous authentication text remains required unknown'
+
+next_test; setup_case; make_healthy_alpha; run_doctor --config --json
+assert_rc 64 '--config followed by an option is usage error'
+next_test; setup_case; make_healthy_alpha; run_doctor --only --json
+assert_rc 64 '--only followed by an option is usage error'
+next_test; setup_case; make_healthy_alpha; cp "$CONFIG" "$HOME_DIR/--option-looking"; run_doctor --config="$HOME_DIR/--option-looking" --json
+assert_rc 0 '--config equals form accepts an option-looking path'
+
+next_test; setup_case; make_healthy_alpha; STDIN_MARKER="$CASE_DIR/stdin-consumed"; export STDIN_MARKER; write_mock alpha 'if read line; then printf consumed >"$STDIN_MARKER"; fi; echo alpha'; set +e; OUTPUT="$(printf 'private-input\n' | HOME="$HOME_DIR" PATH="$BIN_DIR" TMPDIR="$CASE_DIR" AGENT_DOCTOR_CATALOG="$CATALOG" /bin/bash "$DOCTOR" --config "$CONFIG" --json 2>&1)"; RC=$?; set -e
+if [ ! -e "$STDIN_MARKER" ]; then pass 'captured child receives dev null and cannot consume doctor stdin'; else fail 'captured child consumed doctor stdin'; fi
+
+next_test; setup_case; make_harness online online '.online/config.json'; TERM_STARTED="$CASE_DIR/term-started"; TERM_STOPPED="$CASE_DIR/term-stopped"; export TERM_STARTED TERM_STOPPED; write_mock online 'if [ "${1:-}" = "--version" ]; then echo online; exit 0; fi; trap '\''echo stopped >"$TERM_STOPPED"; exit 0'\'' TERM; echo started >"$TERM_STARTED"; while :; do sleep 1; done'; HOME="$HOME_DIR" PATH="$BIN_DIR" TMPDIR="$CASE_DIR" AGENT_DOCTOR_CATALOG="$CATALOG" /bin/bash "$DOCTOR" --config "$CONFIG" --online --json >"$CASE_DIR/term-output" 2>&1 & doctor_pid=$!; attempts=0; while [ ! -e "$TERM_STARTED" ] && [ "$attempts" -lt 100 ]; do sleep 0.1; attempts=$((attempts + 1)); done; kill -TERM "$doctor_pid"; set +e; wait "$doctor_pid"; RC=$?; set -e
+if [ "$RC" -eq 143 ] && [ -e "$TERM_STOPPED" ]; then pass 'TERM exits 143 and stops the active child process group promptly'; else OUTPUT="rc=$RC started=$([ -e "$TERM_STARTED" ] && echo yes || echo no) stopped=$([ -e "$TERM_STOPPED" ] && echo yes || echo no)"; fail 'TERM did not stop the active child cleanly'; fi
+
+next_test; setup_case; make_healthy_alpha; source_checkout="$HOME_DIR/.local/share/chezmoi"; mkdir -p "$source_checkout/scripts" "$source_checkout/dot_agents" "$HOME_DIR/.local/bin"; cp "$DOCTOR" "$source_checkout/scripts/agent-doctor.sh"; cp "$CATALOG" "$source_checkout/dot_agents/doctor-targets.json"; printf '#!/bin/bash\nexit 0\n' >"$source_checkout/scripts/check-agent-config-sync.sh"; cp "$SCRIPT_DIR/../dot_local/bin/executable_agent-config-sync" "$HOME_DIR/.local/bin/agent-config-sync"; chmod +x "$HOME_DIR/.local/bin/agent-config-sync"; set +e; OUTPUT="$(HOME="$HOME_DIR" PATH="$BIN_DIR" TMPDIR="$CASE_DIR" "$HOME_DIR/.local/bin/agent-config-sync" doctor --config "$CONFIG" --json 2>&1)"; RC=$?; set -e
+assert_json '.version == 1 and .exitCode == 0' 'wrapper dispatches structured doctor JSON from default checkout without chezmoi on PATH'
+
+next_test; setup_case; catalog_tmp="$CASE_DIR/catalog.tmp"; "$JQ" '.bootstrap=["bash","jq","git","chezmoi","age"]' "$CATALOG" >"$catalog_tmp"; cat "$catalog_tmp" >"$CATALOG"; make_healthy_alpha; run_doctor --json
+assert_json 'any(.checks[]; .id == "bootstrap.git" and .status == "fail" and .required) and any(.checks[]; .id == "bootstrap.chezmoi" and .status == "fail" and .required) and any(.checks[]; .id == "bootstrap.age" and .status == "fail" and .required)' 'missing common bootstrap prerequisites are required checks'
 
 next_test; setup_case; write_requirements '["beta"]'; run_doctor --json
 assert_json '.exitCode == 1 and .summary.fail == ([.checks[] | select(.status == "fail")] | length) and ([.checks[] | select(.required and .status == "fail")] | length) > 0' 'JSON summary, required failures, and exit code agree'
