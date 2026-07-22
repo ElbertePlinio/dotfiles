@@ -32,7 +32,7 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 - Reuse the original builder for follow-up fixes while it is healthy. Abandon stuck, failed, or interrupted runs instead of rescuing them: capture the short cause, cancel owned work, and redispatch fresh. Never spawn a new agent per verification step or repeat a full review panel after fixes.
 - For any task dispatched to an `openai-codex/*` lane (or when the main session itself runs on one), apply `~/.agents/codex-lane-override.md`: prepend its BEHAVIOR OVERRIDE block verbatim, or an explicit OUTPUT CONTRACT when the answer has a known shape.
 - Keep one accountable owner for taste-heavy work; provider identity does not define ownership.
-- Pi and OMP are the primary harnesses. Land new automation (hooks, extensions, gates) there first, mirror to Claude and Factory where compatible; harnesses without native hooks (Codex, Grok) get instructions-only.
+- Pi and OMP are the primary harnesses. Land new automation (hooks, extensions, gates) there first, mirror to Claude where compatible; harnesses without native hooks (Codex, Grok) get instructions-only.
 - For shipping review, `$local-review` owns profiles and review counts. Select each reviewer for the concrete failure mode; never assign review roles to fixed models.
 
 ## Dictated prompts (PickScribe)

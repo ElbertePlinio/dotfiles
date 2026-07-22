@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse gate: before the first `git push` / `gh pr create` of a session,
 # block once and ask for the decision audit (see "Decision audit" in the
-# global instructions). Claude Code and Factory droid share this hook schema.
+# global instructions). This hook uses the Claude Code hook schema.
 set -euo pipefail
 
 input="$(cat)"

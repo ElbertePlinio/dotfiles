@@ -101,12 +101,6 @@ write_catalog() {
       "configPaths": ["~/.claude/settings.json"],
       "mcp": {"path": "~/.claude.json", "root": "mcpServers"}
     },
-    "factory": {
-      "displayName": "Factory",
-      "binary": "droid",
-      "versionArgs": ["--version"],
-      "configPaths": ["~/.factory/settings.json"]
-    },
     "pi": {
       "displayName": "Pi",
       "binary": "pi",
@@ -128,13 +122,6 @@ write_catalog() {
       "versionArgs": ["--version"],
       "configPaths": ["~/.deep/config.json"],
       "mcp": {"path": "~/.deep/mcp.json", "root": "mcpServers", "disabledKey": "disabledServers"}
-    },
-    "opencode": {
-      "displayName": "OpenCode",
-      "binary": "opencode",
-      "versionArgs": ["--version"],
-      "configPaths": ["~/.config/opencode/opencode.json"],
-      "mcp": {"path": "~/.config/opencode/opencode.json", "root": "mcp", "disabledKey": "disabledServers"}
     },
     "omp": {
       "displayName": "OMP",
@@ -284,9 +271,6 @@ next_test; setup_case; write_requirements '["beta"]'; run_doctor --json
 assert_rc 1 'missing required harness exits one'
 next_test; assert_json 'any(.checks[]; .id == "harness.beta.executable" and .status == "fail" and .required)' 'missing required harness executable is a required failure'
 
-next_test; setup_case; make_harness factory droid '.factory/settings.json'; run_doctor --json
-assert_rc 0 'factory requirement resolves through droid'
-next_test; assert_json 'any(.checks[]; .id == "harness.factory.executable" and .status == "pass" and (.message | startswith("droid resolves")))' 'factory executable assertion names droid'
 
 next_test; setup_case; printf '{bad json\n' >"$CONFIG"; run_doctor --json
 assert_rc 2 'malformed requirements exit two'
@@ -398,14 +382,10 @@ assert_json 'any(.checks[]; .id == "provider.pi.custom" and .status == "pass")' 
 next_test; if [ ! -e "$COMMAND_MARKER" ]; then pass 'Pi credential command is not executed'; else fail 'Pi credential command executed'; fi
 next_test; assert_not_contains 'SECRET_COMMAND_VALUE' 'Pi credential command content is never printed'
 
-next_test; setup_case; make_harness opencode opencode '.config/opencode/opencode.json'; write_mock context7 'exit 0'; printf '%s\n' '{"mcp":{"context7":{"type":"local","command":["context7","--stdio"]}}}' >"$HOME_DIR/.config/opencode/opencode.json"; write_requirements '["opencode"]' '{}' '{"opencode":["context7"]}'; run_doctor --json
-assert_json 'any(.checks[]; .id == "mcp.opencode.context7.static" and .status == "pass")' 'OpenCode local MCP accepts its real command-array shape'
 next_test; setup_case; make_harness deep deep '.deep/config.json'; write_mock worker 'exit 0'; printf '%s\n' '{"mcpServers":{"worker":{"command":"worker","enabled":false}}}' >"$HOME_DIR/.deep/mcp.json"; write_requirements '["deep"]' '{}' '{"deep":["worker"]}'; run_doctor --json
 assert_json 'any(.checks[]; .id == "mcp.deep.worker.static" and .status == "fail" and (.message | contains("disabled")))' 'enabled false fails a required MCP server'
 next_test; setup_case; make_harness omp omp '.omp/agent/config.json'; mkdir -p "$HOME_DIR/.omp/agent"; write_mock worker 'exit 0'; printf '%s\n' '{"mcpServers":{"worker":{"command":"worker"}},"disabledServers":["worker"]}' >"$HOME_DIR/.omp/agent/mcp.json"; write_requirements '["omp"]' '{}' '{"omp":["worker"]}'; run_doctor --json
 assert_json 'any(.checks[]; .id == "mcp.omp.worker.static" and .status == "fail" and (.message | contains("disabled")))' 'OMP disabledServers fails a required MCP server'
-next_test; setup_case; make_harness opencode opencode '.config/opencode/opencode.json'; printf '%s\n' '{"mcp":{"context7":{"type":"remote","url":"https://fixture.invalid/mcp","enabled":false}}}' >"$HOME_DIR/.config/opencode/opencode.json"; write_requirements '["opencode"]' '{}' '{"opencode":["context7"]}'; run_doctor --json
-assert_json 'any(.checks[]; .id == "mcp.opencode.context7.static" and .status == "fail" and (.message | contains("disabled")))' 'OpenCode enabled false fails a required MCP server'
 
 for remote_case in \
   '{"type":"http"}' \
@@ -416,11 +396,6 @@ for remote_case in \
   assert_json 'any(.checks[]; .id == "mcp.deep.remote.static" and .status == "fail")' 'malformed remote MCP transport fails static validation'
 done
 
-next_test; setup_case; make_harness opencode opencode '.config/opencode/opencode.json'; printf '%s\n' '{"mcp":{"context7":{"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"}}}}' >"$HOME_DIR/.config/opencode/opencode.json"; write_requirements '["opencode"]' '{}' '{"opencode":["context7"]}'; run_doctor --json
-assert_json 'any(.checks[]; .id == "mcp.opencode.context7.env.CONTEXT7_API_KEY" and .status == "fail")' 'OpenCode remote header placeholder reports an unset variable by name'
-next_test; export CONTEXT7_API_KEY='SECRET_CONTEXT7_VALUE'; run_doctor --json
-assert_json 'any(.checks[]; .id == "mcp.opencode.context7.env.CONTEXT7_API_KEY" and .status == "pass")' 'OpenCode remote header placeholder accepts a set variable'
-next_test; assert_not_contains 'SECRET_CONTEXT7_VALUE' 'remote header environment value is never printed'
 
 next_test; setup_case; make_harness online online '.online/config.json'; write_mock online 'if [ "${1:-}" = "--version" ]; then echo online; else echo "authenticated: false"; fi'; run_doctor --online --json
 assert_json 'any(.checks[]; .id == "online.online.auth" and .status == "fail")' 'explicit authenticated false never passes'
