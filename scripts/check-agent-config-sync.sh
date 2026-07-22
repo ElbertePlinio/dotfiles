@@ -938,6 +938,7 @@ check_sync_command_flow() {
     dot_local/bin/executable_pickforge-lanes-mcp
     dot_config/environment.d/50-sudo-askpass.conf
     dot_config/environment.d/60-omp.conf
+    dot_config/environment.d/70-pi-caffeinate.conf
   )
 
   mkdir -p "$flow_source/scripts" \
@@ -2137,9 +2138,9 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
     jq -e '.enabledModels | any(. == "xai/grok-4.5")' >/dev/null <<<"$pi_settings" \
       && pass 'Pi enabled models include native Grok 4.5' \
       || err 'Pi enabled models missing native Grok 4.5'
-    jq -e '.defaultProvider == "xai" and .defaultModel == "grok-4.5" and .defaultThinkingLevel == "high"' >/dev/null <<<"$pi_settings" \
-      && pass 'Pi canonical bootstrap defaults to native Grok 4.5 at high effort' \
-      || err 'Pi canonical native Grok 4.5 bootstrap default is missing or misconfigured'
+    jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-5.6-sol" and .defaultThinkingLevel == "high"' >/dev/null <<<"$pi_settings" \
+      && pass 'Pi canonical bootstrap defaults to GPT-5.6 Sol at high effort' \
+      || err 'Pi canonical GPT-5.6 Sol bootstrap default is missing or misconfigured'
   else
     err 'Pi settings JSON invalid'
   fi
