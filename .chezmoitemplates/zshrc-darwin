@@ -164,9 +164,6 @@ export PATH="/opt/homebrew/bin:$PATH"
 
 alias claude-mem='/Users/elberte/.bun/bin/bun "/Users/elberte/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
 
-# opencode
-export PATH=/Users/elberte/.opencode/bin:$PATH
-
 # bun completions
 [ -s "/Users/elberte/.bun/_bun" ] && source "/Users/elberte/.bun/_bun"
 

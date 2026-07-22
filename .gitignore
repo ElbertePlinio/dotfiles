@@ -19,19 +19,6 @@ dot_omp/install-id
 dot_omp/gpu_cache.json
 dot_omp/puppeteer/
 
-private_dot_factory/history.json
-private_dot_factory/sessions/
-private_dot_factory/logs/
-private_dot_factory/cache/
-private_dot_factory/temp/
-private_dot_factory/telemetry/
-private_dot_factory/snapshots/
-private_dot_factory/private_background-processes.json
-private_dot_factory/private_background-tasks.json
-private_dot_factory/certs/system-certs-cache.json
-private_dot_factory/cli-hints.json
-private_dot_factory/private_host.json
-private_dot_factory/bin/dot_rg-version
 
 private_dot_hermes/private_skills/dot_curator_backups/
 private_dot_hermes/private_skills/dot_hub/encrypted_private_lock.json.age

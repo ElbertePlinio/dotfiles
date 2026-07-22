@@ -164,7 +164,8 @@ RETIRED_SOURCE_PATHS=(
   dot_local/bin/executable_claude-personal
   dot_local/bin/executable_agent-profile-doctor
   dot_claude/private_RTK.md
-  private_dot_factory/bin/executable_frun
+  private_dot_factory
+  dot_config/opencode
   .chezmoitemplates/claude-restricted.md
   .chezmoitemplates/claude-personal-lite.md
 )
@@ -188,7 +189,8 @@ RETIRED_TARGET_PATHS=(
   .local/bin/claude-default
   .local/bin/claude-personal
   .local/bin/claude-profile
-  .factory/bin/frun
+  .factory
+  .config/opencode
   .claude/RTK.md
   Projects/Personal/.codex
   Projects/Personal/.agent-safety
@@ -245,12 +247,6 @@ RUNTIME_SOURCE_PATHS=(
   dot_omp/agent/models.db
   dot_omp/logs
   dot_omp/puppeteer
-  private_dot_factory/private_background-processes.json
-  private_dot_factory/private_background-tasks.json
-  private_dot_factory/certs/system-certs-cache.json
-  private_dot_factory/cli-hints.json
-  private_dot_factory/private_host.json
-  private_dot_factory/bin/dot_rg-version
 )
 
 RUNTIME_IGNORE_PATHS=(
@@ -298,12 +294,6 @@ RUNTIME_IGNORE_PATHS=(
   .omp/install-id
   .omp/gpu_cache.json
   .omp/puppeteer
-  .factory/background-processes.json
-  .factory/background-tasks.json
-  .factory/certs/system-certs-cache.json
-  .factory/cli-hints.json
-  .factory/host.json
-  .factory/bin/.rg-version
 )
 
 check_pickforge_lanes_deployment() {
@@ -688,7 +678,7 @@ check_retired_target_apply() {
   cp "$ROOT/.chezmoiremove" "$removal_source/.chezmoiremove"
   for path in "${RETIRED_TARGET_PATHS[@]}"; do
     case "$path" in
-      .local/bin/*|.factory/bin/frun|.claude/RTK.md)
+      .local/bin/*|.claude/RTK.md)
         mkdir -p "$DEST/${path%/*}"
         printf 'retired\n' >"$DEST/$path"
         ;;
@@ -782,31 +772,26 @@ check_active_retired_references() {
   if matches="$(rg -n -i --hidden \
     --glob '!.git' \
     --glob '!.git/**' \
-    --glob '!docs/specs/**' \
-    --glob '!docs/plans/**' \
+    --glob '!docs/**' \
     --glob '!.chezmoiremove' \
     --glob '!scripts/check-agent-config-sync.sh' \
-    'claude-personal|claude-default|claude-profile|agentProfile|agent-profiles|Projects/Personal/\.codex|\.agent-safety|superpowers|\brtk\b|RTK\.md|\bfrun\b|caveman|cavecrew' \
+    'claude-personal|claude-default|claude-profile|agentProfile|agent-profiles|Projects/Personal/\.codex|\.agent-safety|superpowers|\brtk\b|RTK\.md|\bfrun\b|caveman|cavecrew|\bfactory\b|\bdroid\b|\bopencode\b' \
     .)"; then
-    err 'active source contains retired profile/tooling references'
+    err 'active source contains retired harness/profile/tooling references'
     printf '%s\n' "$matches" >&2
   else
-    pass 'active source excludes retired profile/tooling references'
+    pass 'active source excludes retired harness/profile/tooling references'
   fi
 }
 
 check_active_target_completeness() {
   local sync_command="$ROOT/dot_local/bin/executable_agent-config-sync"
-  local source_path target command hook_name hook_source entry
+  local source_path target entry
   local -a metadata_targets=(
     'dot_agents/dot_skill-lock.json|.agents/.skill-lock.json'
     'dot_agents/skill-targets.json|.agents/skill-targets.json'
     'dot_agents/mcp-targets.json|.agents/mcp-targets.json'
     'dot_local/bin/executable_pickforge-lanes-mcp|.local/bin/pickforge-lanes-mcp'
-  )
-  local -a opencode_targets=(
-    'dot_config/opencode/AGENTS.md|.config/opencode/AGENTS.md'
-    'dot_config/opencode/README.md|.config/opencode/README.md'
   )
 
   need "$sync_command"
@@ -834,46 +819,6 @@ check_active_target_completeness() {
     fi
   done
 
-  for entry in "${opencode_targets[@]}"; do
-    source_path="${entry%%|*}"
-    target="${entry#*|}"
-    need "$ROOT/$source_path"
-    if [[ -f "$ROOT/$source_path" ]] \
-      && grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
-      pass "active target includes OpenCode policy/doc: $target"
-    else
-      err "active target missing OpenCode policy/doc: $target"
-    fi
-  done
-
-  need "$ROOT/private_dot_factory/hooks.json"
-  [[ -f "$ROOT/private_dot_factory/hooks.json" ]] || return
-  if ! jq -e . "$ROOT/private_dot_factory/hooks.json" >/dev/null 2>&1; then
-    err 'Factory hooks.json is not valid JSON'
-    return
-  fi
-  pass 'Factory hooks JSON valid'
-  if ! grep -Fq '"${HOME}/.factory/hooks.json"' "$sync_command"; then
-    err 'active target missing Factory hooks.json'
-    return
-  fi
-
-  while IFS= read -r command; do
-    case "$command" in
-      */.factory/hooks/*.sh) ;;
-      *) continue ;;
-    esac
-    hook_name="${command##*/}"
-    hook_source="$ROOT/private_dot_factory/hooks/executable_${hook_name}"
-    [[ -f "$hook_source" || -f "$hook_source.tmpl" ]] || continue
-    target=".factory/hooks/$hook_name"
-    if grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
-      pass "active target includes managed Factory hook: $target"
-    else
-      err "active target missing managed Factory hook: $target"
-    fi
-  done < <(jq -r '.. | objects | .command? // empty | select(type == "string")' \
-    "$ROOT/private_dot_factory/hooks.json" | sort -u)
 }
 
 check_sync_command_flow() {
@@ -919,13 +864,6 @@ check_sync_command_flow() {
     dot_omp/agent/agents/task.md
     dot_omp/agent/mcp.json
     dot_omp/agent/extensions/decision-audit-gate.ts
-    dot_factory/AGENTS.md
-    dot_factory/hooks/model-flow-reminder.sh
-    dot_factory/hooks/decision-audit-gate.sh
-    dot_factory/hooks/executable_kde-notify.sh
-    dot_factory/hooks.json
-    dot_config/opencode/AGENTS.md
-    dot_config/opencode/README.md
     dot_agents/dot_skill-lock.json
     dot_agents/mcp-targets.json
     dot_agents/skill-targets.json
@@ -942,7 +880,7 @@ check_sync_command_flow() {
   )
 
   mkdir -p "$flow_source/scripts" \
-    "$flow_home/.local/bin" "$flow_home/.agents" "$flow_home/.config/opencode" \
+    "$flow_home/.local/bin" "$flow_home/.agents" \
     "$flow_home/.retired-agent-config-probe" \
     "$divergent_home/.local/bin" "$divergent_home/.retired-agent-config-probe" \
     "$divergent_home/.agents" "$malformed_home/.local/bin"
@@ -988,13 +926,10 @@ EOF
   install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
     "$flow_source/dot_local/bin/executable_agent-config-sync"
   printf '%s\n' '{"state":"original"}' >"$flow_source/dot_agents/dot_skill-lock.json"
-  printf '%s\n' original-opencode-readme >"$flow_source/dot_config/opencode/README.md"
   HOME="$flow_home" chezmoi --source "$flow_source" apply --force --no-tty \
     "$flow_home/.unrelated-agent-config-probe" \
-    "$flow_home/.agents/.skill-lock.json" \
-    "$flow_home/.config/opencode/README.md"
+    "$flow_home/.agents/.skill-lock.json"
   printf '%s\n' '{"state":"intended"}' >"$flow_source/dot_agents/dot_skill-lock.json"
-  printf '%s\n' intended-opencode-readme >"$flow_source/dot_config/opencode/README.md"
   cat >"$flow_source/run_after_agent_config_probe.sh" <<'EOF'
 #!/usr/bin/env bash
 : >"$SYNC_SCRIPT_MARKER"
@@ -1025,10 +960,7 @@ EOF
     printf '%s\n' source strict live live >"$expected_log"
     if grep -Fxq intended-agent-probe "$flow_home/.agents/mcp-targets.json" \
       && grep -Fxq '{"state":"intended"}' "$flow_home/.agents/.skill-lock.json" \
-      && grep -Fxq intended-opencode-readme "$flow_home/.config/opencode/README.md" \
       && grep -Fxq managed "$flow_home/.agents/browser-use.md" \
-      && [[ -x "$flow_home/.factory/hooks/kde-notify.sh" ]] \
-      && grep -Fxq managed "$flow_home/.factory/hooks/kde-notify.sh" \
       && [[ -L "$flow_home/.pi/agent/skills/probe" ]] \
       && [[ "$(readlink "$flow_home/.pi/agent/skills/probe")" == '../../../.agents/skills/probe' ]] \
       && [[ ! -e "$flow_home/.retired-agent-config-probe" \
@@ -1040,9 +972,7 @@ EOF
       && [[ "$(grep -Fxc configured "$configure_log")" -eq 1 ]] \
       && cmp -s "$expected_log" "$flow_log"; then
       pass 'temporary scoped sync updates skill-lock metadata target from source'
-      pass 'temporary scoped sync updates OpenCode README target from source'
       pass 'temporary scoped sync applies browser-use policy target'
-      pass 'temporary scoped sync applies Factory kde-notify hook target'
       pass 'temporary scoped sync removes present retirement and skips absent retirement'
       pass 'temporary sync applies only agent targets and retirements without implicit run scripts'
       pass 'temporary sync invokes managed pickforge-lanes registration once after target apply'
@@ -1728,7 +1658,6 @@ if [[ "$MODE" == live ]]; then
   OMP_AGENTS_LIVE="${HOME}/.omp/agent/AGENTS.md"
   OMP_CONFIG_LIVE="${HOME}/.omp/agent/config.yml"
   OMP_MCP_LIVE="${HOME}/.omp/agent/mcp.json"
-  OPENCODE_LIVE="${HOME}/.config/opencode/AGENTS.md"
   SOUL_LIVE="${HOME}/.hermes/SOUL.md"
   NOUS_DEFAULT='You are Hermes Agent, an intelligent AI assistant created by Nous Research.'
   check_omp_agent_override_sources
@@ -1792,28 +1721,6 @@ if [[ "$MODE" == live ]]; then
     check_live_primary_global_targets
   fi
 
-  if [[ ! -e "$OPENCODE_LIVE" ]]; then
-    pass "live OpenCode AGENTS not yet applied: $OPENCODE_LIVE"
-  elif [[ -L "$OPENCODE_LIVE" ]]; then
-    err "live OpenCode AGENTS must be a managed regular file: $OPENCODE_LIVE"
-  elif ! grep -Fq '## Shared Agent Memory' "$OPENCODE_LIVE"; then
-    err 'live OpenCode AGENTS is not a recognized managed file'
-  else
-    for invariant in CORE_PROFILE.md WRITING_STYLE.md BOUNDARIES.md WORK_AND_PROJECTS.md 'projects/*.md'; do
-      grep -Fq "$invariant" "$OPENCODE_LIVE" \
-        || err "live OpenCode memory invariant missing: $invariant"
-    done
-    if grep -Fq 'CODING_AGENT_RULES.md' "$OPENCODE_LIVE"; then
-      if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-        pass 'live OpenCode is managed and pending the authorized memory cutover'
-      else
-        err 'live OpenCode still auto-loads CODING_AGENT_RULES'
-      fi
-    else
-      pass 'live OpenCode excludes CODING_AGENT_RULES'
-    fi
-  fi
-
   if [[ ! -f "$SOUL_LIVE" ]]; then
     err "live Hermes SOUL missing: $SOUL_LIVE"
   elif grep -q '^# Hermes' "$SOUL_LIVE" && grep -q '/home/dev/AgentMemory' "$SOUL_LIVE"; then
@@ -1856,10 +1763,8 @@ HARNESS=(
   'dot_grok/AGENTS.md.tmpl|# Personal Grok Notes|# Personal Codex Notes'
   'dot_pi/agent/AGENTS.md.tmpl|# Personal Pi Notes|# Personal Codex Notes'
   'dot_omp/agent/AGENTS.md.tmpl|# Personal OMP Notes|# Personal Codex Notes'
-  'private_dot_factory/AGENTS.md.tmpl|# Personal Droid Notes|# Personal Codex Notes'
 )
 SOUL=private_dot_hermes/SOUL.md.tmpl
-OPENCODE=dot_config/opencode/AGENTS.md
 SHARED_MAX_BYTES=15000
 SHARED_SOURCE_BASELINE=13851
 SHARED_RENDERED_BASELINE=13853
@@ -1905,7 +1810,6 @@ ADAPTER_BUDGETS=(
   'dot_grok/AGENTS.md.tmpl|700'
   'dot_pi/agent/AGENTS.md.tmpl|1800'
   'dot_omp/agent/AGENTS.md.tmpl|2800'
-  'private_dot_factory/AGENTS.md.tmpl|1000'
 )
 
 STALE_PI_FLOW_PATHS=(
@@ -1992,16 +1896,6 @@ for invariant in \
     || err "shared policy permission missing: $invariant"
 done
 
-need "$OPENCODE"
-for invariant in CORE_PROFILE.md WRITING_STYLE.md BOUNDARIES.md WORK_AND_PROJECTS.md 'projects/*.md'; do
-  grep -Fq "$invariant" "$OPENCODE" \
-    && pass "OpenCode memory invariant: $invariant" \
-    || err "OpenCode memory invariant missing: $invariant"
-done
-grep -Fq 'CODING_AGENT_RULES.md' "$OPENCODE" \
-  && err 'OpenCode global harness loader must not auto-load CODING_AGENT_RULES' \
-  || pass 'OpenCode global harness loader excludes CODING_AGENT_RULES'
-
 
 zsh_claude_wrapper="$(awk '
   /^claude\(\) \{/ { in_function=1 }
@@ -2083,7 +1977,7 @@ for entry in "${ADAPTER_BUDGETS[@]}"; do
 done
 
 for path in dot_claude/CLAUDE.md.tmpl \
-  dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl private_dot_factory/AGENTS.md.tmpl; do
+  dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl; do
   grep -qiE '^\|.*cost.*intelligence.*taste.*vision.*\|$' "$path" \
     && err "adapter embeds a full model scoring table: $path" \
     || pass "adapter has no full model scoring table: $path"
@@ -2095,7 +1989,6 @@ ADAPTER_OWNER_POINTERS=(
   'dot_grok/AGENTS.md.tmpl|model-orchestration|Grok'
   'dot_pi/agent/AGENTS.md.tmpl|Available managed pool|Pi'
   'dot_omp/agent/AGENTS.md.tmpl|Available managed pool|OMP'
-  'private_dot_factory/AGENTS.md.tmpl|runtime model pool|Factory'
 )
 for entry in "${ADAPTER_OWNER_POINTERS[@]}"; do
   IFS='|' read -r path pointer harness <<<"$entry"
@@ -2167,15 +2060,6 @@ else
 fi
 unset pi_models
 
-FACTORY_FLOW_HOOK=private_dot_factory/hooks/executable_model-flow-reminder.sh
-need "$FACTORY_FLOW_HOOK"
-grep -Fq 'lightest sufficient path' "$FACTORY_FLOW_HOOK" \
-  && grep -Fq '$local-review' "$FACTORY_FLOW_HOOK" \
-  && pass 'Factory runtime injects adaptive local-review reminder' \
-  || err 'Factory runtime missing adaptive local-review reminder'
-grep -qiE '(planner|coder|reviewer|git) droid|plan -> code -> review' "$FACTORY_FLOW_HOOK" \
-  && err 'Factory runtime still injects named model flow' \
-  || pass 'Factory runtime avoids named model flow'
 
 for target in "${ROUTING_SKILL_TARGETS[@]}"; do
   decrypted=''
@@ -2305,8 +2189,6 @@ TARGETS=(
   "$DEST/.codex/AGENTS.md"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json" "$DEST/.omp/agent/agents"
-  "$DEST/.factory/AGENTS.md"
-  "$DEST/.config/opencode/AGENTS.md" "$DEST/.config/opencode/README.md"
   "$DEST/.hermes/SOUL.md"
   "$DEST/.local/bin/agent-config-sync"
   "$DEST/.local/bin/pickforge-lanes-mcp"
@@ -2330,8 +2212,6 @@ EXPECTED=(
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/config.yml dot_omp/agent/mcp.json dot_omp/agent/agents
-  private_dot_factory/AGENTS.md.tmpl
-  dot_config/opencode/AGENTS.md dot_config/opencode/README.md
   private_dot_hermes/SOUL.md.tmpl
   dot_local/bin/executable_agent-config-sync
   dot_local/bin/executable_pickforge-lanes-mcp
@@ -2351,7 +2231,7 @@ fi
 chezmoi "${TMP_SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TMP/st.err" \
   && pass 'dry-run status (temp dest)' || err "dry-run status failed: $(tr '\n' ' ' <"$TMP/st.err")"
 
-mkdir -p "$DEST/.grok" "$DEST/.hermes" "$DEST/.config/opencode" \
+mkdir -p "$DEST/.grok" "$DEST/.hermes" \
   "$DEST/.local/bin" \
   "$DEST/.claude/rules" \
   "$DEST/.claude/skills/kickoff" \
@@ -2363,7 +2243,7 @@ mkdir -p "$DEST/.grok" "$DEST/.hermes" "$DEST/.config/opencode" \
   "$DEST/.codex/skills/ship-pr" \
   "$DEST/.grok/skills/model-orchestration" \
   "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
-  "$DEST/.factory/skills" "$DEST/.hermes/skills" "$DEST/.agents/skills"
+  "$DEST/.hermes/skills" "$DEST/.agents/skills"
 ln -s ../.codex/AGENTS.md "$DEST/.grok/AGENTS.md"
 printf '%s\n' 'You are Hermes Agent, an intelligent AI assistant created by Nous Research.' >"$DEST/.hermes/SOUL.md"
 
@@ -2419,13 +2299,6 @@ else
       err "temp OMP ${role} override apply mismatch"
     fi
   done
-  cmp -s "$DEST/.config/opencode/AGENTS.md" "$ROOT/dot_config/opencode/AGENTS.md" \
-    && ! grep -Fq 'CODING_AGENT_RULES.md' "$DEST/.config/opencode/AGENTS.md" \
-    && pass 'temp OpenCode memory cutover applied' \
-    || err 'temp OpenCode memory cutover apply mismatch'
-  cmp -s "$DEST/.config/opencode/README.md" "$ROOT/dot_config/opencode/README.md" \
-    && pass 'temp OpenCode README applied' \
-    || err 'temp OpenCode README apply mismatch'
   cmp -s "$DEST/.agents/.skill-lock.json" "$SKILL_LOCK" \
     && pass 'temp skill lock applied' \
     || err 'temp skill lock apply mismatch'
