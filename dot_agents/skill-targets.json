@@ -104,6 +104,10 @@
       "omp",
       "hermes"
     ],
+    "multi-model-lanes": [
+      "claude",
+      "pi"
+    ],
     "codebase-design": [
       "claude",
       "codex",
