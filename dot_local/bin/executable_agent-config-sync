@@ -201,9 +201,9 @@ summarize_applied_targets() {
   while IFS= read -r path; do
     [[ -n "$path" ]] && written_targets+=("$path")
   done < <(awk '
-    $1 == "diff" && $2 == "--git" {
-      path = $4
-      sub(/^b\//, "", path)
+    /^diff --git a\// {
+      path = $0
+      sub(/^diff --git a\/.* b\//, "", path)
       if (!seen[path]++) print path
     }
   ' "$output")
