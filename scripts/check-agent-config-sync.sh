@@ -1764,7 +1764,7 @@ HARNESS=(
   'dot_pi/agent/AGENTS.md.tmpl|# Personal Pi Notes|# Personal Codex Notes'
   'dot_omp/agent/AGENTS.md.tmpl|# Personal OMP Notes|# Personal Codex Notes'
 )
-SOUL=private_dot_hermes/SOUL.md.tmpl
+SOUL=private_dot_hermes/SOUL.md
 SHARED_MAX_BYTES=15000
 SHARED_SOURCE_BASELINE=13851
 SHARED_RENDERED_BASELINE=13853
@@ -2212,7 +2212,7 @@ EXPECTED=(
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/config.yml dot_omp/agent/mcp.json dot_omp/agent/agents
-  private_dot_hermes/SOUL.md.tmpl
+  private_dot_hermes/SOUL.md
   dot_local/bin/executable_agent-config-sync
   dot_local/bin/executable_pickforge-lanes-mcp
   dot_claude/skills/symlink_multi-model-lanes
