@@ -29,3 +29,14 @@ git clone "$repo" "$target" || {
   printf 'error: failed to clone %s into %s\n' "$repo" "$target" >&2
   exit 1
 }
+
+bun_bin=$(command -v bun || printf '%s' "$HOME/.bun/bin/bun")
+if [ -x "$bun_bin" ]; then
+  if [ ! -d "$target/node_modules" ]; then
+    (cd "$target" && "$bun_bin" install --frozen-lockfile) || {
+      printf 'warning: bun install failed in %s; run it manually\n' "$target" >&2
+    }
+  fi
+else
+  printf 'warning: bun unavailable; run bun install in %s manually\n' "$target" >&2
+fi
