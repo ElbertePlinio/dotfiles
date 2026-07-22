@@ -6,6 +6,6 @@
 
 ## Claude model orchestration
 
-- For substantial or risky multi-model work, use the `model-orchestration` skill; pool metadata, compatibility constraints, selection axes, and escalation policy live in `~/.codex/skills/model-orchestration/references/model-routing.md`.
+- For substantial or risky multi-model work, use the `model-orchestration` skill; its `references/model-routing.md` file owns pool metadata, compatibility constraints, selection axes, and escalation policy.
 - Claude subagents use the Agent or Workflow model parameter. Workers and reviewers are leaves unless the main session explicitly authorizes fan-out.
 - When Claude is invoked non-interactively as a worker under another orchestrator, do the assigned work directly and do not re-delegate.

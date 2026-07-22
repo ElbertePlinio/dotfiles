@@ -9,8 +9,8 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 - Establish the delivery mode before substantial work or any dispatch: plan-only, local-implement, or ship. Default is no push or merge until the mode allows it.
 - Ask before changing architecture, persistence, auth, security, or scope; ask rather than assume when uncertainty affects the result.
 - Never expose, print, commit, or send secrets or private production data.
-- Destructive filesystem, Git, account, or external-service actions require explicit confirmation.
-- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.
+{{ template "agents-shared-destructive-actions.md" . -}}
+{{ template "agents-shared-public-actions.md" . -}}
 
 ## Model orchestration
 
