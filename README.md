@@ -48,8 +48,8 @@ chezmoi edit ~/.zshrc               # edit the source copy
 chezmoi diff                         # review target drift
 chezmoi apply ~/.zshrc               # apply only the reviewed target
 agent-config-sync apply              # validated agent-config cutover
+agent-config-sync sync               # fast-forward dotfiles and AgentMemory, then apply
 chezmoi cd                           # open the source repository
-git pull --ff-only                   # update source without applying blindly
 ```
 
 ## What's managed
@@ -68,7 +68,7 @@ git pull --ff-only                   # update source without applying blindly
   - Global Codex adapter: `~/.codex/AGENTS.md` (unrestricted `codex` shell wrapper)
   - Other harness adapters: Grok, Pi, OMP, Hermes
   - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`
-  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `doctor`)
+  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `sync` | `doctor`)
   - Encrypted stable configuration: selected Claude settings and harness-native skills
   - Runtime state: credentials, sessions, histories, caches, plugins, and usage state remain machine-owned
 
@@ -87,6 +87,7 @@ Daily sync workflow:
 agent-config-sync check       # source templates + portable skill matrix
 agent-config-sync check-live  # read-only live validation against $HOME
 agent-config-sync apply       # source check, strict preflight, scoped agent apply, live check
+agent-config-sync sync        # fast-forward dotfiles and AgentMemory, then run apply
 ```
 
 `apply` targets only the managed agent configuration and the stable paths listed in `.chezmoiremove`; it does not apply unrelated dotfiles or root run scripts. Do not sync credentials, sessions, histories, caches, or other machine-owned runtime state.

@@ -22,6 +22,12 @@ check_sync_command_flow() {
   local configure_log="$TMP/sync-flow-configure.log"
   local expected_log="$TMP/sync-flow-expected.log"
   local source_path self_update_status second_run_status failure_status
+  local dotfiles_origin="$TMP/sync-flow-dotfiles-origin.git"
+  local dotfiles_updater="$TMP/sync-flow-dotfiles-updater"
+  local memory_origin="$TMP/sync-flow-memory-origin.git"
+  local sync_output="$TMP/sync-command.out"
+  local sync_error="$TMP/sync-command.err"
+  local sync_status before_sync_head after_sync_head origin_head memory_head
   local -a active_source_files=(
     dot_zshrc
     dot_bashrc
@@ -319,6 +325,114 @@ EOF
     .retired-agent-config-probe \
     .absent-retired-agent-config-probe \
     >"$flow_source/.chezmoiremove"
+
+  git -C "$flow_source" init -b main >/dev/null
+  git -C "$flow_source" config user.name 'Fixture User'
+  git -C "$flow_source" config user.email fixture@example.invalid
+  git -C "$flow_source" add .
+  git -C "$flow_source" commit -m 'chore: initialize sync fixture' >/dev/null
+  git init --bare "$dotfiles_origin" >/dev/null
+  git -C "$flow_source" remote add origin "$dotfiles_origin"
+  git -C "$flow_source" push -u origin main >/dev/null
+  git -C "$dotfiles_origin" symbolic-ref HEAD refs/heads/main
+  install -m 0755 "$flow_source/dot_local/bin/executable_agent-config-sync" \
+    "$flow_home/.local/bin/agent-config-sync"
+  git clone "$dotfiles_origin" "$dotfiles_updater" >/dev/null 2>&1
+  git -C "$dotfiles_updater" config user.name 'Fixture User'
+  git -C "$dotfiles_updater" config user.email fixture@example.invalid
+
+  mkdir -p "$flow_home/AgentMemory"
+  git -C "$flow_home/AgentMemory" init -b main >/dev/null
+  git -C "$flow_home/AgentMemory" config user.name 'Fixture User'
+  git -C "$flow_home/AgentMemory" config user.email fixture@example.invalid
+  printf '%s\n' memory >"$flow_home/AgentMemory/memory.txt"
+  git -C "$flow_home/AgentMemory" add memory.txt
+  git -C "$flow_home/AgentMemory" commit -m 'chore: initialize memory fixture' >/dev/null
+  git init --bare "$memory_origin" >/dev/null
+  git -C "$flow_home/AgentMemory" remote add origin "$memory_origin"
+  git -C "$flow_home/AgentMemory" push -u origin main >/dev/null
+  git -C "$memory_origin" symbolic-ref HEAD refs/heads/main
+
+  before_sync_head="$(git -C "$flow_source" rev-parse HEAD)"
+  printf '%s\n' upstream >"$dotfiles_updater/sync-origin-marker"
+  git -C "$dotfiles_updater" add sync-origin-marker
+  git -C "$dotfiles_updater" commit -m 'test: advance sync origin' >/dev/null
+  git -C "$dotfiles_updater" push origin main >/dev/null
+  origin_head="$(git -C "$dotfiles_origin" rev-parse refs/heads/main)"
+  : >"$flow_log"
+  : >"$configure_log"
+  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
+    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
+    "$flow_home/.local/bin/agent-config-sync" sync >"$sync_output" 2>"$sync_error"; then
+    sync_status=0
+  else
+    sync_status=$?
+  fi
+  after_sync_head="$(git -C "$flow_source" rev-parse HEAD)"
+  memory_head="$(git -C "$flow_home/AgentMemory" rev-parse --short HEAD)"
+  if [[ "$sync_status" -eq 0 && "$before_sync_head" != "$after_sync_head" \
+    && "$after_sync_head" == "$origin_head" \
+    && -f "$flow_source/sync-origin-marker" ]]; then
+    pass 'sync fast-forwards the dotfiles source to a new origin commit'
+  else
+    err "sync did not fast-forward the dotfiles source (status $sync_status)"
+  fi
+  if [[ "$(tr '\n' ' ' <"$flow_log")" == 'source strict live ' \
+    && "$(grep -Fxc configured "$configure_log")" -eq 1 ]] \
+    && grep -Fq "sync: dotfiles=$(git -C "$flow_source" rev-parse --short HEAD) AgentMemory=$memory_head apply=ok" "$sync_output"; then
+    pass 'sync runs apply and reports pulled commits with a successful result'
+  else
+    err 'sync did not run apply or emit its commit/result summary'
+  fi
+
+  printf '%s\n' dirty >>"$flow_home/AgentMemory/memory.txt"
+  memory_head="$(git -C "$flow_home/AgentMemory" rev-parse HEAD)"
+  : >"$flow_log"
+  : >"$configure_log"
+  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
+    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
+    "$flow_home/.local/bin/agent-config-sync" sync >"$sync_output" 2>"$sync_error"; then
+    sync_status=0
+  else
+    sync_status=$?
+  fi
+  if [[ "$sync_status" -eq 0 \
+    && "$(git -C "$flow_home/AgentMemory" rev-parse HEAD)" == "$memory_head" \
+    && -n "$(git -C "$flow_home/AgentMemory" status --porcelain)" \
+    && "$(tr '\n' ' ' <"$flow_log")" == 'source strict live ' \
+    && "$(grep -Fxc configured "$configure_log")" -eq 1 ]] \
+    && grep -Fq 'AgentMemory has local changes; skipping pull' "$sync_error" \
+    && grep -Fq 'AgentMemory=dirty apply=ok' "$sync_output"; then
+    pass 'sync preserves dirty AgentMemory, warns, and still applies successfully'
+  else
+    err "sync mishandled dirty AgentMemory (status $sync_status)"
+  fi
+
+  printf '%s\n' second-upstream >"$dotfiles_updater/sync-origin-marker-2"
+  git -C "$dotfiles_updater" add sync-origin-marker-2
+  git -C "$dotfiles_updater" commit -m 'test: advance origin past dirty source' >/dev/null
+  git -C "$dotfiles_updater" push origin main >/dev/null
+  origin_head="$(git -C "$dotfiles_origin" rev-parse refs/heads/main)"
+  before_sync_head="$(git -C "$flow_source" rev-parse HEAD)"
+  printf '%s\n' local-dirty >>"$flow_source/dot_unrelated-agent-config-probe"
+  : >"$flow_log"
+  : >"$configure_log"
+  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
+    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
+    "$flow_home/.local/bin/agent-config-sync" sync >"$sync_output" 2>"$sync_error"; then
+    sync_status=0
+  else
+    sync_status=$?
+  fi
+  after_sync_head="$(git -C "$flow_source" rev-parse HEAD)"
+  if [[ "$sync_status" -eq 76 && "$after_sync_head" == "$before_sync_head" \
+    && "$after_sync_head" != "$origin_head" \
+    && ! -s "$flow_log" && ! -s "$configure_log" ]] \
+    && grep -Fq 'dotfiles source has local changes' "$sync_error"; then
+    pass 'sync rejects dirty dotfiles with exit 76 before pull or apply'
+  else
+    err "sync did not fail closed on dirty dotfiles (status $sync_status)"
+  fi
 }
 
 check_primary_global_live_regressions() {
