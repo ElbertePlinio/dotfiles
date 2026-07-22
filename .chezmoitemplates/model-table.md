@@ -1,3 +1,5 @@
+{{- if not (hasKey . "grokSelector") }}{{ fail "model-table.md: grokSelector is required" }}{{ end -}}
+{{- if not (hasKey . "glmStart") }}{{ fail "model-table.md: glmStart is required" }}{{ end -}}
 | Model | Selector | Start | Cost | Intelligence | Taste | Vision |
 |---|---|---:|---:|---:|---:|---|
 | GPT-5.6 Sol | `openai-codex/gpt-5.6-sol` | medium | 4 | 9 | 6 | yes |
