@@ -1,6 +1,6 @@
 check_sync_command_flow() {
   local flow_source="$TMP/sync-flow-source"
-  local flow_home="$TMP/sync-flow-home"
+  local flow_home="$TMP/sync-flow home"
   local divergent_home="$TMP/sync-flow-divergent-home"
   local malformed_home="$TMP/sync-flow-malformed-home"
   local failure_home="$TMP/sync-flow-failure-home"
