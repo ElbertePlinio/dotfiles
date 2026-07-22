@@ -36,6 +36,7 @@ if [[ -z "$SOURCE" || ! -f "$SOURCE/scripts/check-agent-config-sync.sh" ]]; then
 fi
 
 CHECK="$SOURCE/scripts/check-agent-config-sync.sh"
+PICKFORGE_LANES_CONFIGURE="$SOURCE/run_onchange_after_configure_pickforge_lanes_mcp.sh"
 MANIFEST="$SOURCE/dot_agents/skill-targets.json"
 RETIREMENT_LIST="$SOURCE/.chezmoiremove"
 SRC=(--source "$SOURCE")
@@ -174,6 +175,7 @@ cmd_apply() {
     "${HOME}/.hermes/SOUL.md"
     "${HOME}/.agents/skills"
     "${HOME}/.local/bin/agent-config-sync"
+    "${HOME}/.local/bin/pickforge-lanes-mcp"
     "${HOME}/.local/bin/sudo-askpass"
     "${HOME}/.config/environment.d/50-sudo-askpass.conf"
     "${HOME}/.config/environment.d/60-omp.conf"
@@ -221,6 +223,14 @@ cmd_apply() {
   load_retired_targets
   preflight_unmanaged_targets "${active_targets[@]}"
   chezmoi "${SRC[@]}" apply --force --no-tty -- "${apply_targets[@]}"
+  if [[ ! -f "$PICKFORGE_LANES_CONFIGURE" ]]; then
+    echo "agent-config-sync: pickforge-lanes MCP configure script missing: $PICKFORGE_LANES_CONFIGURE" >&2
+    return 1
+  fi
+  if ! sh "$PICKFORGE_LANES_CONFIGURE"; then
+    echo "agent-config-sync: pickforge-lanes MCP registration failed" >&2
+    return 1
+  fi
   bash "$CHECK" --check-live-migration
 }
 
