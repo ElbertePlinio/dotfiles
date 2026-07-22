@@ -43,11 +43,9 @@
     "gemini-cli",
     "github-copilot",
     "kimi-code-cli",
-    "opencode",
     "warp",
     "zed",
     "claude-code",
-    "pi",
-    "droid"
+    "pi"
   ]
 }

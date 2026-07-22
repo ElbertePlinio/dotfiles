@@ -50,8 +50,6 @@
           "mistral": ["MISTRAL_API_KEY"],
           "nvidia": ["NVIDIA_API_KEY"],
           "openai": ["OPENAI_API_KEY"],
-          "opencode": ["OPENCODE_API_KEY"],
-          "opencode-go": ["OPENCODE_API_KEY"],
           "openrouter": ["OPENROUTER_API_KEY"],
           "qwen-token-plan": ["QWEN_TOKEN_PLAN_API_KEY"],
           "qwen-token-plan-cn": ["QWEN_TOKEN_PLAN_CN_API_KEY"],
@@ -81,21 +79,6 @@
       "binary": "ollama",
       "versionArgs": ["--version"],
       "configPaths": []
-    },
-    "opencode": {
-      "displayName": "OpenCode",
-      "binary": "opencode",
-      "versionArgs": ["--version"],
-      "configPaths": ["~/.config/opencode/AGENTS.md", "~/.config/opencode/opencode.json"],
-      "mcp": {"path": "~/.config/opencode/opencode.json", "root": "mcp", "disabledKey": "disabledServers"},
-      "onlineProbe": ["auth", "list"]
-    },
-    "factory": {
-      "displayName": "Factory",
-      "binary": "droid",
-      "versionArgs": ["--version"],
-      "configPaths": ["~/.factory/AGENTS.md", "~/.factory/settings.json"],
-      "mcp": {"path": "~/.factory/mcp.json", "root": "mcpServers"}
     },
     "hermes": {
       "displayName": "Hermes",

@@ -169,13 +169,6 @@ cmd_apply() {
     "${HOME}/.omp/agent/agents"
     "${HOME}/.omp/agent/mcp.json"
     "${HOME}/.omp/agent/extensions/decision-audit-gate.ts"
-    "${HOME}/.factory/AGENTS.md"
-    "${HOME}/.factory/hooks/model-flow-reminder.sh"
-    "${HOME}/.factory/hooks/decision-audit-gate.sh"
-    "${HOME}/.factory/hooks/kde-notify.sh"
-    "${HOME}/.factory/hooks.json"
-    "${HOME}/.config/opencode/AGENTS.md"
-    "${HOME}/.config/opencode/README.md"
     "${HOME}/.agents/.skill-lock.json"
     "${HOME}/.agents/mcp-targets.json"
     "${HOME}/.agents/skill-targets.json"
@@ -213,8 +206,6 @@ cmd_apply() {
     "${HOME}/.pi/agent/skills" \
     "${HOME}/.omp/agent/extensions" \
     "${HOME}/.omp/agent/skills" \
-    "${HOME}/.factory/hooks" \
-    "${HOME}/.config/opencode" \
     "${HOME}/.config/environment.d" \
     "${HOME}/.agents/skills" \
     "${HOME}/.hermes" \

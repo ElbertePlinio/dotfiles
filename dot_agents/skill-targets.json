@@ -32,12 +32,6 @@
       "discovery": "symlink",
       "relative_prefix": "../../../.agents/skills"
     },
-    "factory": {
-      "skills_root": "~/.factory/skills",
-      "source_root": "private_dot_factory/skills",
-      "discovery": "symlink",
-      "relative_prefix": "../../.agents/skills"
-    },
     "hermes": {
       "skills_root": "~/.hermes/skills",
       "source_root": "private_dot_hermes/private_skills",
@@ -130,7 +124,6 @@
       "grok",
       "pi",
       "omp",
-      "factory",
       "hermes"
     ]
   }

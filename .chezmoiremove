@@ -5,7 +5,8 @@
 .local/bin/claude-default
 .local/bin/claude-personal
 .local/bin/claude-profile
-.factory/bin/frun
+.factory
+.config/opencode
 .claude/RTK.md
 Projects/Personal/.codex
 Projects/Personal/.agent-safety
