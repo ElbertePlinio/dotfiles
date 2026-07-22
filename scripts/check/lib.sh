@@ -1,0 +1,285 @@
+pass() { printf 'OK  %s\n' "$*"; }
+err()  { printf 'ERR %s\n' "$*" >&2; fail=1; }
+need() { [[ -f "$1" ]] || err "missing: $1"; }
+
+source_absent() {
+  local path="$1"
+  if [[ -e "$ROOT/$path" || -L "$ROOT/$path" ]]; then
+    err "retired source remains: $path"
+  else
+    pass "retired source absent: $path"
+  fi
+}
+
+expand_home() {
+  local p="$1"
+  if [[ "$p" == "~/"* ]]; then
+    printf '%s\n' "${HOME}/${p#"~/"}"
+  elif [[ "$p" == "~" ]]; then
+    printf '%s\n' "$HOME"
+  else
+    printf '%s\n' "$p"
+  fi
+}
+
+dirs_identical() {
+  local a="$1" b="$2"
+  [[ -d "$a" && -d "$b" ]] || return 1
+  diff -rq "$a" "$b" >/dev/null 2>&1
+}
+
+managed_regular_file_unchanged() {
+  local live="$1"
+  local state expected actual
+  [[ -f "$live" && ! -L "$live" ]] || return 1
+  state="$(chezmoi state get --bucket=entryState --key="$live" 2>/dev/null || true)"
+  expected="$(jq -r '.contentsSHA256 // empty' <<<"$state" 2>/dev/null || true)"
+  [[ -n "$expected" ]] || return 1
+  read -r actual _ < <(sha256sum "$live")
+  [[ "$actual" == "$expected" ]]
+}
+
+validate_omp_agent_override() {
+  local role="$1" path="$2"
+
+  if [[ ! -f "$path" ]]; then
+    err "OMP ${role} override missing: $path"
+    return
+  fi
+
+  if grep -Eq '^(model|thinkingLevel):' "$path"; then
+    err "OMP ${role} override fixes a model or effort instead of deferring selection"
+  else
+    pass "OMP ${role} override defers model and effort selection"
+  fi
+
+  if [[ "$role" == reviewer ]]; then
+    if grep -Fq 'output:' "$path" \
+      && grep -Fq 'overall_correctness:' "$path" \
+      && grep -Fq 'findings:' "$path"; then
+      pass 'OMP reviewer override retains structured output'
+    else
+      err 'OMP reviewer override missing structured output schema'
+    fi
+    if grep -Fq 'Bash is read-only:' "$path" \
+      && grep -Fq 'You NEVER make file edits or trigger builds.' "$path" \
+      && grep -Fq 'Every finding MUST be patch-anchored and evidence-backed.' "$path"; then
+      pass 'OMP reviewer override retains read-only review contract'
+    else
+      err 'OMP reviewer override missing read-only review contract'
+    fi
+  fi
+}
+
+check_omp_agent_override_sources() {
+  validate_omp_agent_override task "$OMP_TASK_OVERRIDE"
+  validate_omp_agent_override reviewer "$OMP_REVIEWER_OVERRIDE"
+}
+
+check_live_omp_agent_overrides() {
+  local live_dir="${HOME}/.omp/agent/agents"
+  local role live_override canonical_override
+
+  if [[ ! -e "$live_dir" ]]; then
+    if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
+      pass "live OMP agent overrides not yet applied: $live_dir"
+    else
+      err "live OMP agent overrides missing: $live_dir"
+    fi
+    return
+  fi
+  if [[ ! -d "$live_dir" || -L "$live_dir" ]]; then
+    err "live OMP agent overrides must be a managed regular directory: $live_dir"
+    return
+  fi
+
+  for role in task reviewer; do
+    live_override="$live_dir/${role}.md"
+    canonical_override="$OMP_AGENT_OVERRIDES_DIR/${role}.md"
+
+    if [[ -L "$live_override" ]]; then
+      err "live OMP ${role} override must be a managed regular file: $live_override"
+      continue
+    fi
+    if [[ ! -f "$live_override" ]]; then
+      err "live OMP ${role} override missing or not a regular file: $live_override"
+      continue
+    fi
+    if [[ ! -f "$canonical_override" ]]; then
+      err "canonical OMP ${role} override missing: $canonical_override"
+      continue
+    fi
+
+    if cmp -s "$live_override" "$canonical_override"; then
+      validate_omp_agent_override "$role" "$live_override"
+      pass "live OMP ${role} override matches canonical source"
+      continue
+    fi
+
+    if [[ "$STRICT_PREFLIGHT" -eq 1 ]] && managed_regular_file_unchanged "$live_override"; then
+      pass "live OMP ${role} override has managed pending drift"
+      continue
+    fi
+    err "live OMP ${role} override differs from canonical source"
+  done
+}
+
+
+MANIFEST="$ROOT/dot_agents/skill-targets.json"
+SKILL_LOCK="$ROOT/dot_agents/dot_skill-lock.json"
+MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"
+OMP_MCP_SOURCE="$ROOT/dot_omp/agent/mcp.json.tmpl"
+OMP_MCP="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-omp-mcp.XXXXXX")"
+trap 'rm -f "$OMP_MCP"' EXIT
+chezmoi "${SRC[@]}" execute-template --file "$OMP_MCP_SOURCE" >"$OMP_MCP"
+PICKFORGE_LANES_WRAPPER="$ROOT/dot_local/bin/executable_pickforge-lanes-mcp"
+PICKFORGE_LANES_CONFIGURE="$ROOT/run_onchange_after_configure_pickforge_lanes_mcp.sh"
+PICKFORGE_LANES_SKILL="$ROOT/dot_agents/skills/multi-model-lanes/encrypted_SKILL.md.age"
+CLAUDE_SETTINGS="$ROOT/dot_claude/encrypted_settings.json.age"
+OMP_AGENT_OVERRIDES_DIR="$ROOT/dot_omp/agent/agents"
+OMP_TASK_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/task.md"
+OMP_REVIEWER_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/reviewer.md"
+
+RETIRED_SOURCE_PATHS=(
+  dot_claude-personal
+  dot_config/agent-profiles
+  dot_config/rtk
+  Projects/Personal/dot_codex
+  Projects/Personal/private_dot_agent-safety
+  dot_local/bin/executable_claude-profile
+  dot_local/bin/executable_claude-default
+  dot_local/bin/executable_claude-personal
+  dot_local/bin/executable_agent-profile-doctor
+  dot_claude/private_RTK.md
+  private_dot_factory
+  dot_config/opencode
+  .chezmoitemplates/claude-restricted.md
+  .chezmoitemplates/claude-personal-lite.md
+)
+
+RETIRED_SKILL_LOCK_ENTRIES=(
+  caveman
+  caveman-commit
+  caveman-compress
+  caveman-help
+  caveman-review
+  caveman-stats
+  cavecrew
+  compress
+)
+
+RETIRED_TARGET_PATHS=(
+  .claude-personal
+  .config/agent-profiles
+  .config/rtk
+  .local/bin/agent-profile-doctor
+  .local/bin/claude-default
+  .local/bin/claude-personal
+  .local/bin/claude-profile
+  .factory
+  .config/opencode
+  .claude/RTK.md
+  Projects/Personal/.codex
+  Projects/Personal/.agent-safety
+  .agents/skills/superpowers
+  .config/superpowers
+  .codex/superpowers
+  .agents/skills/caveman
+  .agents/skills/caveman-commit
+  .agents/skills/caveman-compress
+  .agents/skills/caveman-help
+  .agents/skills/caveman-review
+  .agents/skills/caveman-stats
+  .agents/skills/cavecrew
+  .agents/skills/compress
+)
+
+RUNTIME_SOURCE_PATHS=(
+  private_dot_hermes/private_skills/dot_curator_backups
+  private_dot_hermes/private_skills/encrypted_empty_dot_usage.json.lock.age
+  private_dot_hermes/private_skills/encrypted_private_dot_bundled_manifest.age
+  private_dot_hermes/private_skills/encrypted_private_dot_curator_state.age
+  private_dot_hermes/private_skills/encrypted_private_dot_usage.json.age
+  private_dot_hermes/private_skills/dot_hub/encrypted_private_lock.json.age
+  dot_pi/agent/sessions
+  dot_pi/agent/encrypted_run-history.jsonl.age
+  dot_pi/agent/encrypted_mcp-cache.json.age
+  dot_pi/agent/encrypted_mcp-npx-cache.json.age
+  dot_pi/agent/encrypted_mcp-onboarding.json.age
+  dot_pi/agent/pi-hermes-memory/encrypted_dot_skills-migrated-to-extension-storage.age
+  dot_codex/encrypted_private_auth.json.age
+  dot_codex/encrypted_private_config.toml.age
+  dot_codex/rules
+  dot_codex/version.json
+  dot_codex/archived_sessions
+  dot_codex/cache
+  dot_codex/history.jsonl
+  dot_codex/log
+  dot_codex/memories
+  dot_codex/sessions
+  dot_codex/shell_snapshots
+  dot_codex/sqlite
+  dot_codex/tmp
+  'dot_codex/*.sqlite*'
+  dot_omp/agent/sessions
+  dot_omp/agent/terminal-sessions
+  dot_omp/agent/blobs
+  dot_omp/agent/cache
+  dot_omp/agent/last-changelog-version
+  dot_omp/autoqa.db
+  dot_omp/autoqa.db-wal
+  dot_omp/autoqa.db-shm
+  dot_omp/agent/agent.db
+  dot_omp/agent/history.db
+  dot_omp/agent/models.db
+  dot_omp/logs
+  dot_omp/puppeteer
+)
+
+RUNTIME_IGNORE_PATHS=(
+  .hermes/skills/.bundled_manifest
+  .hermes/skills/.curator_backups
+  .hermes/skills/.curator_state
+  .hermes/skills/.usage.json
+  .hermes/skills/.usage.json.lock
+  .hermes/skills/.hub/lock.json
+  .pi/agent/sessions
+  .pi/agent/run-history.jsonl
+  .pi/agent/mcp-cache.json
+  .pi/agent/mcp-npx-cache.json
+  .pi/agent/mcp-onboarding.json
+  .pi/agent/pi-hermes-memory/.skills-migrated-to-extension-storage
+  .claude/.credentials.json
+  .claude/history.jsonl
+  .claude/plugins
+  .claude/projects
+  .codex/auth.json
+  .codex/config.toml
+  .codex/rules
+  .codex/version.json
+  .codex/archived_sessions
+  .codex/cache
+  .codex/history.jsonl
+  .codex/log
+  .codex/memories
+  .codex/sessions
+  .codex/shell_snapshots
+  .codex/sqlite
+  .codex/tmp
+  '.codex/*.sqlite*'
+  .omp/agent/sessions
+  .omp/agent/terminal-sessions
+  .omp/agent/blobs
+  .omp/agent/cache
+  .omp/agent/last-changelog-version
+  .omp/autoqa.db
+  .omp/autoqa.db-wal
+  .omp/autoqa.db-shm
+  .omp/agent/*.db
+  .omp/logs
+  .omp/cache
+  .omp/install-id
+  .omp/gpu_cache.json
+  .omp/puppeteer
+)
+
