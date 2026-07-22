@@ -102,3 +102,52 @@ scripts
 **/*.db-shm
 # installed npm deps — reconstructible via `npm ci`, never version
 **/node_modules
+
+# Linux desktop configuration stays on CachyOS only.
+{{ if ne .chezmoi.os "linux" }}
+.gtkrc-2.0
+.XCompose
+.p10k.zsh
+.config/alacritty/**
+.config/arkrc
+.config/baloofilerc
+.config/cachyos/**
+.config/cachyos-hello.json
+.config/environment.d/**
+.config/fish/**
+.config/gtk-3.0/**
+.config/gtk-4.0/**
+.config/kate/**
+.config/kcminputrc
+.config/kdedefaults/**
+.config/kdeglobals
+.config/kwinrc
+.config/libinput-gestures.conf
+.config/mimeapps.list
+.config/plasma-org.kde.plasma.desktop-appletsrc
+.config/plasmashellrc
+.config/bluedevilglobalrc
+.config/dolphinrc
+.config/gwenviewrc
+.config/kactivitymanagerdrc
+.config/kate-externaltoolspluginrc
+.config/katerc
+.config/katevirc
+.config/kded5rc
+.config/kglobalshortcutsrc
+.config/kiorc
+.config/konsolerc
+.config/ksmserverrc
+.config/kwriterc
+.config/kxkbrc
+.config/plasma-localerc
+.config/plasmanotifyrc
+.config/powermanagementprofilesrc
+.config/spectaclerc
+.config/systemmonitorrc
+.config/trashrc
+.config/user-dirs.dirs
+.config/QtProject.conf
+.config/Trolltech.conf
+.config/user-dirs.locale
+{{ end }}
