@@ -94,6 +94,13 @@ write_catalog() {
       "versionArgs": ["--version"],
       "configPaths": ["~/.beta/config.json"]
     },
+    "claude": {
+      "displayName": "Claude",
+      "binary": "claude",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.claude/settings.json"],
+      "mcp": {"path": "~/.claude.json", "root": "mcpServers"}
+    },
     "factory": {
       "displayName": "Factory",
       "binary": "droid",
@@ -145,9 +152,53 @@ write_requirements() {
   harnesses="$1"
   providers='{}'
   mcp='{}'
+  lanes='{}'
   [ "$#" -ge 2 ] && providers="$2"
   [ "$#" -ge 3 ] && mcp="$3"
-  printf '{"version":1,"harnesses":%s,"providers":%s,"mcp":%s}\n' "$harnesses" "$providers" "$mcp" >"$CONFIG"
+  [ "$#" -ge 4 ] && lanes="$4"
+  printf '{"version":1,"harnesses":%s,"providers":%s,"mcp":%s,"lanes":%s}\n' "$harnesses" "$providers" "$mcp" "$lanes" >"$CONFIG"
+}
+
+write_lane_catalog() {
+  root="$1"
+  required_files="${2:-[\"extensions/lanes.ts\",\"src/adapters/pi.ts\",\"src/adapters/claude-code.ts\",\"src/table.ts\",\"mcp/server.ts\"]}"
+  lane_catalog_tmp="$CASE_DIR/lane-catalog.tmp"
+  "$JQ" --arg root "$root" --argjson requiredFiles "$required_files" '.lanes = {
+    runtime: {root: $root, packageFile: "package.json", tableEntry: "src/table.ts", requiredFiles: $requiredFiles},
+    pi: {settingsPath: "~/.pi/agent/settings.json", packagesKey: "packages"},
+    claudeCode: {binary: "claude", minVersion: "2.1.216"}
+  }' "$CATALOG" >"$lane_catalog_tmp"
+  cat "$lane_catalog_tmp" >"$CATALOG"
+}
+
+write_lane_runtime() {
+  dir="$1"
+  mkdir -p "$dir/src/adapters" "$dir/extensions" "$dir/mcp"
+  printf '{"name":"fake-pi-kit","pi":{"extensions":["extensions/lanes.ts"]}}\n' >"$dir/package.json"
+  : >"$dir/extensions/lanes.ts"
+  : >"$dir/src/adapters/pi.ts"
+  : >"$dir/src/adapters/claude-code.ts"
+  : >"$dir/mcp/server.ts"
+  cat >"$dir/src/table.ts" <<'TS'
+export const MODEL_TABLE = [
+  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: ["pi", "mcp"] },
+  { selector: "xai/grok-4.5", route: "pi", origins: ["pi", "mcp"] },
+  { selector: "anthropic/claude-sonnet-5", route: "claude-code", origins: ["pi"] },
+];
+TS
+}
+
+write_pi_settings_packages() {
+  packages_json="$1"
+  mkdir -p "$HOME_DIR/.pi/agent"
+  printf '{"packages":%s}\n' "$packages_json" >"$HOME_DIR/.pi/agent/settings.json"
+}
+
+make_claude_harness() {
+  version_output="${1:-2.1.216 (Claude Code)}"
+  mkdir -p "$HOME_DIR/.claude"
+  printf '{}\n' >"$HOME_DIR/.claude/settings.json"
+  write_mock claude "if [ \"\${1:-}\" = '--version' ]; then printf '%s\n' \"$version_output\"; exit 0; fi"
 }
 
 setup_case() {
@@ -401,6 +452,207 @@ assert_json 'any(.checks[]; .id == "bootstrap.git" and .status == "fail" and .re
 next_test; setup_case; write_requirements '["beta"]'; run_doctor --json
 assert_json '.exitCode == 1 and .summary.fail == ([.checks[] | select(.status == "fail")] | length) and ([.checks[] | select(.required and .status == "fail")] | length) > 0' 'JSON summary, required failures, and exit code agree'
 next_test; assert_rc 1 'process exit agrees with JSON exitCode'
+
+next_test; setup_case; make_healthy_alpha; printf '{"version":1,"harnesses":["alpha"],"providers":{},"mcp":{}}\n' >"$CONFIG"; run_doctor --json
+assert_rc 0 'requirements without a lanes key remain schema-valid and backward compatible'
+next_test; assert_json 'all(.checks[]; (.id | startswith("lanes.")) | not)' 'absent lanes key emits no lane checks'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-anthropic-prefix"; write_lane_runtime "$lane_root"
+cat >"$lane_root/src/table.ts" <<'TS'
+export const MODEL_TABLE = [
+  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: ["pi", "mcp"] },
+  { selector: "anthropic/opus-fallback", route: "pi", origins: ["pi"] },
+];
+TS
+write_lane_catalog "$lane_root"
+write_requirements '["pi"]' '{}' '{}' '{"pi":["anthropic/opus-fallback"]}'
+run_doctor --json
+assert_rc 1 'a Pi lane selector with an anthropic prefix is rejected without any duplicated catalog provider map'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.anthropic.opus.fallback.provider" and .status == "fail" and (.message | contains("must not be required as a Pi provider")))' 'anthropic-prefixed Pi lane selector names the rejection reason'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-noslash-selector"; write_lane_runtime "$lane_root"
+cat >"$lane_root/src/table.ts" <<'TS'
+export const MODEL_TABLE = [
+  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: ["pi", "mcp"] },
+  { selector: "standalone", route: "pi", origins: ["pi"] },
+];
+TS
+write_lane_catalog "$lane_root"
+write_requirements '["pi"]' '{}' '{}' '{"pi":["standalone"]}'
+run_doctor --json
+assert_json 'any(.checks[]; .id == "lanes.pi.selector.standalone.provider" and .status == "fail" and (.message | contains("no provider prefix")))' 'a Pi lane selector without a / prefix has no derivable provider'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-missing-required-file"; write_lane_runtime "$lane_root"; rm -f "$lane_root/mcp/server.ts"; write_lane_catalog "$lane_root"
+write_pi_settings_packages "[\"$lane_root\"]"
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+run_doctor --json
+assert_rc 1 'a missing catalog-required runtime file is a required failure'
+next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.file.mcp.server.ts" and .status == "fail" and (.message | contains("is missing")))' 'the missing runtime file check names the missing path'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-missing-extension"; write_lane_runtime "$lane_root"; printf '{"name":"fake-pi-kit"}\n' >"$lane_root/package.json"; write_lane_catalog "$lane_root"
+write_pi_settings_packages "[\"$lane_root\"]"
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+run_doctor --json
+assert_rc 1 'a runtime package.json missing the lanes.ts extension declaration is a required failure'
+next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.package" and .status == "fail" and (.message | contains("extensions/lanes.ts")))' 'the missing extension check names extensions/lanes.ts'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-origin-missing"; write_lane_runtime "$lane_root"
+cat >"$lane_root/src/table.ts" <<'TS'
+export const MODEL_TABLE = [
+  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: ["mcp"] },
+];
+TS
+write_lane_catalog "$lane_root"
+write_pi_settings_packages "[\"$lane_root\"]"
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+run_doctor --json
+assert_rc 1 'a route-present selector missing the pi origin is a required failure'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.5.6.sol.model" and .status == "pass") and any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.5.6.sol.origin" and .status == "fail" and (.message | contains("missing the required pi origin")))' 'the route still matches while the missing origin is reported separately'
+
+next_test; setup_case; make_healthy_alpha; printf '{"version":1,"harnesses":["alpha"],"providers":{},"mcp":{},"lanes":{"unknown":["x"]}}\n' >"$CONFIG"; run_doctor --json
+assert_rc 2 'unknown lanes route key is rejected as invalid requirements'
+next_test; assert_json 'any(.checks[]; .id == "requirements.invalid")' 'unknown lanes route key requirements failure is structured'
+
+next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{}' '{}' '{"pi":["a","a"]}'; run_doctor --json
+assert_rc 2 'duplicate lane selector requirement is rejected as invalid'
+
+next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'; run_doctor --json
+assert_rc 2 'Pi lane requirement without the pi harness is rejected as invalid'
+
+next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'; run_doctor --json
+assert_rc 2 'Claude Code lane requirement without the claude harness is rejected as invalid'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-route-mismatch"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
+write_pi_settings_packages "[\"$lane_root\"]"
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["anthropic/claude-sonnet-5"]}'
+run_doctor --json
+assert_rc 1 'Pi lane requiring a claude-code-routed selector fails'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.anthropic.claude.sonnet.5.model" and .status == "fail" and (.message | contains("routes through claude-code")))' 'route mismatch names the actual runtime route'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+missing_root="$CASE_DIR/does-not-exist"
+write_lane_catalog "$missing_root"
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+run_doctor --json
+assert_json 'any(.checks[]; .id == "lanes.runtime.dir" and .status == "fail")' 'missing runtime directory is a required failure'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selectors" and .status == "skip")' 'selector checks are skipped when the runtime directory is missing'
+
+next_test; setup_case; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-no-bun"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
+write_pi_settings_packages "[\"$lane_root\"]"
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+run_doctor --json
+assert_json 'any(.checks[]; .id == "lanes.runtime.bun" and .status == "fail")' 'missing bun on PATH is a required failure'
+next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status == "skip")' 'model table check is skipped when bun is unavailable'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-no-package"; mkdir -p "$lane_root/src"; cat >"$lane_root/src/table.ts" <<'TS'
+export const MODEL_TABLE = [{ selector: "openai-codex/gpt-5.6-sol", route: "pi" }];
+TS
+write_lane_catalog "$lane_root"
+write_pi_settings_packages "[\"$lane_root\"]"
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+run_doctor --json
+assert_json 'any(.checks[]; .id == "lanes.runtime.package" and .status == "fail")' 'missing runtime package.json is a required failure'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-unloaded"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
+write_pi_settings_packages '["npm:something-else"]'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+run_doctor --json
+assert_json 'any(.checks[]; .id == "lanes.pi.settings" and .status == "fail")' 'Pi settings that do not load the runtime package are a required failure'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-provider-omission"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
+write_pi_settings_packages "[\"$lane_root\"]"
+write_requirements '["pi"]' '{}' '{}' '{"pi":["xai/grok-4.5"]}'
+run_doctor --json
+assert_rc 1 'required Pi lane provider omitted from providers.pi fails'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.xai.grok.4.5.provider" and .status == "fail" and (.message | contains("missing from providers.pi")))' 'provider omission names the missing provider'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_claude_harness '2.1.216 (Claude Code)'
+lane_root="$CASE_DIR/pi-kit-claude-ok"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
+run_doctor --json
+assert_rc 0 'a safe, current Claude Code executable satisfies the claude-code lane requirement'
+next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.executable" and .status == "pass") and any(.checks[]; .id == "lanes.claude-code.version" and .status == "pass" and (.message | contains("2.1.216")))' 'safe executable and current version both pass'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_claude_harness '2.0.999 (Claude Code)'
+lane_root="$CASE_DIR/pi-kit-claude-old"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
+run_doctor --json
+assert_json 'any(.checks[]; .id == "lanes.claude-code.version" and .status == "fail" and (.message | contains("older than the required minimum")))' 'an outdated Claude Code version is a required failure'
+
+next_test; setup_case; link_tool bun; link_tool head
+mkdir -p "$HOME_DIR/.claude"; printf '{}\n' >"$HOME_DIR/.claude/settings.json"
+write_mock claude 'printf "%s\n" "--dangerously-skip-permissions"; if [ "${1:-}" = "--version" ]; then echo "2.1.300 (Claude Code)"; exit 0; fi'
+lane_root="$CASE_DIR/pi-kit-claude-bypass-only"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
+run_doctor --json
+assert_json 'any(.checks[]; .id == "lanes.claude-code.executable" and .status == "fail" and (.message | contains("no safe Claude Code executable")))' 'a permission-bypass wrapper alone yields no safe executable'
+next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.version" and .status == "skip")' 'version check is skipped when no safe executable exists'
+next_test; assert_json 'any(.checks[]; .id == "harness.claude.executable" and .status == "pass")' 'the generic harness executable check is unaffected by lane wrapper-safety filtering'
+
+next_test; setup_case; link_tool bun; link_tool head
+mkdir -p "$HOME_DIR/.claude"; printf '{}\n' >"$HOME_DIR/.claude/settings.json"
+write_mock claude 'if [ "${1:-}" = "--version" ]; then echo "2.1.300 (Claude Code)"; exit 0; fi'
+extra_bin="$CASE_DIR/extra bin"; mkdir -p "$extra_bin"
+cat >"$extra_bin/claude" <<'CLAUDEWRAP'
+#!/bin/bash
+# --dangerously-skip-permissions
+echo "2.1.300"
+CLAUDEWRAP
+chmod +x "$extra_bin/claude"
+lane_root="$CASE_DIR/pi-kit-claude-later-safe"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
+set +e
+OUTPUT="$(HOME="$HOME_DIR" PATH="$extra_bin:$BIN_DIR" TMPDIR="$CASE_DIR" AGENT_DOCTOR_CATALOG="$CATALOG" /bin/bash "$DOCTOR" --config "$CONFIG" --json 2>&1)"
+RC=$?
+set -e
+assert_json 'any(.checks[]; .id == "lanes.claude-code.executable" and .status == "pass" and (.message | contains("1 safe")))' 'the earlier bypass wrapper is excluded, leaving exactly one safe candidate'
+next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.version" and .status == "pass")' 'the later safe candidate on PATH satisfies the version requirement'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_claude_harness '2.1.300 (Claude Code)'
+lane_root="$CASE_DIR/pi-kit-anthropic-no-pi-auth"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
+run_doctor --json
+assert_rc 0 'Anthropic-routed claude-code lanes succeed without any Pi provider requirement'
+next_test; assert_json 'all(.checks[]; (.id | startswith("provider.")) | not)' 'no Pi provider checks are emitted for Anthropic-only lane requirements'
+
+next_test; setup_case
+make_claude_harness '2.1.300 (Claude Code)'
+write_mock pickforge-lanes-mcp 'exit 0'
+printf '%s\n' '{"mcpServers":{"pickforge-lanes":{"command":"pickforge-lanes-mcp"}}}' >"$HOME_DIR/.claude.json"
+write_requirements '["claude"]' '{}' '{"claude":["pickforge-lanes"]}'
+run_doctor --json
+assert_json 'any(.checks[]; .id == "mcp.claude.pickforge-lanes.static" and .status == "pass")' 'pickforge-lanes MCP registration under claude is recognized by the existing generic static check'
+
+next_test; setup_case
+make_claude_harness '2.1.300 (Claude Code)'
+printf '%s\n' '{"mcpServers":{}}' >"$HOME_DIR/.claude.json"
+write_requirements '["claude"]' '{}' '{"claude":["pickforge-lanes"]}'
+run_doctor --json
+assert_json 'any(.checks[]; .id == "mcp.claude.pickforge-lanes.static" and .status == "fail")' 'missing pickforge-lanes MCP registration under claude fails statically'
 
 printf '1..%s\n' "$TESTS"
 if [ "$FAILURES" -ne 0 ]; then

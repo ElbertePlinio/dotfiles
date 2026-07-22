@@ -156,7 +156,17 @@ validate_catalog() {
     (.harnesses.pi.providerAuth as $auth |
       ($auth.path | type == "string" and length > 0) and
       ($auth.modelsPath | type == "string" and length > 0) and
-      ($auth.env | type == "object" and all(.[]; type == "array" and all(.[]; type == "string" and length > 0))))
+      ($auth.env | type == "object" and all(.[]; type == "array" and all(.[]; type == "string" and length > 0)))) and
+    ((.lanes? // null) as $lanes | $lanes == null or (
+      ($lanes.runtime.root | type == "string" and length > 0) and
+      (($lanes.runtime.packageFile? // "package.json") | type == "string" and length > 0) and
+      (($lanes.runtime.tableEntry? // "src/table.ts") | type == "string" and length > 0) and
+      (($lanes.runtime.requiredFiles? // []) | type == "array" and all(.[]; type == "string" and length > 0) and length == (unique | length)) and
+      ($lanes.pi.settingsPath | type == "string" and length > 0) and
+      (($lanes.pi.packagesKey? // "packages") | type == "string" and length > 0) and
+      ($lanes.claudeCode.binary | type == "string" and length > 0) and
+      ($lanes.claudeCode.minVersion | type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
+    ))
   ' "$CATALOG" >/dev/null 2>&1
 }
 
@@ -175,7 +185,13 @@ validate_requirements() {
     (all(.providers[];
       type == "array" and all(.[]; type == "string" and length > 0) and length == (unique | length))) and
     (all(.mcp[];
-      type == "array" and all(.[]; type == "string" and length > 0) and length == (unique | length)))
+      type == "array" and all(.[]; type == "string" and length > 0) and length == (unique | length))) and
+    (((.lanes? // {}) | type) == "object") and
+    (((.lanes? // {}) | keys) - ["pi","claude-code"] | length == 0) and
+    ((.lanes.pi? // []) | type == "array" and all(.[]; type == "string" and length > 0) and length == (unique | length)) and
+    ((.lanes["claude-code"]? // []) | type == "array" and all(.[]; type == "string" and length > 0) and length == (unique | length)) and
+    ((((.lanes.pi? // []) | length) == 0) or (.harnesses | index("pi") != null)) and
+    ((((.lanes["claude-code"]? // []) | length) == 0) or (.harnesses | index("claude") != null))
   ' "$CONFIG" >/dev/null 2>&1
 }
 
@@ -450,6 +466,284 @@ check_mcp() {
   done < <(jq -r --arg only "$ONLY" '.mcp | to_entries[] | select($only == "" or .key == $only) | .key as $h | .value[] | [$h,.] | @tsv' "$CONFIG")
 }
 
+lane_sanitize_id() {
+  printf '%s' "$1" | tr -c 'A-Za-z0-9' '.'
+}
+
+wrapper_has_permission_bypass() {
+  local path="$1" shebang
+  shebang="$(head -c 2 "$path" 2>/dev/null)" || return 0
+  [[ "$shebang" == '#!' ]] || return 1
+  if head -c 65536 "$path" 2>/dev/null | grep -aFq -- '--dangerously-skip-permissions'; then return 0; fi
+  if head -c 65536 "$path" 2>/dev/null | grep -aEq -- '--permission-mode(=|[[:space:]]+)bypassPermissions'; then return 0; fi
+  return 1
+}
+
+version_at_least() {
+  local left="$1" right="$2" l1 l2 l3 r1 r2 r3
+  IFS='.' read -r l1 l2 l3 <<<"$left"
+  IFS='.' read -r r1 r2 r3 <<<"$right"
+  l1="${l1:-0}"; l2="${l2:-0}"; l3="${l3:-0}"
+  r1="${r1:-0}"; r2="${r2:-0}"; r3="${r3:-0}"
+  if [[ "$l1" -gt "$r1" ]]; then return 0; fi
+  if [[ "$l1" -lt "$r1" ]]; then return 1; fi
+  if [[ "$l2" -gt "$r2" ]]; then return 0; fi
+  if [[ "$l2" -lt "$r2" ]]; then return 1; fi
+  [[ "$l3" -ge "$r3" ]]
+}
+
+check_lane_route_selectors() {
+  local route="$1" key="$2" selector sid row found_route
+  while IFS= read -r selector; do
+    [[ -n "$selector" ]] || continue
+    sid="$(lane_sanitize_id "$selector")"
+    row="$(jq -c --arg s "$selector" 'map(select(.selector == $s)) | .[0] // null' <<<"$LANE_TABLE_JSON")"
+    found_route="$(jq -r 'if . == null then "" else (.route // "") end' <<<"$row")"
+    if [[ -z "$found_route" ]]; then
+      add_check "lanes.$key.selector.$sid.model" fail true '' "model selector $selector is not present in the runtime model table"
+      continue
+    fi
+    if [[ "$found_route" != "$route" ]]; then
+      add_check "lanes.$key.selector.$sid.model" fail true '' "model selector $selector routes through $found_route, not $route"
+      continue
+    fi
+    add_check "lanes.$key.selector.$sid.model" pass true '' "model selector $selector routes through $route"
+    if jq -e '(.origins | type == "array") and (.origins | index("pi") != null)' <<<"$row" >/dev/null 2>&1; then
+      add_check "lanes.$key.selector.$sid.origin" pass true '' "model selector $selector supports the Pi lane origin"
+    else
+      add_check "lanes.$key.selector.$sid.origin" fail true '' "model selector $selector is missing the required pi origin in the runtime model table"
+    fi
+  done < <(jq -r --arg k "$key" '(.lanes[$k] // [])[]' "$CONFIG")
+}
+
+check_lane_pi_providers() {
+  local selector sid provider present
+  while IFS= read -r selector; do
+    [[ -n "$selector" ]] || continue
+    sid="$(lane_sanitize_id "$selector")"
+    provider="${selector%%/*}"
+    if [[ -z "$provider" || "$provider" == "$selector" ]]; then
+      add_check "lanes.pi.selector.$sid.provider" fail true '' "$selector has no provider prefix before the / separator"
+      continue
+    fi
+    if [[ "$provider" == "anthropic" ]]; then
+      add_check "lanes.pi.selector.$sid.provider" fail true '' "$selector is Anthropic-routed and must not be required as a Pi provider"
+      continue
+    fi
+    present="$(jq -r --arg p "$provider" '(.providers.pi // []) | any(. == $p)' "$CONFIG")"
+    if [[ "$present" == true ]]; then
+      add_check "lanes.pi.selector.$sid.provider" pass true '' "required Pi provider $provider for $selector is declared in providers.pi"
+    else
+      add_check "lanes.pi.selector.$sid.provider" fail true '' "required Pi provider $provider for $selector is missing from providers.pi"
+    fi
+  done < <(jq -r '(.lanes.pi // [])[]' "$CONFIG")
+}
+
+check_lane_pi_settings() {
+  local root="$1" settings_path settings_key resolved_settings settings_dir entry candidate found=0
+  settings_path="$(jq -r '.lanes.pi.settingsPath // empty' "$CATALOG")"
+  settings_key="$(jq -r '.lanes.pi.packagesKey // "packages"' "$CATALOG")"
+  resolved_settings="$(expand_home "$settings_path")"
+  if [[ ! -f "$resolved_settings" ]] || ! jq -e . "$resolved_settings" >/dev/null 2>&1; then
+    add_check lanes.pi.settings fail true '' "$settings_path is missing or invalid"
+    return
+  fi
+  settings_dir="$(dirname "$resolved_settings")"
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    case "$entry" in
+      npm:*) continue ;;
+      '~') candidate="$(expand_home "$entry")" ;;
+      '~/'*) candidate="$(expand_home "$entry")" ;;
+      /*) candidate="$entry" ;;
+      *) candidate="$(cd "$settings_dir" 2>/dev/null && cd "$entry" 2>/dev/null && pwd)" ;;
+    esac
+    [[ -n "$candidate" ]] || continue
+    candidate="$(cd "$candidate" 2>/dev/null && pwd)" || continue
+    if [[ "$candidate" == "$root" ]]; then
+      found=1
+      break
+    fi
+  done < <(jq -r --arg k "$settings_key" '(.[$k] // [])[]' "$resolved_settings")
+  if [[ "$found" -eq 1 ]]; then
+    add_check lanes.pi.settings pass true '' "$settings_path loads the runtime package"
+  else
+    add_check lanes.pi.settings fail true '' "$settings_path does not load the runtime package"
+  fi
+}
+
+check_lane_claude_executable() {
+  local binary min_version dir path resolved is_dup version output found_version='' unsupported=''
+  local -a safe=() seen_realpaths=()
+  binary="$(jq -r '.lanes.claudeCode.binary // "claude"' "$CATALOG")"
+  min_version="$(jq -r '.lanes.claudeCode.minVersion // empty' "$CATALOG")"
+  local saved_ifs="$IFS"
+  IFS=':'
+  local -a path_dirs=($PATH)
+  IFS="$saved_ifs"
+  for dir in "${path_dirs[@]}"; do
+    [[ -n "$dir" ]] || continue
+    path="$dir/$binary"
+    [[ -x "$path" ]] || continue
+    resolved="$(cd "$dir" 2>/dev/null && pwd -P)/$binary"
+    [[ -f "$resolved" ]] || continue
+    is_dup=0
+    for seen in "${seen_realpaths[@]:-}"; do
+      [[ "$seen" == "$resolved" ]] && { is_dup=1; break; }
+    done
+    [[ "$is_dup" -eq 1 ]] && continue
+    seen_realpaths+=("$resolved")
+    [[ -x "$resolved" ]] || continue
+    wrapper_has_permission_bypass "$resolved" && continue
+    safe+=("$resolved")
+  done
+  if [[ "${#safe[@]}" -eq 0 ]]; then
+    add_check lanes.claude-code.executable fail true '' 'no safe Claude Code executable was found on PATH'
+    add_check lanes.claude-code.version skip true '' 'version check skipped because no safe executable was found'
+    return
+  fi
+  add_check lanes.claude-code.executable pass true '' "${#safe[@]} safe Claude Code executable(s) found on PATH"
+
+  for resolved in "${safe[@]}"; do
+    output="$TMP/lane-claude-version-$(lane_sanitize_id "$resolved")"
+    if run_capture 5 "$output" "$resolved" --version; then
+      version="$(grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' "$output" | head -n1)"
+      [[ -n "$version" ]] || continue
+      if version_at_least "$version" "$min_version"; then
+        found_version="$version"
+        break
+      else
+        unsupported="$version"
+      fi
+    fi
+  done
+  if [[ -n "$found_version" ]]; then
+    add_check lanes.claude-code.version pass true '' "Claude Code $found_version satisfies the minimum $min_version"
+  elif [[ -n "$unsupported" ]]; then
+    add_check lanes.claude-code.version fail true '' "Claude Code $unsupported is older than the required minimum $min_version"
+  else
+    add_check lanes.claude-code.version fail true '' 'no supported Claude Code executable version could be determined'
+  fi
+}
+
+LANE_TABLE_JSON=''
+
+check_lanes() {
+  local lanes_pi_count lanes_claude_count run_pi=0 run_claude=0
+  lanes_pi_count="$(jq -r '(.lanes.pi // []) | length' "$CONFIG")"
+  lanes_claude_count="$(jq -r '(.lanes["claude-code"] // []) | length' "$CONFIG")"
+  if [[ "$lanes_pi_count" -gt 0 && ( -z "$ONLY" || "$ONLY" == pi ) ]]; then run_pi=1; fi
+  if [[ "$lanes_claude_count" -gt 0 && ( -z "$ONLY" || "$ONLY" == claude ) ]]; then run_claude=1; fi
+  [[ "$run_pi" -eq 1 || "$run_claude" -eq 1 ]] || return
+
+  local root_cfg root package_file package_path table_entry table_path bun_bin output
+
+  root_cfg="$(jq -r '.lanes.runtime.root // empty' "$CATALOG")"
+  root="$(expand_home "$root_cfg")"
+  if [[ -z "$root_cfg" || ! -d "$root" ]]; then
+    add_check lanes.runtime.dir fail true '' "${root_cfg:-lanes.runtime.root} is missing"
+    add_check lanes.runtime.package skip true '' 'runtime package check skipped because the runtime directory is missing'
+    add_check lanes.runtime.bun skip true '' 'bun check skipped because the runtime directory is missing'
+    add_check lanes.runtime.table skip true '' 'model table check skipped because the runtime directory is missing'
+    if [[ "$run_pi" -eq 1 ]]; then
+      add_check lanes.pi.settings skip true '' 'Pi settings check skipped because the runtime directory is missing'
+      add_check lanes.pi.selectors skip true '' 'Pi lane selector checks skipped because the runtime directory is missing'
+    fi
+    [[ "$run_claude" -eq 1 ]] && add_check lanes.claude-code.selectors skip true '' 'Claude Code lane selector checks skipped because the runtime directory is missing'
+    return
+  fi
+  root="$(cd "$root" && pwd)"
+  add_check lanes.runtime.dir pass true '' "$root_cfg is present"
+
+  package_file="$(jq -r '.lanes.runtime.packageFile // "package.json"' "$CATALOG")"
+  package_path="$root/$package_file"
+  if [[ ! -f "$package_path" ]] || ! jq -e . "$package_path" >/dev/null 2>&1; then
+    add_check lanes.runtime.package fail true '' "$package_file is missing or invalid in the runtime package"
+  elif ! jq -e '(.pi.extensions // []) | index("extensions/lanes.ts") != null' "$package_path" >/dev/null 2>&1; then
+    add_check lanes.runtime.package fail true '' "$package_file does not declare extensions/lanes.ts under .pi.extensions"
+  else
+    add_check lanes.runtime.package pass true '' "$package_file is present, valid, and declares extensions/lanes.ts"
+  fi
+
+  local required_file required_sid required_path
+  while IFS= read -r required_file; do
+    [[ -n "$required_file" ]] || continue
+    required_sid="$(lane_sanitize_id "$required_file")"
+    required_path="$root/$required_file"
+    if [[ -f "$required_path" ]]; then
+      add_check "lanes.runtime.file.$required_sid" pass true '' "$required_file is present in the runtime package"
+    else
+      add_check "lanes.runtime.file.$required_sid" fail true '' "$required_file is missing in the runtime package"
+    fi
+  done < <(jq -r '(.lanes.runtime.requiredFiles // [])[]' "$CATALOG")
+
+  table_entry="$(jq -r '.lanes.runtime.tableEntry // "src/table.ts"' "$CATALOG")"
+  table_path="$root/$table_entry"
+  bun_bin="$(command -v bun 2>/dev/null || true)"
+  if [[ -z "$bun_bin" ]]; then
+    add_check lanes.runtime.bun fail true '' 'bun is required to read the runtime model table'
+    add_check lanes.runtime.table skip true '' 'model table check skipped because bun is unavailable'
+  elif [[ ! -f "$table_path" ]]; then
+    add_check lanes.runtime.bun pass true '' "bun resolves to $bun_bin"
+    add_check lanes.runtime.table fail true '' "$table_entry is missing in the runtime package"
+  else
+    add_check lanes.runtime.bun pass true '' "bun resolves to $bun_bin"
+    cat >"$TMP/lane-table.mjs" <<'JS'
+import { pathToFileURL } from "node:url";
+
+async function main() {
+  const tablePath = process.argv[2];
+  if (!tablePath) throw new Error("missing table path");
+  const mod = await import(pathToFileURL(tablePath).href);
+  const rows = mod.MODEL_TABLE;
+  if (!Array.isArray(rows)) throw new Error("MODEL_TABLE is not an array");
+  const out = rows.map((row) => {
+    if (typeof row.selector !== "string" || typeof row.route !== "string") {
+      throw new Error("MODEL_TABLE row is missing selector or route");
+    }
+    if (!Array.isArray(row.origins) || !row.origins.every((origin) => typeof origin === "string")) {
+      throw new Error("MODEL_TABLE row is missing origins");
+    }
+    return {
+      selector: row.selector,
+      route: row.route,
+      origins: row.origins,
+    };
+  });
+  process.stdout.write(JSON.stringify(out));
+}
+
+main().catch(() => {
+  process.exit(1);
+});
+JS
+    output="$TMP/lane-table.json"
+    if run_capture 10 "$output" "$bun_bin" --no-install "$TMP/lane-table.mjs" "$table_path" \
+      && LANE_TABLE_JSON="$(jq -c '.' "$output" 2>/dev/null)" \
+      && jq -e 'type == "array" and all(.[]; (.selector | type == "string" and length > 0) and (.route | type == "string" and length > 0) and (.origins | type == "array" and all(.[]; type == "string"))) and ((map(.selector) | length) == (map(.selector) | unique | length))' <<<"$LANE_TABLE_JSON" >/dev/null 2>&1; then
+      output="$(jq -r 'length' <<<"$LANE_TABLE_JSON")"
+      add_check lanes.runtime.table pass true '' "runtime model table loaded $output model(s) via bun"
+    else
+      LANE_TABLE_JSON=''
+      add_check lanes.runtime.table fail true '' 'runtime model table could not be read or is invalid'
+    fi
+  fi
+
+  if [[ -z "$LANE_TABLE_JSON" ]]; then
+    [[ "$run_pi" -eq 1 ]] && add_check lanes.pi.selectors skip true '' 'Pi lane selector checks skipped because the runtime model table is unavailable'
+    [[ "$run_claude" -eq 1 ]] && add_check lanes.claude-code.selectors skip true '' 'Claude Code lane selector checks skipped because the runtime model table is unavailable'
+  else
+    [[ "$run_pi" -eq 1 ]] && check_lane_route_selectors pi pi
+    [[ "$run_claude" -eq 1 ]] && check_lane_route_selectors claude-code "claude-code"
+  fi
+
+  if [[ "$run_pi" -eq 1 ]]; then
+    check_lane_pi_settings "$root"
+    check_lane_pi_providers
+  fi
+  [[ "$run_claude" -eq 1 ]] && check_lane_claude_executable
+}
+
 check_online() {
   local harness binary resolved output rc text
   [[ "$ONLINE" -eq 1 ]] || return
@@ -656,6 +950,7 @@ VERSION_ARGS=()
 while IFS= read -r HARNESS; do check_harness "$HARNESS"; done < <(selected_harnesses)
 check_providers
 check_mcp
+check_lanes
 check_online
 check_skill_links
 check_git_source

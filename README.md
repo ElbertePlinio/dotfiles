@@ -95,26 +95,63 @@ agent-config-sync apply       # source check, strict preflight, scoped agent app
 
 ### Agent doctor
 
-Each computer declares only the harnesses, Pi providers, and MCP servers it
-requires in the deliberately unmanaged
-`~/.config/agent-config-sync/doctor.json`:
+Each computer declares only the harnesses, Pi providers, MCP servers, and
+pi-kit lane routes it requires in the deliberately unmanaged
+`~/.config/agent-config-sync/doctor.json`. The example below reflects the
+current pi-kit setup: `openai-codex`, `xai`, and `ollama` selectors dispatch
+through Pi's native route, while the Anthropic Fable/Opus/Sonnet selectors
+dispatch through genuine Claude Code child processes — Anthropic is the
+Claude Code route, never a Pi provider. Core Pi has no MCP of its own, so only
+`pickforge-lanes` under `mcp.claude` is required here:
 
 ```json
 {
   "version": 1,
   "harnesses": ["claude", "codex", "pi", "ollama"],
-  "providers": {"pi": ["openai-codex", "ollama"]},
-  "mcp": {"pi": ["context7"]}
+  "providers": {"pi": ["openai-codex", "xai", "ollama"]},
+  "mcp": {"claude": ["pickforge-lanes"]},
+  "lanes": {
+    "pi": ["openai-codex/gpt-5.6-sol", "xai/grok-4.5", "ollama/glm-5.2:cloud"],
+    "claude-code": ["anthropic/claude-fable-5", "anthropic/claude-opus-4-8", "anthropic/claude-sonnet-5"]
+  }
 }
 ```
 
-Unlisted tools are ignored. The default doctor is local and read-only:
+Unlisted tools are ignored. `lanes` is optional and backward compatible: a
+machine that omits it (or any prior requirements file written before lanes
+existed) gets no lane checks at all. When `lanes.pi` is nonempty, `pi` must be
+in `harnesses`; when `lanes["claude-code"]` is nonempty, `claude` must be in
+`harnesses` too — the doctor rejects an inconsistent requirements file before
+running any checks.
+
+For each required lane selector the doctor safely imports the pi-kit runtime's
+`MODEL_TABLE` through a local, no-network `bun --no-install` invocation (never
+printing the table contents, only pass/fail per selector) and confirms the
+selector exists, is declared on the expected route, and carries the `pi`
+origin — every `lanes.pi` and `lanes["claude-code"]` selector is a Pi native
+lane, so a route match with a missing or different origin still fails. It
+also checks that the runtime package directory, `package.json`, and each
+catalog-declared required runtime file (the lane extension, the Pi and Claude
+Code adapters, the model table, and the MCP server entry point) are present,
+that `package.json`'s `.pi.extensions` actually declares the lane extension,
+and that `~/.pi/agent/settings.json` loads the pi-kit package. Each required
+Pi lane selector's provider is derived directly from the selector itself —
+the substring before its first `/` — with no separate catalog-side mapping to
+keep in sync; a selector with no `/` or with an `anthropic` prefix (Anthropic
+is routed through Claude Code, never through `providers.pi`) is rejected
+outright, and any other derived provider must be present in `providers.pi`.
+For `claude-code` selectors it independently finds at least one safe Claude
+Code executable on `PATH` — rejecting wrapper scripts that carry
+`--dangerously-skip-permissions` or an equivalent bypass flag, the same way
+the runtime adapter does — and checks that its version is at least
+`2.1.216`. None of this is a login check: use `agent-config-sync doctor
+--online` for that.
 
 ```bash
-agent-config-sync doctor                 # local installation and configuration
+agent-config-sync doctor                 # local installation, configuration, and lane wiring
 agent-config-sync doctor --online        # add noninteractive login-status probes
 agent-config-sync doctor --deep          # add safe HTTP MCP reachability checks
-agent-config-sync doctor --only pi       # one required harness
+agent-config-sync doctor --only pi       # one required harness (and its lane checks, if any)
 agent-config-sync doctor --json          # stable machine-readable results
 agent-config-sync doctor --ascii         # ASCII symbols for limited terminals
 ```
@@ -122,8 +159,14 @@ agent-config-sync doctor --ascii         # ASCII symbols for limited terminals
 Human output uses symbols and automatic terminal colors. `NO_COLOR` and
 `--color=never` disable color. The doctor never logs in, installs packages,
 starts MCP OAuth, executes stdio MCP servers or configured credential commands,
-prints credential values, or
-claims that locally detected credentials are remotely valid. Run the full
+dispatches a real Pi or Claude Code lane, prints credential values, wrapper
+contents, or child process output, or claims that locally detected
+credentials are remotely valid. Requiring `pickforge-lanes` under
+`mcp.claude` reuses the existing generic MCP static check: it verifies the
+server is registered and its command is executable, nothing more — `--deep`
+still refuses to execute stdio MCP transports. Live lane dispatch (actually
+running a Pi or Claude Code lane end to end) is a separate manual
+verification, not something the doctor runs by default. Run the full
 hermetic validation explicitly with `bash scripts/check-agent-doctor.sh`.
 
 ## Secrets (age encryption)

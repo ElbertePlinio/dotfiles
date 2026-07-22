@@ -105,6 +105,28 @@
       "onlineProbe": ["auth", "status"]
     }
   },
+  "lanes": {
+    "runtime": {
+      "root": "~/Projects/Pickforge/pickforge-platform/packages/pi-kit",
+      "packageFile": "package.json",
+      "tableEntry": "src/table.ts",
+      "requiredFiles": [
+        "extensions/lanes.ts",
+        "src/adapters/pi.ts",
+        "src/adapters/claude-code.ts",
+        "src/table.ts",
+        "mcp/server.ts"
+      ]
+    },
+    "pi": {
+      "settingsPath": "~/.pi/agent/settings.json",
+      "packagesKey": "packages"
+    },
+    "claudeCode": {
+      "binary": "claude",
+      "minVersion": "2.1.216"
+    }
+  },
   "skills": {
     "manifest": "~/.agents/skill-targets.json"
   },
