@@ -191,8 +191,34 @@ preflight_unmanaged_targets() {
   done
 }
 
+summarize_applied_targets() {
+  local output="$1" path
+  local -a written_targets=()
+
+  while IFS= read -r path; do
+    [[ -n "$path" ]] && written_targets+=("$path")
+  done < <(awk '
+    $1 == "diff" && $2 == "--git" {
+      path = $4
+      sub(/^b\//, "", path)
+      if (!seen[path]++) print path
+    }
+  ' "$output")
+
+  printf 'applied: %d targets\n' "${#written_targets[@]}"
+  if [[ "${#written_targets[@]}" -gt 0 ]]; then
+    for path in "${written_targets[@]}"; do
+      if [[ "$path" == /* ]]; then
+        printf 'applied: %s\n' "$path"
+      else
+        printf 'applied: %s/%s\n' "$HOME" "$path"
+      fi
+    done
+  fi
+}
+
 cmd_apply() {
-  local link portable_output
+  local link portable_output work_dir self_before check_output apply_output self_target
   local -a active_targets=(
     "${HOME}/.zshrc"
     "${HOME}/.bashrc"
@@ -203,6 +229,8 @@ cmd_apply() {
     "${HOME}/.grok/AGENTS.md"
     "${HOME}/.grok/skills/model-orchestration"
     "${HOME}/.pi/agent/AGENTS.md"
+    "${HOME}/.pi/agent/settings.json"
+    "${HOME}/.pi/agent/extensions/btw.ts"
     "${HOME}/.pi/agent/extensions/decision-audit-gate.ts"
     "${HOME}/.omp/agent/AGENTS.md"
     "${HOME}/.omp/agent/config.yml"
@@ -217,7 +245,6 @@ cmd_apply() {
     "${HOME}/.agents/codex-lane-override.md"
     "${HOME}/.hermes/SOUL.md"
     "${HOME}/.agents/skills"
-    "${HOME}/.local/bin/agent-config-sync"
     "${HOME}/.local/bin/pickforge-lanes-mcp"
     "${HOME}/.local/bin/sudo-askpass"
     "${HOME}/.config/environment.d/50-sudo-askpass.conf"
@@ -234,8 +261,45 @@ cmd_apply() {
   )
   local -a apply_targets=()
 
-  cmd_check
-  cmd_strict_preflight
+  if ! work_dir="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync-apply.XXXXXX")"; then
+    echo "agent-config-sync: cannot create private apply workspace" >&2
+    return 1
+  fi
+  chmod 0700 "$work_dir"
+  self_before="$work_dir/agent-config-sync.before"
+  check_output="$work_dir/check.log"
+  apply_output="$work_dir/apply.log"
+  self_target="${HOME}/.local/bin/agent-config-sync"
+
+  if ! cp "$self_target" "$self_before"; then
+    echo "agent-config-sync: cannot snapshot running CLI" >&2
+    rm -rf "$work_dir"
+    return 1
+  fi
+  if ! chezmoi "${SRC[@]}" apply --force --no-tty -- "$self_target" \
+    >"$work_dir/self-update.log" 2>&1; then
+    echo "agent-config-sync: self-update chezmoi apply failed" >&2
+    rm -rf "$work_dir"
+    return 73
+  fi
+  if ! cmp -s "$self_before" "$self_target"; then
+    echo "agent-config-sync updated; re-run apply" >&2
+    rm -rf "$work_dir"
+    return 75
+  fi
+
+  if ! cmd_check >"$check_output" 2>&1; then
+    cat "$check_output" >&2
+    echo "agent-config-sync: source check failed" >&2
+    rm -rf "$work_dir"
+    return 1
+  fi
+  if ! cmd_strict_preflight >"$check_output" 2>&1; then
+    cat "$check_output" >&2
+    echo "agent-config-sync: strict preflight failed" >&2
+    rm -rf "$work_dir"
+    return 1
+  fi
   mkdir -p \
     "${HOME}/.claude/rules" \
     "${HOME}/.claude/hooks" \
@@ -269,16 +333,30 @@ cmd_apply() {
   done
   preflight_unmanaged_targets "${apply_targets[@]}"
   load_retired_targets
-  chezmoi "${SRC[@]}" apply --force --no-tty -- "${apply_targets[@]}"
+  if ! chezmoi "${SRC[@]}" apply --verbose --force --no-tty -- "${apply_targets[@]}" \
+    >"$apply_output" 2>&1; then
+    echo "agent-config-sync: batched chezmoi apply failed" >&2
+    rm -rf "$work_dir"
+    return 74
+  fi
+  summarize_applied_targets "$apply_output"
   if [[ ! -f "$PICKFORGE_LANES_CONFIGURE" ]]; then
     echo "agent-config-sync: pickforge-lanes MCP configure script missing: $PICKFORGE_LANES_CONFIGURE" >&2
+    rm -rf "$work_dir"
     return 1
   fi
   if ! sh "$PICKFORGE_LANES_CONFIGURE"; then
     echo "agent-config-sync: pickforge-lanes MCP registration failed" >&2
+    rm -rf "$work_dir"
     return 1
   fi
-  bash "$CHECK" --check-live-migration
+  if ! bash "$CHECK" --check-live-migration >"$check_output" 2>&1; then
+    cat "$check_output" >&2
+    echo "agent-config-sync: live check failed" >&2
+    rm -rf "$work_dir"
+    return 1
+  fi
+  rm -rf "$work_dir"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
