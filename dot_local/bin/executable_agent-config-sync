@@ -3,15 +3,17 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF' >&2
-Usage: agent-config-sync <check|check-live|apply|doctor>
+Usage: agent-config-sync <check|check-live|apply|sync|doctor>
 
   check       Validate source templates and portable-skill symlink matrix
   check-live  Read-only live migration checks against $HOME
   apply       Source check, live preflight, scoped agent apply, then live check
+  sync        Fast-forward dotfiles and AgentMemory, then run apply
   doctor      Diagnose required local agent harness configuration
 
 Apply exit codes: 73 self-update apply failed; 74 batched apply failed;
-75 the CLI updated itself — re-run apply once.
+75 the CLI updated itself — re-run apply once. Sync exit code: 76 dotfiles
+source is not clean on main or could not be fast-forwarded.
 EOF
   exit 1
 }
@@ -220,6 +222,68 @@ summarize_applied_targets() {
   fi
 }
 
+cmd_sync() {
+  local branch source_status pull_output dotfiles_commit
+  local memory_status memory_result memory_commit apply_status
+  local memory_repo="$HOME/AgentMemory"
+
+  if ! branch="$(git -C "$SOURCE" branch --show-current 2>/dev/null)" \
+    || [[ "$branch" != main ]]; then
+    echo "agent-config-sync: dotfiles source must be on branch main" >&2
+    return 76
+  fi
+  if ! source_status="$(git -C "$SOURCE" status --porcelain 2>&1)"; then
+    printf '%s\n' "$source_status" >&2
+    echo "agent-config-sync: cannot inspect dotfiles source working tree" >&2
+    return 76
+  fi
+  if [[ -n "$source_status" ]]; then
+    echo "agent-config-sync: dotfiles source has local changes; sync requires a clean working tree" >&2
+    return 76
+  fi
+  if ! pull_output="$(git -C "$SOURCE" pull --ff-only 2>&1)"; then
+    printf '%s\n' "$pull_output" >&2
+    echo "agent-config-sync: dotfiles pull --ff-only failed" >&2
+    return 76
+  fi
+  dotfiles_commit="$(git -C "$SOURCE" rev-parse --short HEAD)"
+
+  if [[ ! -d "$memory_repo" ]]; then
+    echo "AgentMemory missing; full chezmoi apply will bootstrap it" >&2
+    memory_result=missing
+  elif ! memory_status="$(git -C "$memory_repo" status --porcelain 2>&1)"; then
+    echo "AgentMemory is not a Git working tree; skipping pull" >&2
+    memory_result=not-git
+  elif [[ -n "$memory_status" ]]; then
+    echo "AgentMemory has local changes; skipping pull" >&2
+    memory_result=dirty
+  elif ! pull_output="$(git -C "$memory_repo" pull --ff-only 2>&1)"; then
+    printf '%s\n' "$pull_output" >&2
+    echo "AgentMemory pull --ff-only failed; manual reconcile required" >&2
+    memory_result=pull-failed
+  else
+    memory_commit="$(git -C "$memory_repo" rev-parse --short HEAD)"
+    memory_result="$memory_commit"
+  fi
+
+  if cmd_apply; then
+    apply_status=0
+  else
+    apply_status=$?
+  fi
+  if [[ "$apply_status" -eq 75 ]]; then
+    exec "$HOME/.local/bin/agent-config-sync" apply
+  fi
+  if [[ "$apply_status" -eq 0 ]]; then
+    printf 'sync: dotfiles=%s AgentMemory=%s apply=ok\n' \
+      "$dotfiles_commit" "$memory_result"
+  else
+    printf 'sync: dotfiles=%s AgentMemory=%s apply=exit-%s\n' \
+      "$dotfiles_commit" "$memory_result" "$apply_status"
+  fi
+  return "$apply_status"
+}
+
 cmd_apply() {
   local link portable_output work_dir self_before check_output apply_output self_target
   local -a active_targets=(
@@ -370,6 +434,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     check) cmd_check ;;
     check-live) cmd_check_live ;;
     apply) cmd_apply ;;
+    sync) cmd_sync ;;
     doctor) shift; cmd_doctor "$@" ;;
     *) usage ;;
   esac
