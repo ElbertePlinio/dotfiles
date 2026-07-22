@@ -29,9 +29,7 @@ Run the narrowest behavioral validation that proves the change. If blocked, say 
 
 Under `~/Projects/Pickforge`, follow workspace `AGENTS.md`. Use `plan-issue` when available; otherwise keep the same phone-friendly Issue checklist, PR links, and deferred-finding follow-ups.
 
-## Shared Agent Memory
-
-Before user-specific work, read relevant `/home/dev/AgentMemory`: always `CORE_PROFILE.md`, `WRITING_STYLE.md`, `BOUNDARIES.md`; coding adds `WORK_AND_PROJECTS.md`; social/media adds `SOCIAL_MEDIA.md`; also relevant `projects/*.md`. Never import `archive_raw/` unless scoped. Never store secrets in memory.
+{{ template "agents-shared-memory.md" . }}
 
 ## Updating these rules
 

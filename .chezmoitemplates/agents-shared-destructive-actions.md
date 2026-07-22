@@ -1,0 +1,1 @@
+- Destructive filesystem, Git, account, or external-service actions require explicit confirmation.
