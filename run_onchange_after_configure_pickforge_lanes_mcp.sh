@@ -88,7 +88,7 @@ PY
 }
 
 if run_capture "$details" claude mcp get pickforge-lanes; then
-  if grep -Eq '^[[:space:]]*Scope:[[:space:]]*User config[[:space:]]*$' "$details" \
+  if grep -Eq '^[[:space:]]*Scope:[[:space:]]*User config([[:space:]]+\([^[:cntrl:]]*\))?[[:space:]]*$' "$details" \
     && grep -Eq '^[[:space:]]*Type:[[:space:]]*stdio[[:space:]]*$' "$details" \
     && grep -Eq '^[[:space:]]*Command:[[:space:]]*pickforge-lanes-mcp[[:space:]]*$' "$details" \
     && grep -Eq '^[[:space:]]*Args:[[:space:]]*$' "$details"; then
