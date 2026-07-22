@@ -910,7 +910,7 @@ else
   exit 64
 fi >>"$SYNC_FLOW_LOG"
 EOF
-  printf '%s\n' scripts >"$flow_source/.chezmoiignore"
+  printf '%s\n' scripts '.config/environment.d/**' >"$flow_source/.chezmoiignore"
   printf '%s\n' \
     .retired-agent-config-probe \
     .absent-retired-agent-config-probe \
@@ -982,6 +982,12 @@ EOF
       pass 'temporary sync invokes managed pickforge-lanes registration once after target apply'
     else
       err 'temporary scoped sync changed an unrelated target, ran a script, or missed agent cleanup'
+    fi
+    if [[ ! -e "$flow_home/.config/environment.d/50-sudo-askpass.conf" ]] \
+      && [[ "$(grep -Fc 'skipping target not managed on this machine' "$flow_error")" -eq 3 ]]; then
+      pass 'temporary sync skips chezmoiignore-gated targets instead of aborting apply'
+    else
+      err 'temporary sync applied or aborted on chezmoiignore-gated environment.d targets'
     fi
   else
     err "temporary scoped sync command apply/check-live flow failed: $(tr '\n' ' ' <"$flow_error")"
@@ -1857,6 +1863,23 @@ check_os_gating() {
   else
     err 'OS-simulated .chezmoiignore render failed'
   fi
+
+  local darwin_managed="$TMP/managed-darwin" linux_managed="$TMP/managed-linux"
+  if chezmoi "${SRC[@]}" --override-data '{"chezmoi":{"os":"darwin"}}' \
+      managed --path-style=relative >"$darwin_managed" \
+    && chezmoi "${SRC[@]}" --override-data '{"chezmoi":{"os":"linux"}}' \
+      managed --path-style=relative >"$linux_managed"; then
+    if ! grep -Fxq '.config/environment.d/50-sudo-askpass.conf' "$darwin_managed" \
+      && grep -Fxq '.config/environment.d/50-sudo-askpass.conf' "$linux_managed" \
+      && ! grep -Fxq '.config/kdeglobals' "$darwin_managed" \
+      && grep -Fxq '.config/kdeglobals' "$linux_managed"; then
+      pass 'OS-simulated managed sets exclude Linux-gated targets on Darwin only'
+    else
+      err 'OS-simulated managed sets do not reflect dual-OS gating'
+    fi
+  else
+    err 'OS-simulated managed enumeration failed'
+  fi
 }
 
 check_portable_home_literals() {
@@ -2514,7 +2537,7 @@ if [[ -f "$ROOT/dot_local/bin/executable_agent-config-sync" ]]; then
   grep -Fq 'preflight_unmanaged_targets' "$ROOT/dot_local/bin/executable_agent-config-sync" \
     && pass 'agent-config-sync protects unmanaged first-apply targets' \
     || err 'agent-config-sync missing unmanaged-target preflight'
-  grep -Fq 'apply_targets=("${active_targets[@]}")' "$ROOT/dot_local/bin/executable_agent-config-sync" \
+  grep -Fq 'filter_ignored_targets "${active_targets[@]}"' "$ROOT/dot_local/bin/executable_agent-config-sync" \
     && grep -Fq 'chezmoi "${SRC[@]}" apply --force --no-tty -- "${apply_targets[@]}"' \
       "$ROOT/dot_local/bin/executable_agent-config-sync" \
     && pass 'agent-config-sync applies only scoped active and retirement targets' \

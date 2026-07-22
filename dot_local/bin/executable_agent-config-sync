@@ -109,6 +109,46 @@ load_retired_targets() {
   done <"$RETIREMENT_LIST"
 }
 
+filter_ignored_targets() {
+  # Drop active targets that chezmoi does not manage on this machine
+  # (e.g. OS-gated via .chezmoiignore) so a single wrong-OS target cannot
+  # abort the whole apply. Retired targets are appended later, unfiltered.
+  local managed_output target normalized entry keep
+  local dslash='//' slash='/'
+  local -a managed_entries=()
+  apply_targets=()
+  if ! managed_output="$(chezmoi "${SRC[@]}" managed \
+    --include=files,symlinks,dirs --path-style=absolute)"; then
+    echo "agent-config-sync: managed target enumeration failure" >&2
+    return 1
+  fi
+  while IFS= read -r entry; do
+    while [[ "$entry" == *"$dslash"* ]]; do entry="${entry//$dslash/$slash}"; done
+    [[ -n "$entry" ]] && managed_entries+=("$entry")
+  done <<<"$managed_output"
+  for target in "$@"; do
+    normalized="$target"
+    while [[ "$normalized" == *"$dslash"* ]]; do normalized="${normalized//$dslash/$slash}"; done
+    target="$normalized"
+    keep=""
+    for entry in "${managed_entries[@]}"; do
+      if [[ "$entry" == "$target" || "$entry" == "$target"/* ]]; then
+        keep=1
+        break
+      fi
+    done
+    if [[ -n "$keep" ]]; then
+      apply_targets+=("$target")
+    else
+      echo "agent-config-sync: skipping target not managed on this machine: $target" >&2
+    fi
+  done
+  if [[ "${#apply_targets[@]}" -eq 0 ]]; then
+    echo "agent-config-sync: no active target is managed on this machine" >&2
+    return 1
+  fi
+}
+
 preflight_unmanaged_targets() {
   local target state managed_output
   local -a managed_targets
@@ -206,7 +246,6 @@ cmd_apply() {
     "${HOME}/.pi/agent/skills" \
     "${HOME}/.omp/agent/extensions" \
     "${HOME}/.omp/agent/skills" \
-    "${HOME}/.config/environment.d" \
     "${HOME}/.agents/skills" \
     "${HOME}/.hermes" \
     "${HOME}/.local/bin"
@@ -221,9 +260,15 @@ cmd_apply() {
     echo "agent-config-sync: active target list is empty" >&2
     return 1
   fi
-  apply_targets=("${active_targets[@]}")
+  filter_ignored_targets "${active_targets[@]}"
+  for target in "${apply_targets[@]}"; do
+    if [[ "$target" == "${HOME}/.config/environment.d/"* ]]; then
+      mkdir -p "${HOME}/.config/environment.d"
+      break
+    fi
+  done
+  preflight_unmanaged_targets "${apply_targets[@]}"
   load_retired_targets
-  preflight_unmanaged_targets "${active_targets[@]}"
   chezmoi "${SRC[@]}" apply --force --no-tty -- "${apply_targets[@]}"
   if [[ ! -f "$PICKFORGE_LANES_CONFIGURE" ]]; then
     echo "agent-config-sync: pickforge-lanes MCP configure script missing: $PICKFORGE_LANES_CONFIGURE" >&2

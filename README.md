@@ -54,14 +54,14 @@ git pull --ff-only                   # update source without applying blindly
 
 ## What's managed
 
-- **Shell**: `.zshrc`, `.zshenv`, `.p10k.zsh`, `.bashrc`, `.bash_profile`
+- **Shell**: `.zshrc`, `.zshenv`, `.bashrc`, `.bash_profile`; `.p10k.zsh` (Linux only)
 - **Git**: `.gitconfig`, `~/.config/git/`
-- **Terminals**: `~/.config/alacritty/`, `~/.config/ghostty/`, `~/.config/fish/`
-- **Editors**: `~/.config/Code/User/{settings,keybindings,mcp,snippets}.json`, `~/.config/kate/`, `~/.config/katerc`, `~/.config/katevirc`, `~/.config/kwriterc`, `~/.config/micro/`, `~/.config/nvim/` (LazyVim)
-- **KDE / Plasma**: `kdeglobals`, `kwinrc`, `kglobalshortcutsrc`, `konsolerc`, `dolphinrc`, `baloofilerc`, `kxkbrc`, `kcminputrc`, `kded5rc`, `kdedefaults/`, `kiorc`, `kactivitymanagerdrc`, `ksmserverrc`, `plasmashellrc`, `plasma-localerc`, `plasmanotifyrc`, `plasma-org.kde.plasma.desktop-appletsrc` (panel layout), `powermanagementprofilesrc`, `systemmonitorrc`, `gwenviewrc`, `spectaclerc`, `arkrc`, `bluedevilglobalrc`
-- **GTK / Qt**: `~/.config/gtk-3.0/`, `~/.config/gtk-4.0/`, `.gtkrc-2.0`, `Trolltech.conf`, `QtProject.conf`
-- **Defaults / environment**: `mimeapps.list`, `user-dirs.dirs`, `user-dirs.locale`, `trashrc`, `autostart/`, `environment.d/`, `cachyos/`, `cachyos-hello.json`, `libinput-gestures.conf`
-- **Fonts / input**: `~/.config/fontconfig/`, `.XCompose`
+- **Terminals**: `~/.config/ghostty/`; Linux only: `~/.config/alacritty/`, `~/.config/fish/`
+- **Editors**: `~/.config/Code/User/{settings,keybindings,mcp,snippets}.json`, `~/.config/micro/`, `~/.config/nvim/` (LazyVim); Linux only: `~/.config/kate/`, `~/.config/katerc`, `~/.config/katevirc`, `~/.config/kwriterc`
+- **KDE / Plasma** (Linux only): `kdeglobals`, `kwinrc`, `kglobalshortcutsrc`, `konsolerc`, `dolphinrc`, `baloofilerc`, `kxkbrc`, `kcminputrc`, `kded5rc`, `kdedefaults/`, `kiorc`, `kactivitymanagerdrc`, `ksmserverrc`, `plasmashellrc`, `plasma-localerc`, `plasmanotifyrc`, `plasma-org.kde.plasma.desktop-appletsrc` (panel layout), `powermanagementprofilesrc`, `systemmonitorrc`, `gwenviewrc`, `spectaclerc`, `arkrc`, `bluedevilglobalrc`
+- **GTK / Qt** (Linux only): `~/.config/gtk-3.0/`, `~/.config/gtk-4.0/`, `.gtkrc-2.0`, `Trolltech.conf`, `QtProject.conf`
+- **Defaults / environment** (Linux only): `mimeapps.list`, `user-dirs.dirs`, `user-dirs.locale`, `trashrc`, `autostart/`, `environment.d/`, `cachyos/`, `cachyos-hello.json`, `libinput-gestures.conf`
+- **Fonts / input**: `~/.config/fontconfig/`; `.XCompose` (Linux only)
 - **AI tooling**:
   - Shared policy: `.chezmoitemplates/agents-shared*.md`
   - Global Claude adapter: `~/.claude/CLAUDE.md` (unrestricted `claude` shell wrapper)
