@@ -3,7 +3,7 @@
   "mcpServers": {
     "agentmemory-vault": {
       "command": "python3",
-      "args": ["/home/dev/AgentMemory/scripts/agent_memory_mcp.py"]
+      "args": ["{{ .chezmoi.homeDir }}/AgentMemory/scripts/agent_memory_mcp.py"]
     },
     "codegraph": {
       "command": "codegraph",
@@ -11,7 +11,7 @@
     },
     "cua-driver": {
       "enabled": false,
-      "command": "/home/dev/.local/bin/cua-driver",
+      "command": "{{ .chezmoi.homeDir }}/.local/bin/cua-driver",
       "args": ["mcp", "--no-overlay"]
     },
     "picklab": {
