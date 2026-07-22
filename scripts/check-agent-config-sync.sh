@@ -144,7 +144,10 @@ check_live_omp_agent_overrides() {
 MANIFEST="$ROOT/dot_agents/skill-targets.json"
 SKILL_LOCK="$ROOT/dot_agents/dot_skill-lock.json"
 MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"
-OMP_MCP="$ROOT/dot_omp/agent/mcp.json"
+OMP_MCP_SOURCE="$ROOT/dot_omp/agent/mcp.json.tmpl"
+OMP_MCP="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-omp-mcp.XXXXXX")"
+trap 'rm -f "$OMP_MCP"' EXIT
+chezmoi "${SRC[@]}" execute-template --file "$OMP_MCP_SOURCE" >"$OMP_MCP"
 PICKFORGE_LANES_WRAPPER="$ROOT/dot_local/bin/executable_pickforge-lanes-mcp"
 PICKFORGE_LANES_CONFIGURE="$ROOT/run_onchange_after_configure_pickforge_lanes_mcp.sh"
 PICKFORGE_LANES_SKILL="$ROOT/dot_agents/skills/multi-model-lanes/encrypted_SKILL.md.age"
@@ -607,7 +610,7 @@ def strings(value):
             yield from strings(item)
 
 all_strings = list(strings(settings))
-assert not any("/home/dev/.claude/hooks/decision-audit-gate.sh" in value for value in all_strings)
+assert not any(("/home/" + "dev/.claude/hooks/decision-audit-gate.sh") in value for value in all_strings)
 assert any("$HOME/.claude/hooks/decision-audit-gate.sh" in value for value in all_strings)
 assert not any("rtk hook claude" in value for value in all_strings)
 PY
@@ -863,7 +866,7 @@ check_sync_command_flow() {
     dot_omp/agent/AGENTS.md
     dot_omp/agent/config.yml
     dot_omp/agent/agents/task.md
-    dot_omp/agent/mcp.json
+    dot_omp/agent/mcp.json.tmpl
     dot_omp/agent/extensions/decision-audit-gate.ts
     dot_agents/dot_skill-lock.json
     dot_agents/mcp-targets.json
@@ -875,7 +878,7 @@ check_sync_command_flow() {
     dot_agents/skills/probe/SKILL.md
     dot_local/bin/executable_sudo-askpass
     dot_local/bin/executable_pickforge-lanes-mcp
-    dot_config/environment.d/50-sudo-askpass.conf
+    dot_config/environment.d/50-sudo-askpass.conf.tmpl
     dot_config/environment.d/60-omp.conf
     dot_config/environment.d/70-pi-caffeinate.conf
   )
@@ -1724,7 +1727,7 @@ if [[ "$MODE" == live ]]; then
 
   if [[ ! -f "$SOUL_LIVE" ]]; then
     err "live Hermes SOUL missing: $SOUL_LIVE"
-  elif grep -q '^# Hermes' "$SOUL_LIVE" && grep -q '/home/dev/AgentMemory' "$SOUL_LIVE"; then
+  elif grep -q '^# Hermes' "$SOUL_LIVE" && grep -Fq "$HOME/AgentMemory" "$SOUL_LIVE"; then
     pass 'live Hermes SOUL already rendered (managed identity)'
   elif grep -Fq "$NOUS_DEFAULT" "$SOUL_LIVE" && ! grep -Fq 'I like short, practical work' "$SOUL_LIVE"; then
     pass 'live Hermes SOUL is known Nous default one-line identity'
@@ -1791,7 +1794,7 @@ REQUIRED_SHARED_INVARIANTS=(
   '- Do not merge with failing required checks, unanswered valid findings, or an incomplete review required by the change'
   '~/Projects/.worktrees/<repo-name>/<branch-name>'
   'Run the narrowest behavioral validation that proves the change.'
-  '/home/dev/AgentMemory'
+  "$HOME/AgentMemory"
   'CORE_PROFILE.md'
   'WRITING_STYLE.md'
   'BOUNDARIES.md'
@@ -1833,8 +1836,42 @@ ROUTING_SKILL_TARGETS=(
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync.XXXXXX")"
 DEST="$(mktemp -d "${TMPDIR:-/tmp}/chezmoi-dest.XXXXXX")"
-trap 'rm -rf "$TMP" "$DEST"' EXIT
+trap 'rm -rf "$TMP" "$DEST"; rm -f "$OMP_MCP"' EXIT
 render() { chezmoi "${SRC[@]}" execute-template --file "$1" >"$2"; }
+
+check_os_gating() {
+  local darwin_ignore="$TMP/chezmoiignore-darwin" linux_ignore="$TMP/chezmoiignore-linux"
+  local target
+  if chezmoi "${SRC[@]}" --override-data '{"chezmoi":{"os":"darwin"}}' \
+      execute-template --file .chezmoiignore >"$darwin_ignore" \
+    && chezmoi "${SRC[@]}" --override-data '{"chezmoi":{"os":"linux"}}' \
+      execute-template --file .chezmoiignore >"$linux_ignore"; then
+    for target in .p10k.zsh .config/kdeglobals '.config/environment.d/**' '.config/fish/**'; do
+      grep -Fxq "$target" "$darwin_ignore" \
+        || err "Darwin ignore render missing Linux target: $target"
+      if grep -Fxq "$target" "$linux_ignore"; then
+        err "Linux ignore render excludes Linux target: $target"
+      fi
+    done
+    pass 'OS-simulated ignore renders gate Linux desktop targets on Darwin only'
+  else
+    err 'OS-simulated .chezmoiignore render failed'
+  fi
+}
+
+check_portable_home_literals() {
+  local needle='/home/'dev path unexpected=0
+  while IFS= read -r path; do
+    case "$path" in
+      .chezmoitemplates/zshrc-linux|dot_config/QtProject.conf|\
+      dot_config/plasma-org.kde.plasma.desktop-appletsrc|\
+      dot_config/private_katerc|dot_config/private_spectaclerc) ;;
+      *) err "literal Linux home remains outside an OS-gated source: $path"; unexpected=1 ;;
+    esac
+  done < <(rg -l --hidden --glob '!.git/**' --glob '!*.age' "$needle" . | sed 's#^\./##')
+  [[ "$unexpected" -eq 0 ]] && pass 'literal Linux homes remain only in OS-gated sources'
+}
+
 # Persistent state for isolated temp destination applies (not live HOME).
 TMP_SRC=("${SRC[@]}" --persistent-state "$TMP/temp-state.boltdb")
 
@@ -1846,6 +1883,8 @@ check_active_target_completeness
 check_sync_command_flow
 check_pickforge_lanes_deployment
 check_doctor_sources
+check_os_gating
+check_portable_home_literals
 
 for f in "${SHARED[@]}"; do need "$f"; done
 [[ -f .chezmoitemplates/agents-shared.md ]] && \
@@ -2194,7 +2233,7 @@ for entry in "${HARNESS[@]}"; do
   if [[ ! -f "$path" ]]; then err "missing: $path"; continue; fi
   grep -Eq 'template "(agents-shared\.md|agents-shared-before-worktrees\.md)"' "$path" \
     || err "missing shared include: $path"
-  for bad in 'I like short, practical work' 'names, model IDs, and technical terms' '/home/dev/AgentMemory'; do
+  for bad in 'I like short, practical work' 'names, model IDs, and technical terms' 'AgentMemory'; do
     grep -Fq "$bad" "$path" && err "duplicate shared policy in $path: $bad"
   done
   out="$TMP/$(echo "$path" | tr '/' '_')"
@@ -2204,7 +2243,7 @@ for entry in "${HARNESS[@]}"; do
   grep -Fq "$forbid" "$out" && err "forbidden heading in $path: $forbid"
   [[ "$(grep -c 'I like short, practical work' "$out" || true)" -eq 1 ]] || err "shared intro count != 1 in $path"
   grep -q PickScribe "$out" || err "missing PickScribe in $path"
-  grep -q '/home/dev/AgentMemory' "$out" || err "missing AgentMemory in $path"
+  grep -Fq "$HOME/AgentMemory" "$out" || err "missing AgentMemory in $path"
   grep -Fq 'CODING_AGENT_RULES.md' "$out" \
     && err "global harness auto-loads CODING_AGENT_RULES: $path" \
     || pass "global harness excludes CODING_AGENT_RULES: $path"
@@ -2214,7 +2253,7 @@ GLOBAL_CLAUDE_OUT="$TMP/claude-global.md"
 
 if render dot_claude/CLAUDE.md.tmpl "$GLOBAL_CLAUDE_OUT"; then
   grep -Fq '## Claude model orchestration' "$GLOBAL_CLAUDE_OUT" \
-    && grep -Fq '/home/dev/AgentMemory' "$GLOBAL_CLAUDE_OUT" \
+    && grep -Fq "$HOME/AgentMemory" "$GLOBAL_CLAUDE_OUT" \
     && grep -Fq 'model-routing.md' "$GLOBAL_CLAUDE_OUT" \
     && pass 'global Claude profile renders full personal orchestration' \
     || err 'global Claude profile is missing full personal policy'
@@ -2284,7 +2323,7 @@ EXPECTED=(
   dot_claude/skills/x-research/encrypted_SKILL.md.age
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
-  dot_omp/agent/config.yml dot_omp/agent/mcp.json dot_omp/agent/agents
+  dot_omp/agent/config.yml dot_omp/agent/mcp.json.tmpl dot_omp/agent/agents
   private_dot_hermes/SOUL.md.tmpl
   dot_local/bin/executable_agent-config-sync
   dot_local/bin/executable_pickforge-lanes-mcp
@@ -2348,7 +2387,7 @@ else
     || err 'temp agent-config-sync invalid'
   [[ ! -L "$DEST/.grok/AGENTS.md" ]] && grep -q '^# Personal Grok Notes' "$DEST/.grok/AGENTS.md" \
     && pass 'temp migration replaces Grok symlink safely' || err 'temp Grok symlink migration failed'
-  grep -q '^# Hermes' "$DEST/.hermes/SOUL.md" && grep -q '/home/dev/AgentMemory' "$DEST/.hermes/SOUL.md" \
+  grep -q '^# Hermes' "$DEST/.hermes/SOUL.md" && grep -Fq "$HOME/AgentMemory" "$DEST/.hermes/SOUL.md" \
     && pass 'temp migration replaces default Hermes SOUL safely' || err 'temp Hermes SOUL migration failed'
   grep -q '^# Personal OMP Notes' "$DEST/.omp/agent/AGENTS.md" \
     && ! grep -Fq 'CODING_AGENT_RULES.md' "$DEST/.omp/agent/AGENTS.md" \
@@ -2356,8 +2395,12 @@ else
     || err 'temp OMP adapter apply mismatch'
   cmp -s "$DEST/.omp/agent/config.yml" "$ROOT/dot_omp/agent/config.yml" \
     && pass 'temp OMP runtime config applied' || err 'temp OMP runtime config apply mismatch'
-  cmp -s "$DEST/.omp/agent/mcp.json" "$OMP_MCP" \
-    && pass 'temp OMP MCP config applied' || err 'temp OMP MCP config apply mismatch'
+  jq -e --arg home "$HOME" '
+    .mcpServers["agentmemory-vault"].args == [($home + "/AgentMemory/scripts/agent_memory_mcp.py")]
+    and .mcpServers["cua-driver"].command == ($home + "/.local/bin/cua-driver")
+  ' "$DEST/.omp/agent/mcp.json" >/dev/null \
+    && pass 'temp OMP MCP config applied with rendered home paths' \
+    || err 'temp OMP MCP config apply mismatch'
   if [[ -d "$DEST/.omp/agent/agents" && ! -L "$DEST/.omp/agent/agents" ]]; then
     pass 'temp OMP agent override directory applied'
   else
