@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+server="$HOME/Projects/Pickforge/pickforge-platform/packages/pi-kit/mcp/server.ts"
+
+if ! command -v bun >/dev/null 2>&1; then
+  printf '%s\n' 'error: bun is required for pickforge-lanes-mcp' >&2
+  exit 127
+fi
+if [ ! -f "$server" ]; then
+  printf 'error: pickforge-lanes MCP server not found: %s\n' "$server" >&2
+  exit 1
+fi
+
+exec bun "$server" "$@"
