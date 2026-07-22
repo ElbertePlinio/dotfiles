@@ -9,6 +9,9 @@ Usage: agent-config-sync <check|check-live|apply|doctor>
   check-live  Read-only live migration checks against $HOME
   apply       Source check, live preflight, scoped agent apply, then live check
   doctor      Diagnose required local agent harness configuration
+
+Apply exit codes: 73 self-update apply failed; 74 batched apply failed;
+75 the CLI updated itself — re-run apply once.
 EOF
   exit 1
 }
@@ -266,6 +269,7 @@ cmd_apply() {
     return 1
   fi
   chmod 0700 "$work_dir"
+  trap '[ -z "${work_dir:-}" ] || rm -rf "$work_dir"' EXIT
   self_before="$work_dir/agent-config-sync.before"
   check_output="$work_dir/check.log"
   apply_output="$work_dir/apply.log"
@@ -278,6 +282,7 @@ cmd_apply() {
   fi
   if ! chezmoi "${SRC[@]}" apply --force --no-tty -- "$self_target" \
     >"$work_dir/self-update.log" 2>&1; then
+    cat "$work_dir/self-update.log" >&2
     echo "agent-config-sync: self-update chezmoi apply failed" >&2
     rm -rf "$work_dir"
     return 73
@@ -335,6 +340,7 @@ cmd_apply() {
   load_retired_targets
   if ! chezmoi "${SRC[@]}" apply --verbose --force --no-tty -- "${apply_targets[@]}" \
     >"$apply_output" 2>&1; then
+    cat "$apply_output" >&2
     echo "agent-config-sync: batched chezmoi apply failed" >&2
     rm -rf "$work_dir"
     return 74
