@@ -180,9 +180,10 @@ write_lane_runtime() {
   : >"$dir/src/adapters/claude-code.ts"
   : >"$dir/mcp/server.ts"
   cat >"$dir/src/table.ts" <<'TS'
+const ALL_ORIGINS = ["pi", "mcp"];
 export const MODEL_TABLE = [
-  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: ["pi", "mcp"] },
-  { selector: "xai/grok-4.5", route: "pi", origins: ["pi", "mcp"] },
+  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: [...ALL_ORIGINS] },
+  { selector: "xai/grok-4.5", route: "pi", origins: [...ALL_ORIGINS] },
   { selector: "anthropic/claude-sonnet-5", route: "claude-code", origins: ["pi"] },
 ];
 TS
