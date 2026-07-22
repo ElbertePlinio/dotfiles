@@ -1,7 +1,7 @@
 #!/bin/sh
 
-repo='git@github.com:pickforge/pickforge-platform.git'
-target="$HOME/Projects/Pickforge/pickforge-platform"
+repo='git@github.com:ElbertePlinio/pi-kit.git'
+target="$HOME/Projects/Personal/pi-kit"
 
 if [ -e "$target" ] || [ -L "$target" ]; then
   if ! git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -12,9 +12,9 @@ if [ -e "$target" ] || [ -L "$target" ]; then
   origin=$(git -C "$target" remote get-url origin 2>/dev/null) || origin=
   origin=${origin%/}
   case "$origin" in
-    git@github.com:pickforge/pickforge-platform|git@github.com:pickforge/pickforge-platform.git|\
-    ssh://git@github.com/pickforge/pickforge-platform|ssh://git@github.com/pickforge/pickforge-platform.git|\
-    https://github.com/pickforge/pickforge-platform|https://github.com/pickforge/pickforge-platform.git)
+    git@github.com:ElbertePlinio/pi-kit|git@github.com:ElbertePlinio/pi-kit.git|\
+    ssh://git@github.com/ElbertePlinio/pi-kit|ssh://git@github.com/ElbertePlinio/pi-kit.git|\
+    https://github.com/ElbertePlinio/pi-kit|https://github.com/ElbertePlinio/pi-kit.git)
       exit 0
       ;;
     *)

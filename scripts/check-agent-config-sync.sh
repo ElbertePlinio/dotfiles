@@ -317,7 +317,7 @@ check_pickforge_lanes_deployment() {
 
   if [[ -f "$PICKFORGE_LANES_WRAPPER" ]] \
     && sh -n "$PICKFORGE_LANES_WRAPPER" \
-    && grep -Fq '$HOME/Projects/Pickforge/pickforge-platform/packages/pi-kit/mcp/server.ts' "$PICKFORGE_LANES_WRAPPER" \
+    && grep -Fq '$HOME/Projects/Personal/pi-kit/mcp/server.ts' "$PICKFORGE_LANES_WRAPPER" \
     && grep -Fq 'command -v bun' "$PICKFORGE_LANES_WRAPPER" \
     && grep -Fq 'exec bun "$server" "$@"' "$PICKFORGE_LANES_WRAPPER"; then
     pass 'pickforge lanes wrapper has canonical server, bun/file guards, and exec'
@@ -326,8 +326,8 @@ check_pickforge_lanes_deployment() {
   fi
 
   rm -rf "$fake_home" "$fake_bin"
-  mkdir -p "$fake_home/Projects/Pickforge/pickforge-platform/packages/pi-kit/mcp" "$fake_bin"
-  printf '%s\n' probe >"$fake_home/Projects/Pickforge/pickforge-platform/packages/pi-kit/mcp/server.ts"
+  mkdir -p "$fake_home/Projects/Personal/pi-kit/mcp" "$fake_bin"
+  printf '%s\n' probe >"$fake_home/Projects/Personal/pi-kit/mcp/server.ts"
   cat >"$fake_bin/bun" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >"$PICKFORGE_WRAPPER_LOG"
@@ -335,19 +335,19 @@ EOF
   chmod 0755 "$fake_bin/bun"
   if HOME="$fake_home" PATH="$fake_bin:/usr/bin:/bin" PICKFORGE_WRAPPER_LOG="$wrapper_log" \
     "$PICKFORGE_LANES_WRAPPER" alpha beta >/dev/null 2>&1 \
-    && grep -Fq "$fake_home/Projects/Pickforge/pickforge-platform/packages/pi-kit/mcp/server.ts alpha beta" "$wrapper_log"; then
+    && grep -Fq "$fake_home/Projects/Personal/pi-kit/mcp/server.ts alpha beta" "$wrapper_log"; then
     pass 'pickforge lanes wrapper invokes bun with canonical server and forwarded arguments'
   else
     err 'pickforge lanes wrapper invocation probe failed'
   fi
-  rm -f "$fake_home/Projects/Pickforge/pickforge-platform/packages/pi-kit/mcp/server.ts"
+  rm -f "$fake_home/Projects/Personal/pi-kit/mcp/server.ts"
   if HOME="$fake_home" PATH="$fake_bin:/usr/bin:/bin" PICKFORGE_WRAPPER_LOG="$wrapper_log" \
     "$PICKFORGE_LANES_WRAPPER" >/dev/null 2>&1; then
     err 'pickforge lanes wrapper accepted a missing server file'
   else
     pass 'pickforge lanes wrapper rejects a missing server file'
   fi
-  printf '%s\n' probe >"$fake_home/Projects/Pickforge/pickforge-platform/packages/pi-kit/mcp/server.ts"
+  printf '%s\n' probe >"$fake_home/Projects/Personal/pi-kit/mcp/server.ts"
   mkdir -p "$TMP/empty-bin"
   if HOME="$fake_home" PATH="$TMP/empty-bin" "$PICKFORGE_LANES_WRAPPER" >/dev/null 2>&1; then
     err 'pickforge lanes wrapper accepted a missing bun runtime'

@@ -17,7 +17,7 @@ mkdir -p ~/.config/chezmoi
 chmod 0600 ~/.config/chezmoi/key.txt
 
 # 3. Authenticate GitHub SSH before apply (the Pi bootstrap clones
-#    pickforge-platform, which provides pi-kit)
+#    the standalone pi-kit repository)
 ssh -T git@github.com
 
 # 4. Initialize from this repo
@@ -94,7 +94,7 @@ agent-config-sync apply       # source check, strict preflight, scoped agent app
 ### Agent doctor
 
 Each computer declares only the harnesses, Pi providers, MCP servers, and
-pi-kit lane routes it requires in the deliberately unmanaged
+standalone pi-kit lane routes it requires in the deliberately unmanaged
 `~/.config/agent-config-sync/doctor.json`. The example below reflects the
 current pi-kit setup: `openai-codex`, `xai`, and `ollama` selectors dispatch
 through Pi's native route, while the Anthropic Fable/Opus/Sonnet selectors
