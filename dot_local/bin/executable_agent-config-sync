@@ -3,11 +3,12 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF' >&2
-Usage: agent-config-sync <check|check-live|apply>
+Usage: agent-config-sync <check|check-live|apply|doctor>
 
   check       Validate source templates and portable-skill symlink matrix
   check-live  Read-only live migration checks against $HOME
   apply       Source check, live preflight, scoped agent apply, then live check
+  doctor      Diagnose required local agent harness configuration
 EOF
   exit 1
 }
@@ -25,6 +26,10 @@ resolve_source() {
       printf '%s\n' "$s"
       return
     fi
+  fi
+  if [[ -d "${HOME}/.local/share/chezmoi" ]]; then
+    printf '%s\n' "${HOME}/.local/share/chezmoi"
+    return
   fi
   printf '%s\n' ''
 }
@@ -51,6 +56,11 @@ cmd_check_live() {
 
 cmd_strict_preflight() {
   bash "$CHECK" --check-live-migration --strict-preflight
+}
+
+cmd_doctor() {
+  local catalog="${AGENT_DOCTOR_CATALOG:-$SOURCE/dot_agents/doctor-targets.json}"
+  AGENT_DOCTOR_CATALOG="$catalog" bash "$SOURCE/scripts/agent-doctor.sh" "$@"
 }
 
 portable_link_targets() {
@@ -239,6 +249,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     check) cmd_check ;;
     check-live) cmd_check_live ;;
     apply) cmd_apply ;;
+    doctor) shift; cmd_doctor "$@" ;;
     *) usage ;;
   esac
 fi

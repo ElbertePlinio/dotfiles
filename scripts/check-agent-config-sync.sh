@@ -1155,6 +1155,41 @@ check_primary_global_live_regressions() {
   done
 }
 
+check_doctor_sources() {
+  local doctor="$ROOT/scripts/agent-doctor.sh"
+  local doctor_tests="$ROOT/scripts/check-agent-doctor.sh"
+  local catalog="$ROOT/dot_agents/doctor-targets.json"
+
+  need "$doctor"
+  need "$doctor_tests"
+  need "$catalog"
+  if [[ -f "$catalog" ]] && jq -e '
+    .version == 1
+    and (.bootstrap | type == "array")
+    and (.harnesses | type == "object" and length > 0)
+    and all(.harnesses[];
+      (.displayName | type == "string" and length > 0)
+      and (.binary | type == "string" and length > 0)
+      and (.versionArgs | type == "array")
+      and (.configPaths | type == "array"))
+  ' "$catalog" >/dev/null 2>&1; then
+    pass 'doctor catalog JSON and source invariants valid'
+  else
+    err 'doctor catalog JSON or source invariants invalid'
+  fi
+  if [[ -f "$doctor" ]] && bash -n "$doctor" \
+    && [[ -f "$doctor_tests" ]] && bash -n "$doctor_tests"; then
+    pass 'doctor scripts have valid Bash syntax'
+  else
+    err 'doctor script Bash syntax invalid'
+  fi
+  if [[ -f "$doctor" ]] && bash "$doctor" --help >/dev/null; then
+    pass 'doctor help smoke test passes'
+  else
+    err 'doctor help smoke test failed'
+  fi
+}
+
 check_manifest_and_sources() {
   need "$MANIFEST"
   if ! jq -e . "$MANIFEST" >/dev/null 2>&1; then
@@ -1900,6 +1935,7 @@ check_active_retired_references
 check_active_target_completeness
 check_sync_command_flow
 check_pickforge_lanes_deployment
+check_doctor_sources
 
 for f in "${SHARED[@]}"; do need "$f"; done
 [[ -f .chezmoitemplates/agents-shared.md ]] && \
