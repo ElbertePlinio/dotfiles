@@ -470,6 +470,8 @@ lane_sanitize_id() {
   printf '%s' "$1" | tr -c 'A-Za-z0-9' '.'
 }
 
+# Rejects only the known literal bypass flags below; this is not an
+# exhaustive detector for every way a wrapper could grant bypass permissions.
 wrapper_has_permission_bypass() {
   local path="$1" shebang
   shebang="$(head -c 2 "$path" 2>/dev/null)" || return 0
@@ -598,11 +600,11 @@ check_lane_claude_executable() {
     safe+=("$resolved")
   done
   if [[ "${#safe[@]}" -eq 0 ]]; then
-    add_check lanes.claude-code.executable fail true '' 'no safe Claude Code executable was found on PATH'
-    add_check lanes.claude-code.version skip true '' 'version check skipped because no safe executable was found'
+    add_check lanes.claude-code.executable fail true '' 'no eligible Claude Code executable (no known bypass wrapper) was found on PATH'
+    add_check lanes.claude-code.version skip true '' 'version check skipped because no eligible executable was found'
     return
   fi
-  add_check lanes.claude-code.executable pass true '' "${#safe[@]} safe Claude Code executable(s) found on PATH"
+  add_check lanes.claude-code.executable pass true '' "${#safe[@]} eligible Claude Code executable(s) (no known bypass wrapper) found on PATH"
 
   for resolved in "${safe[@]}"; do
     output="$TMP/lane-claude-version-$(lane_sanitize_id "$resolved")"
@@ -688,34 +690,153 @@ check_lanes() {
     add_check lanes.runtime.table fail true '' "$table_entry is missing in the runtime package"
   else
     add_check lanes.runtime.bun pass true '' "bun resolves to $bun_bin"
+    # This parser only ever reads the runtime table as text (readFileSync + regex/
+    # brace-depth scanning). It must never import(), require(), or eval() the
+    # runtime file, since that file is untrusted input, not trusted code.
     cat >"$TMP/lane-table.mjs" <<'JS'
-import { pathToFileURL } from "node:url";
+import { readFileSync } from "node:fs";
 
-async function main() {
-  const tablePath = process.argv[2];
-  if (!tablePath) throw new Error("missing table path");
-  const mod = await import(pathToFileURL(tablePath).href);
-  const rows = mod.MODEL_TABLE;
-  if (!Array.isArray(rows)) throw new Error("MODEL_TABLE is not an array");
-  const out = rows.map((row) => {
-    if (typeof row.selector !== "string" || typeof row.route !== "string") {
-      throw new Error("MODEL_TABLE row is missing selector or route");
-    }
-    if (!Array.isArray(row.origins) || !row.origins.every((origin) => typeof origin === "string")) {
-      throw new Error("MODEL_TABLE row is missing origins");
-    }
-    return {
-      selector: row.selector,
-      route: row.route,
-      origins: row.origins,
-    };
-  });
-  process.stdout.write(JSON.stringify(out));
+function fail(reason) {
+  process.stderr.write(`table-invalid: ${reason}\n`);
+  process.exit(1);
 }
 
-main().catch(() => {
-  process.exit(1);
-});
+function findMatching(text, openIdx, openChar, closeChar) {
+  let depth = 0;
+  let inString = null;
+  for (let i = openIdx; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === "\\") { i++; continue; }
+      if (ch === inString) inString = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") { inString = ch; continue; }
+    if (ch === openChar) depth++;
+    else if (ch === closeChar) {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function splitTopLevelObjects(text) {
+  const entries = [];
+  let inString = null;
+  let depth = 0;
+  let start = -1;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === "\\") { i++; continue; }
+      if (ch === inString) inString = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") { inString = ch; continue; }
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        entries.push(text.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
+  if (depth !== 0) fail("unbalanced braces in MODEL_TABLE array");
+  return entries;
+}
+
+function extractField(entryText, name) {
+  const re = new RegExp(`(?:^|[,{\\s])${name}\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`);
+  const m = re.exec(entryText);
+  return m ? m[1] : null;
+}
+
+function extractQuotedStrings(text) {
+  const out = [];
+  const re = /"((?:[^"\\]|\\.)*)"/g;
+  let m;
+  while ((m = re.exec(text)) !== null) out.push(m[1]);
+  return out;
+}
+
+function extractSpreadIdentifiers(text) {
+  const out = [];
+  const re = /\.\.\.([A-Za-z_$][A-Za-z0-9_$]*)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) out.push(m[1]);
+  return out;
+}
+
+function resolveTopLevelArrayConst(source, identifier) {
+  const declRe = new RegExp(
+    `(?:^|\\n)\\s*(?:export\\s+)?const\\s+${identifier}\\b[^=\\n]*=\\s*\\[`,
+  );
+  const m = declRe.exec(source);
+  if (!m) fail(`spread reference ${identifier} has no resolvable top-level const array`);
+  const openIdx = m.index + m[0].length - 1;
+  const closeIdx = findMatching(source, openIdx, "[", "]");
+  if (closeIdx === -1) fail(`spread reference ${identifier} array is unterminated`);
+  const arrayBody = source.slice(openIdx + 1, closeIdx);
+  if (/\.\.\./.test(arrayBody)) {
+    fail(`spread reference ${identifier} resolves to a nested spread, which is unsupported`);
+  }
+  return extractQuotedStrings(arrayBody);
+}
+
+function extractOrigins(entryText, source) {
+  const m = /origins\s*:\s*\[([^\]]*)\]/.exec(entryText);
+  if (!m) return null;
+  const body = m[1];
+  const origins = new Set(extractQuotedStrings(body));
+  for (const identifier of extractSpreadIdentifiers(body)) {
+    for (const value of resolveTopLevelArrayConst(source, identifier)) origins.add(value);
+  }
+  return [...origins];
+}
+
+function main() {
+  const tablePath = process.argv[2];
+  if (!tablePath) fail("missing table path");
+  let source;
+  try {
+    source = readFileSync(tablePath, "utf8");
+  } catch {
+    fail("runtime model table could not be read");
+  }
+
+  const declRe = /(?:^|\n)\s*export\s+const\s+MODEL_TABLE\b[^=\n]*=\s*\[/;
+  const declMatch = declRe.exec(source);
+  if (!declMatch) fail("MODEL_TABLE declaration was not found");
+
+  const openIdx = declMatch.index + declMatch[0].length - 1;
+  const closeIdx = findMatching(source, openIdx, "[", "]");
+  if (closeIdx === -1) fail("MODEL_TABLE array is unterminated");
+
+  const arrayBody = source.slice(openIdx + 1, closeIdx);
+  const entries = splitTopLevelObjects(arrayBody);
+  if (entries.length === 0) fail("MODEL_TABLE has no rows");
+
+  const seenSelectors = new Set();
+  const rows = entries.map((entryText) => {
+    const selector = extractField(entryText, "selector");
+    const route = extractField(entryText, "route");
+    const origins = extractOrigins(entryText, source);
+    if (!selector) fail("a MODEL_TABLE row is missing a quoted selector");
+    if (!route) fail("a MODEL_TABLE row is missing a quoted route");
+    if (!origins) fail("a MODEL_TABLE row is missing an origins array");
+    if (seenSelectors.has(selector)) fail(`duplicate MODEL_TABLE selector: ${selector}`);
+    seenSelectors.add(selector);
+    return { selector, route, origins };
+  });
+
+  process.stdout.write(JSON.stringify(rows));
+}
+
+main();
 JS
     output="$TMP/lane-table.json"
     if run_capture 10 "$output" "$bun_bin" --no-install "$TMP/lane-table.mjs" "$table_path" \

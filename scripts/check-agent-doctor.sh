@@ -561,6 +561,42 @@ next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status 
 
 next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-side-effect"; write_lane_runtime "$lane_root"
+side_effect_marker="$CASE_DIR/side-effect-marker"
+cat >"$lane_root/src/table.ts" <<TS
+import { writeFileSync } from "node:fs";
+writeFileSync("$side_effect_marker", "ran");
+export const MODEL_TABLE = [
+  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: ["pi", "mcp"] },
+];
+TS
+write_lane_catalog "$lane_root"
+write_pi_settings_packages "[\"$lane_root\"]"
+mkdir -p "$HOME_DIR/.pi/agent"; printf '{"openai-codex":{}}\n' >"$HOME_DIR/.pi/agent/auth.json"
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+run_doctor --json
+assert_rc 0 'a table with a top-level side effect still parses its route data'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.5.6.sol.model" and .status == "pass") and any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.5.6.sol.origin" and .status == "pass")' 'route and origin data are read from a hostile table without executing it'
+next_test; if [ ! -e "$side_effect_marker" ]; then pass 'the runtime table top-level side effect never runs'; else fail 'the runtime table top-level side effect executed'; fi
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-malformed-table"; write_lane_runtime "$lane_root"
+cat >"$lane_root/src/table.ts" <<'TS'
+export const MODEL_TABLE = [
+  { selector: "openai-codex/gpt-5.6-sol, route: "pi", origins: ["pi"] },
+];
+TS
+write_lane_catalog "$lane_root"
+write_pi_settings_packages "[\"$lane_root\"]"
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+run_doctor --json
+assert_rc 1 'a malformed runtime model table is a required failure'
+next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status == "fail")' 'the malformed table is reported as an invalid runtime model table'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selectors" and .status == "skip")' 'selector checks are skipped when the malformed table cannot be parsed'
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-no-package"; mkdir -p "$lane_root/src"; cat >"$lane_root/src/table.ts" <<'TS'
 export const MODEL_TABLE = [{ selector: "openai-codex/gpt-5.6-sol", route: "pi" }];
 TS
@@ -608,7 +644,7 @@ write_mock claude 'printf "%s\n" "--dangerously-skip-permissions"; if [ "${1:-}"
 lane_root="$CASE_DIR/pi-kit-claude-bypass-only"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
 write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
 run_doctor --json
-assert_json 'any(.checks[]; .id == "lanes.claude-code.executable" and .status == "fail" and (.message | contains("no safe Claude Code executable")))' 'a permission-bypass wrapper alone yields no safe executable'
+assert_json 'any(.checks[]; .id == "lanes.claude-code.executable" and .status == "fail" and (.message | contains("no eligible Claude Code executable")))' 'a permission-bypass wrapper alone yields no eligible executable'
 next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.version" and .status == "skip")' 'version check is skipped when no safe executable exists'
 next_test; assert_json 'any(.checks[]; .id == "harness.claude.executable" and .status == "pass")' 'the generic harness executable check is unaffected by lane wrapper-safety filtering'
 
@@ -628,7 +664,7 @@ set +e
 OUTPUT="$(HOME="$HOME_DIR" PATH="$extra_bin:$BIN_DIR" TMPDIR="$CASE_DIR" AGENT_DOCTOR_CATALOG="$CATALOG" /bin/bash "$DOCTOR" --config "$CONFIG" --json 2>&1)"
 RC=$?
 set -e
-assert_json 'any(.checks[]; .id == "lanes.claude-code.executable" and .status == "pass" and (.message | contains("1 safe")))' 'the earlier bypass wrapper is excluded, leaving exactly one safe candidate'
+assert_json 'any(.checks[]; .id == "lanes.claude-code.executable" and .status == "pass" and (.message | contains("1 eligible")))' 'the earlier bypass wrapper is excluded, leaving exactly one eligible candidate'
 next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.version" and .status == "pass")' 'the later safe candidate on PATH satisfies the version requirement'
 
 next_test; setup_case; link_tool bun; link_tool head
