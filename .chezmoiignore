@@ -1,20 +1,6 @@
 README.md
 LICENSE
 scripts
-.factory/history.json
-.factory/sessions
-.factory/logs
-.factory/cache
-.factory/temp
-.factory/telemetry
-.factory/snapshots
-.factory/plugins/marketplaces/factory-plugins/.git
-.factory/background-processes.json
-.factory/background-tasks.json
-.factory/certs/system-certs-cache.json
-.factory/cli-hints.json
-.factory/host.json
-.factory/bin/.rg-version
 
 # Hermes generated skill state
 .hermes/skills/.bundled_manifest

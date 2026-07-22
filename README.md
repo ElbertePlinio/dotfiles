@@ -68,7 +68,7 @@ git pull --ff-only                   # update source without applying blindly
   - Shared policy: `.chezmoitemplates/agents-shared*.md`
   - Global Claude adapter: `~/.claude/CLAUDE.md` (unrestricted `claude` shell wrapper)
   - Global Codex adapter: `~/.codex/AGENTS.md` (unrestricted `codex` shell wrapper)
-  - Other harness adapters: Grok, Pi, OMP, Factory, Hermes, OpenCode
+  - Other harness adapters: Grok, Pi, OMP, Hermes
   - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`
   - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `doctor`)
   - Encrypted stable configuration: selected Claude settings and harness-native skills
