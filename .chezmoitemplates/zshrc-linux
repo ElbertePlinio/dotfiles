@@ -17,6 +17,11 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 export PATH="$HOME/.local/bin:$PATH"
 
+# pi-caffeinate: idle-only inhibit (sleep inhibit triggers polkit TTY auth and steals Pi input)
+if [[ -z "${PI_CAFFEINATE_COMMAND:-}" ]]; then
+  export PI_CAFFEINATE_COMMAND='systemd-inhibit --what=idle --who=pi-caffeinate --why="Pi agent is running" --mode=block sleep infinity'
+fi
+
 # pnpm
 export PNPM_HOME="/home/dev/.local/share/pnpm"
 case ":$PATH:" in
