@@ -189,6 +189,7 @@ cmd_apply() {
     "${HOME}/.local/bin/sudo-askpass"
     "${HOME}/.config/environment.d/50-sudo-askpass.conf"
     "${HOME}/.config/environment.d/60-omp.conf"
+    "${HOME}/.config/environment.d/70-pi-caffeinate.conf"
     "${HOME}/.claude/rules"
     "${HOME}/.claude/settings.json"
     "${HOME}/.claude/hooks/decision-audit-gate.sh"
