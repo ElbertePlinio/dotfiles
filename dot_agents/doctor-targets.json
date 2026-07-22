@@ -90,7 +90,7 @@
   },
   "lanes": {
     "runtime": {
-      "root": "~/Projects/Pickforge/pickforge-platform/packages/pi-kit",
+      "root": "~/Projects/Personal/pi-kit",
       "packageFile": "package.json",
       "tableEntry": "src/table.ts",
       "requiredFiles": [
