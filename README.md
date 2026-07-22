@@ -1,8 +1,6 @@
 # dotfiles
 
-Personal CachyOS / Linux dotfiles, managed with [chezmoi](https://www.chezmoi.io/).
-
-Covers shell, terminal emulators, editors, git, KDE theming, and AI tooling config. A small set of API credentials lives in the repo too, **age-encrypted** via chezmoi — see [Secrets (age encryption)](#secrets-age-encryption). Browser profiles, SSH/GPG keys, and stateful blobs stay out of scope — they need manual backup before reinstalling the OS. See [Manual backup](#manual-backup-not-managed-by-chezmoi).
+Personal dotfiles for macOS and CachyOS Linux, managed with [chezmoi](https://www.chezmoi.io/). Cross-platform shell, editor, git, terminal, and AI tooling configuration is shared, while KDE and other Linux desktop settings are applied only on CachyOS. A small set of API credentials lives in the repo too, **age-encrypted** via chezmoi — see [Secrets (age encryption)](#secrets-age-encryption). Browser profiles, SSH/GPG keys, and stateful blobs stay out of scope — they need manual backup before reinstalling the OS. See [Manual backup](#manual-backup-not-managed-by-chezmoi).
 
 ## Quickstart
 
