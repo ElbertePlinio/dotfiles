@@ -385,13 +385,13 @@ printf '%s\n' "$*" >>"$PICKFORGE_CLAUDE_LOG"
 if [ "$1 $2 $3" = 'mcp get pickforge-lanes' ]; then
   case "$PICKFORGE_CLAUDE_MODE" in
     matching)
-      printf '%s\n' 'pickforge-lanes:' '  Scope: User config' '  Type: stdio' '  Command: pickforge-lanes-mcp' '  Args:'
+      printf '%s\n' 'pickforge-lanes:' '  Scope: User config (available in all your projects)' '  Type: stdio' '  Command: pickforge-lanes-mcp' '  Args:'
       ;;
     mismatch|remove_failure)
-      printf '%s\n' 'pickforge-lanes:' '  Scope: User config' '  Type: stdio' '  Command: wrong-command' '  Args:' 'secret-probe-value'
+      printf '%s\n' 'pickforge-lanes:' '  Scope: User config (available in all your projects)' '  Type: stdio' '  Command: wrong-command' '  Args:' 'secret-probe-value'
       ;;
     extra_args)
-      printf '%s\n' 'pickforge-lanes:' '  Scope: User config' '  Type: stdio' '  Command: pickforge-lanes-mcp' '  Args: --unexpected'
+      printf '%s\n' 'pickforge-lanes:' '  Scope: User config (available in all your projects)' '  Type: stdio' '  Command: pickforge-lanes-mcp' '  Args: --unexpected'
       ;;
     missing|add_failure)
       printf '%s\n' 'No MCP server named pickforge-lanes. Configured servers: context7' >&2
