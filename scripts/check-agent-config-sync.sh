@@ -800,6 +800,7 @@ check_active_target_completeness() {
   for source_path in "$ROOT"/dot_agents/*.md; do
     [[ -f "$source_path" ]] || continue
     target=".agents/${source_path##*/}"
+    target="${target%.tmpl}"
     if grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
       pass "active target includes top-level agent policy: $target"
     else
@@ -1757,6 +1758,9 @@ SHARED=(
   .chezmoitemplates/agents-shared.md
   .chezmoitemplates/agents-shared-before-worktrees.md
   .chezmoitemplates/agents-shared-after-git.md
+  .chezmoitemplates/agents-shared-destructive-actions.md
+  .chezmoitemplates/agents-shared-public-actions.md
+  .chezmoitemplates/agents-shared-memory.md
 )
 HARNESS=(
   'dot_codex/AGENTS.md.tmpl|# Personal Codex Notes|# Global Claude Rules'
@@ -1764,7 +1768,7 @@ HARNESS=(
   'dot_pi/agent/AGENTS.md.tmpl|# Personal Pi Notes|# Personal Codex Notes'
   'dot_omp/agent/AGENTS.md.tmpl|# Personal OMP Notes|# Personal Codex Notes'
 )
-SOUL=private_dot_hermes/SOUL.md
+SOUL=private_dot_hermes/SOUL.md.tmpl
 SHARED_MAX_BYTES=15000
 SHARED_SOURCE_BASELINE=13851
 SHARED_RENDERED_BASELINE=13853
@@ -1824,6 +1828,7 @@ ROUTING_SKILL_TARGETS=(
   "$HOME/.claude/skills/kickoff/SKILL.md"
   "$HOME/.codex/skills/model-orchestration/SKILL.md"
   "$HOME/.codex/skills/model-orchestration/references/model-routing.md"
+  "$HOME/.grok/skills/model-orchestration/references/model-routing.md"
 )
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync.XXXXXX")"
@@ -1850,7 +1855,10 @@ for f in "${SHARED[@]}"; do need "$f"; done
 
 shared_source_bytes=$((
   $(wc -c <.chezmoitemplates/agents-shared-before-worktrees.md) +
-  $(wc -c <.chezmoitemplates/agents-shared-after-git.md)
+  $(wc -c <.chezmoitemplates/agents-shared-after-git.md) +
+  $(wc -c <.chezmoitemplates/agents-shared-destructive-actions.md) +
+  $(wc -c <.chezmoitemplates/agents-shared-public-actions.md) +
+  $(wc -c <.chezmoitemplates/agents-shared-memory.md)
 ))
 if ((shared_source_bytes <= SHARED_MAX_BYTES)); then
   pass "shared source size ${shared_source_bytes} bytes (recorded baseline ${SHARED_SOURCE_BASELINE}; budget ${SHARED_MAX_BYTES})"
@@ -1950,9 +1958,10 @@ else
 fi
 
 need "$SOUL"
-grep -q '/home/dev/AgentMemory' "$SOUL" || err 'Hermes SOUL missing AgentMemory'
-grep -qi 'public' "$SOUL" || err 'Hermes SOUL missing public-action boundary'
-grep -qi 'memory' "$SOUL" || err 'Hermes SOUL missing memory boundary'
+for include in agents-shared-memory.md agents-shared-public-actions.md agents-shared-destructive-actions.md; do
+  grep -Fq "template \"$include\"" "$SOUL" \
+    || err "Hermes SOUL missing shared include: $include"
+done
 grep -qE 'I like short, practical work|Fix root causes, not symptoms' "$SOUL" \
   && err 'Hermes SOUL must not dump full coding policy' || pass 'Hermes SOUL identity-oriented'
 grep -Fq 'CODING_AGENT_RULES.md' "$SOUL" \
@@ -1976,6 +1985,21 @@ for entry in "${ADAPTER_BUDGETS[@]}"; do
   fi
 done
 
+need .chezmoitemplates/codex-behavior-override.md
+if grep -Fq 'template "codex-behavior-override.md"' dot_codex/AGENTS.md.tmpl \
+  && grep -Fq 'template "codex-behavior-override.md"' dot_agents/codex-lane-override.md.tmpl; then
+  pass 'Codex adapters consume the canonical behavior override'
+else
+  err 'Codex behavior override include missing from an adapter'
+fi
+if grep -Fq '~/.codex/skills/model-orchestration/references/model-routing.md' dot_claude/CLAUDE.md.tmpl; then
+  err 'Claude adapter hardcodes the Codex routing reference path'
+elif grep -Fq 'references/model-routing.md' dot_claude/CLAUDE.md.tmpl; then
+  pass 'Claude adapter uses a skill-relative routing reference'
+else
+  err 'Claude adapter missing skill-relative routing reference'
+fi
+
 for path in dot_claude/CLAUDE.md.tmpl \
   dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl; do
   grep -qiE '^\|.*cost.*intelligence.*taste.*vision.*\|$' "$path" \
@@ -1997,12 +2021,35 @@ for entry in "${ADAPTER_OWNER_POINTERS[@]}"; do
     || err "$harness adapter missing routing owner pointer: $pointer"
 done
 
-grep -Fq '| Grok 4.5 | `xai/grok-4.5` | high | 3 | 7 | 6 | yes |' dot_pi/agent/AGENTS.md.tmpl \
-  && pass 'Pi routing table includes calibrated native Grok 4.5' \
-  || err 'Pi routing table missing calibrated native Grok 4.5'
-grep -Fq '| Grok 4.5 | `xai-oauth/grok-4.5` | high | 3 | 7 | 6 | yes |' dot_omp/agent/AGENTS.md.tmpl \
-  && pass 'OMP routing table includes calibrated Grok 4.5' \
-  || err 'OMP routing table missing calibrated Grok 4.5'
+need .chezmoitemplates/model-table.md
+if grep -Fq 'template "model-table.md"' dot_pi/agent/AGENTS.md.tmpl \
+  && grep -Fq '"grokSelector" "xai/grok-4.5"' dot_pi/agent/AGENTS.md.tmpl \
+  && grep -Fq '"glmStart" "medium"' dot_pi/agent/AGENTS.md.tmpl; then
+  pass 'Pi adapter consumes shared model table with native parameters'
+else
+  err 'Pi adapter shared model table include or parameters mismatch'
+fi
+if grep -Fq 'template "model-table.md"' dot_omp/agent/AGENTS.md.tmpl \
+  && grep -Fq '"grokSelector" "xai-oauth/grok-4.5"' dot_omp/agent/AGENTS.md.tmpl \
+  && grep -Fq '"glmStart" "provider default"' dot_omp/agent/AGENTS.md.tmpl; then
+  pass 'OMP adapter consumes shared model table with native parameters'
+else
+  err 'OMP adapter shared model table include or parameters mismatch'
+fi
+PI_TABLE_OUT="$TMP/pi-model-table.md"
+OMP_TABLE_OUT="$TMP/omp-model-table.md"
+if render dot_pi/agent/AGENTS.md.tmpl "$PI_TABLE_OUT" \
+  && grep -Fq '| Grok 4.5 | `xai/grok-4.5` | high | 3 | 7 | 6 | yes |' "$PI_TABLE_OUT"; then
+  pass 'rendered Pi routing table includes native Grok 4.5 selector'
+else
+  err 'rendered Pi routing table missing native Grok 4.5 selector'
+fi
+if render dot_omp/agent/AGENTS.md.tmpl "$OMP_TABLE_OUT" \
+  && grep -Fq '| Grok 4.5 | `xai-oauth/grok-4.5` | high | 3 | 7 | 6 | yes |' "$OMP_TABLE_OUT"; then
+  pass 'rendered OMP routing table includes OAuth Grok 4.5 selector'
+else
+  err 'rendered OMP routing table missing OAuth Grok 4.5 selector'
+fi
 
 if grep -Fq 'await agent(prompt' dot_omp/agent/AGENTS.md.tmpl \
   && grep -Fq '`parallel()`' dot_omp/agent/AGENTS.md.tmpl \
@@ -2079,10 +2126,14 @@ for target in "${ROUTING_SKILL_TARGETS[@]}"; do
         || err 'Claude workflow missing required pre-routing model-routing read'
       ;;
     */references/model-routing.md)
-      grep -Fq '$pickgauge-usage' <<<"$decrypted" \
+      if grep -Fq '$pickgauge-usage' <<<"$decrypted" \
         && grep -Fq 'intelligence > taste > cost' <<<"$decrypted" \
-        && pass 'model-routing owns wave headroom and shipping preference' \
-        || err 'model-routing missing wave headroom or shipping preference'
+        && grep -Fq '`xai/grok-4.5` (Pi, pickforge-lanes MCP)' <<<"$decrypted" \
+        && grep -Fq '`xai-oauth/grok-4.5` (OMP)' <<<"$decrypted"; then
+        pass 'model-routing owns selection policy and harness-scoped Grok selectors'
+      else
+        err 'model-routing selection policy or harness-scoped Grok selectors missing'
+      fi
       ;;
     */kickoff/SKILL.md)
       grep -Fq 'model-routing.md' <<<"$decrypted" \
@@ -2092,6 +2143,19 @@ for target in "${ROUTING_SKILL_TARGETS[@]}"; do
   esac
 done
 unset decrypted
+
+for reference in delegation-contract.md model-routing.md review-schemas.md; do
+  codex_reference=''
+  grok_reference=''
+  if codex_reference="$(chezmoi "${SRC[@]}" cat "$HOME/.codex/skills/model-orchestration/references/$reference")" \
+    && grok_reference="$(chezmoi "${SRC[@]}" cat "$HOME/.grok/skills/model-orchestration/references/$reference")" \
+    && [[ "$codex_reference" == "$grok_reference" ]]; then
+    pass "Grok routing reference mirrors Codex: $reference"
+  else
+    err "Grok routing reference missing or differs from Codex: $reference"
+  fi
+done
+unset codex_reference grok_reference
 
 local_review=''
 if local_review="$(chezmoi "${SRC[@]}" decrypt \
@@ -2173,7 +2237,14 @@ for public_profile_file in \
     || pass "profile source uses generic public vocabulary: $public_profile_file"
 done
 
-render "$SOUL" "$TMP/SOUL.md" && pass 'rendered Hermes SOUL' || err 'Hermes SOUL render failed'
+if render "$SOUL" "$TMP/SOUL.md" \
+  && grep -Fq -- '- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.' "$TMP/SOUL.md" \
+  && grep -Fq -- '- Destructive filesystem, Git, account, or external-service actions require explicit confirmation.' "$TMP/SOUL.md" \
+  && grep -Fq 'CODING_AGENT_RULES.md' "$TMP/SOUL.md"; then
+  pass 'rendered Hermes SOUL includes shared boundaries and standalone coding memory'
+else
+  err 'Hermes SOUL render or shared-boundary composition failed'
+fi
 
 TARGETS=(
   "$DEST/.zshrc" "$DEST/.bashrc"
@@ -2212,7 +2283,7 @@ EXPECTED=(
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/config.yml dot_omp/agent/mcp.json dot_omp/agent/agents
-  private_dot_hermes/SOUL.md
+  private_dot_hermes/SOUL.md.tmpl
   dot_local/bin/executable_agent-config-sync
   dot_local/bin/executable_pickforge-lanes-mcp
   dot_claude/skills/symlink_multi-model-lanes
