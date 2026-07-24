@@ -68,8 +68,8 @@ chezmoi cd                           # open the source repository
   - Global Codex adapter: `~/.codex/AGENTS.md` (unrestricted `codex` shell wrapper)
   - Other harness adapters: Grok, Pi, OMP, Hermes
   - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`
-  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `sync` | `doctor`)
-  - Encrypted stable configuration: selected Claude settings and harness-native skills
+  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `sync` | `doctor` | `targets`)
+  - Skills, prompts, and harness configuration are plaintext and meant to be read — see [Secrets](#secrets-age-encryption) for the six files that are not
   - Runtime state: credentials, sessions, histories, caches, plugins, and usage state remain machine-owned
 
 ## Agent configuration
@@ -180,6 +180,25 @@ hermetic validation explicitly with `bash scripts/check-agent-doctor.sh`.
 
 Chezmoi encrypts sensitive files with [age](https://github.com/FiloSottile/age) before committing. The repo only ever contains ciphertext (`encrypted_*.age`); the decrypt key lives at `~/.config/chezmoi/key.txt` on each machine and must never leave it in plaintext form.
 
+### What is encrypted, and what deliberately is not
+
+Encryption here is for credentials only. Exactly six files are encrypted:
+
+| Encrypted file | Why |
+|---|---|
+| `~/.pi/agent/mcp.json` | carries a literal Context7 API key in a request header |
+| `~/.pi/agent/auth.json` | Pi provider credentials |
+| `~/.pi/agent/mcp-oauth/**/tokens.json` | Pi MCP OAuth token state |
+| `~/.context7/credentials.json` | Context7 API credentials |
+| `~/.hermes/.env` | Hermes environment secrets |
+| `~/.hermes/auth.json` | Hermes provider credentials |
+
+Everything else — every skill, prompt, rule, hook, and harness config — is plaintext on purpose, so the repo can actually be read and borrowed from.
+
+It did not start that way. `chezmoi add --encrypt` had been used on whole directories, which left 719 of 1148 tracked files as unreadable blobs even though only six held secrets. That cost more than legibility: several content checks skip `*.age`, so encryption was hiding a hardcoded Linux path that broke an MCP server on macOS and two references to harnesses retired months earlier.
+
+chezmoi has no `.chezmoiattributes`, so encryption cannot be declared by pattern — it is only ever a per-file `encrypted_` prefix. `scripts/check/encryption-policy-checks.sh` is therefore where the policy lives, and it fails the build in both directions: a credential-shaped file committed in plaintext, **or** an encrypted file with no declared justification. Adding encryption now requires saying why.
+
 ### First-time setup (new key)
 
 ```bash
@@ -221,7 +240,15 @@ EOF
 chezmoi add --encrypt ~/.some/secret-file
 ```
 
-The source file will land as `encrypted_<name>.age`. Commit and push as usual.
+The source file will land as `encrypted_<name>.age`. Then add it to
+`ENCRYPTION_ALLOWED_SOURCES` in `scripts/check/encryption-policy-checks.sh` with
+the reason it must stay encrypted — the check suite rejects encrypted files that
+have no justification, which is what keeps blanket encryption from creeping back.
+Commit and push as usual.
+
+Prefer keeping the credential out of the file entirely. `~/.pi/agent/models.json`
+holds provider API keys as `$ENV` references, so it needs no encryption at all;
+`mcp.json` is encrypted only because its key is a literal.
 
 ### Rotating the age key
 

@@ -27,6 +27,7 @@ for module in \
   rendered-checks.sh \
   source-policy-checks.sh \
   sync-coverage-checks.sh \
+  encryption-policy-checks.sh \
   hermetic-target-checks.sh; do
   # shellcheck source=/dev/null
   source "$CHECK_MODULE_DIR/$module"

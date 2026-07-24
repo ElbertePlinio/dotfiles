@@ -1,9 +1,13 @@
 # Agent runtime state must never enter the chezmoi source tree.
 dot_pi/agent/sessions/
 dot_pi/agent/encrypted_run-history.jsonl.age
+dot_pi/agent/run-history.jsonl
 dot_pi/agent/encrypted_mcp-cache.json.age
+dot_pi/agent/mcp-cache.json
 dot_pi/agent/encrypted_mcp-npx-cache.json.age
+dot_pi/agent/mcp-npx-cache.json
 dot_pi/agent/encrypted_mcp-onboarding.json.age
+dot_pi/agent/mcp-onboarding.json
 dot_pi/agent/pi-hermes-memory/encrypted_dot_skills-migrated-to-extension-storage.age
 
 dot_omp/agent/sessions/
@@ -30,9 +34,16 @@ private_dot_hermes/private_skills/*
 # this tree carried 38 MB binaries into history once already.
 dot_pi/agent/npm/
 
-# Work-owned Codex credentials/config and generated app state.
+# The age identity decrypts everything else in this repo. It must never be
+# committed, encrypted or not.
+dot_config/chezmoi/
+
+# Work-owned Codex credentials/config and generated app state. Both spellings
+# are listed: pinning only the encrypted_ name would let a plaintext add through.
 dot_codex/encrypted_private_auth.json.age
+dot_codex/private_auth.json
 dot_codex/encrypted_private_config.toml.age
+dot_codex/private_config.toml
 dot_codex/rules/
 dot_codex/version.json
 dot_codex/archived_sessions/

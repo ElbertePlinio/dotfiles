@@ -2,6 +2,9 @@ README.md
 LICENSE
 scripts
 
+# The age identity decrypts every encrypted file here. Never manage it.
+.config/chezmoi
+
 # Hermes ships and curates its own skill library under ~/.hermes/skills, so it
 # is not ours to version. Only the portable skill symlinks are, and those are
 # direct children, so this ignores category contents without touching them.
