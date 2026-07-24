@@ -109,10 +109,8 @@ AGENT_EXCLUDED_TARGETS=(
   "${HOME}/.hermes/auth.json|live credential state, harness-owned"
   "${HOME}/.pi/agent/auth.json|live credential state, harness-owned"
   "${HOME}/.pi/agent/mcp-oauth|live MCP OAuth token state, harness-owned"
-  "${HOME}/.pi/agent/npm|reconstructible npm deps, restored by npm ci"
   "${HOME}/.pi/agent/pi-hermes-memory|vestigial empty tree, nothing to push"
   "${HOME}/.pi/agent/projects-memory|vestigial empty tree, nothing to push"
-  "${HOME}/.hermes/skills|Hermes-curated bundled library; its portable symlinks stay active"
 )
 
 agent_config_scope_roots() {

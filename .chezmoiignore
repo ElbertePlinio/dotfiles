@@ -2,13 +2,21 @@ README.md
 LICENSE
 scripts
 
-# Hermes generated skill state
+# Hermes ships and curates its own skill library under ~/.hermes/skills, so it
+# is not ours to version. Only the portable skill symlinks are, and those are
+# direct children, so this ignores category contents without touching them.
+# chezmoi's ** matches zero segments, so `*/**` would swallow the symlinks too.
+.hermes/skills/*/*
 .hermes/skills/.bundled_manifest
 .hermes/skills/.curator_backups
 .hermes/skills/.curator_state
 .hermes/skills/.usage.json
 .hermes/skills/.usage.json.lock
-.hermes/skills/.hub/lock.json
+.hermes/skills/.hub
+
+# Pi npm workspace — package manifests and installed deps are reconstructible
+# with `npm ci`, and the tree carried 38 MB binaries into history once already.
+.pi/agent/npm
 
 # pi session state — transient, regenerated every run
 .pi/context-mode/sessions
