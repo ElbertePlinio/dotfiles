@@ -42,11 +42,10 @@ check_sync_command_flow() {
     dot_claude/skills/plan-issue/SKILL.md
     dot_claude/skills/x-research/SKILL.md
     dot_claude/skills/model-runners/SKILL.md
+    dot_agents/skills/model-orchestration/SKILL.md
     dot_codex/AGENTS.md
-    dot_codex/skills/model-orchestration/SKILL.md
     dot_codex/skills/ship-pr/SKILL.md
     dot_grok/AGENTS.md
-    dot_grok/skills/model-orchestration/SKILL.md
     dot_pi/agent/AGENTS.md
     dot_pi/agent/settings.json
     dot_pi/agent/extensions/btw.ts

@@ -163,11 +163,6 @@ for target in "${ROUTING_SKILL_TARGETS[@]}"; do
     || pass "routing skill avoids stale CLAUDE.md table reference: $target"
 
   case "$target" in
-    */codex-fable/SKILL.md|*/codex-opus/SKILL.md)
-      grep -Fq 'Before selecting any worker or reviewer, read `~/.codex/skills/model-orchestration/references/model-routing.md` completely.' <<<"$decrypted" \
-        && pass 'Claude workflow requires the model-routing owner before routing' \
-        || err 'Claude workflow missing required pre-routing model-routing read'
-      ;;
     */references/model-routing.md)
       if grep -Fq '$pickgauge-usage' <<<"$decrypted" \
         && grep -Fq 'intelligence > taste > cost' <<<"$decrypted" \
@@ -187,18 +182,27 @@ for target in "${ROUTING_SKILL_TARGETS[@]}"; do
 done
 unset decrypted
 
-for reference in delegation-contract.md model-routing.md review-schemas.md; do
-  codex_reference=''
-  grok_reference=''
-  if codex_reference="$(chezmoi "${SRC[@]}" cat "$HOME/.codex/skills/model-orchestration/references/$reference")" \
-    && grok_reference="$(chezmoi "${SRC[@]}" cat "$HOME/.grok/skills/model-orchestration/references/$reference")" \
-    && [[ "$codex_reference" == "$grok_reference" ]]; then
-    pass "Grok routing reference mirrors Codex: $reference"
+for reference in delegation-contract.md dispatch.md model-routing.md review-schemas.md; do
+  canonical_reference=''
+  if canonical_reference="$(chezmoi "${SRC[@]}" cat \
+    "$HOME/.agents/skills/model-orchestration/references/$reference")" \
+    && [[ -n "$canonical_reference" ]]; then
+    pass "canonical routing reference present: $reference"
   else
-    err "Grok routing reference missing or differs from Codex: $reference"
+    err "canonical routing reference missing or empty: $reference"
   fi
 done
-unset codex_reference grok_reference
+unset canonical_reference
+
+# model-orchestration is canonical under dot_agents/skills and reaches every
+# harness by symlink. Harness-native forks reintroduce the drift that previously
+# let a stale model pin survive in one copy but not the other.
+if [[ -e "$ROOT/dot_codex/skills/model-orchestration" \
+  || -e "$ROOT/dot_grok/skills/model-orchestration" ]]; then
+  err 'harness-native model-orchestration copy reintroduced; keep it canonical'
+else
+  pass 'model-orchestration has no harness-native duplicate'
+fi
 
 local_review=''
 if local_review="$(chezmoi "${SRC[@]}" decrypt \
@@ -207,7 +211,7 @@ if local_review="$(chezmoi "${SRC[@]}" decrypt \
     && grep -Fq 'mandatory KISS verdict' <<<"$local_review" \
     && pass 'local-review requires a scoped KISS gate' \
     || err 'local-review missing required KISS gate'
-  grep -Fq '~/.codex/skills/model-orchestration/references/model-routing.md' <<<"$local_review" \
+  grep -Fq 'references/model-routing.md' <<<"$local_review" \
     && grep -Fq 'never treat a model as permanently assigned' <<<"$local_review" \
     && pass 'local-review delegates model selection to the current table' \
     || err 'local-review missing dynamic model selection'

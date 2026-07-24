@@ -139,6 +139,13 @@
       "grok",
       "pi",
       "omp"
+    ],
+    "model-orchestration": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
     ]
   }
 }

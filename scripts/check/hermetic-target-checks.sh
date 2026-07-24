@@ -62,9 +62,8 @@ mkdir -p "$DEST/.grok" "$DEST/.hermes" \
   "$DEST/.claude/skills/pickgauge-usage" \
   "$DEST/.claude/skills/plan-issue" \
   "$DEST/.claude/skills/x-research" \
-  "$DEST/.codex/skills/model-orchestration/references" \
   "$DEST/.codex/skills/ship-pr" \
-  "$DEST/.grok/skills/model-orchestration" \
+  "$DEST/.grok/skills" \
   "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
   "$DEST/.hermes/skills" "$DEST/.agents/skills"
 ln -s ../.codex/AGENTS.md "$DEST/.grok/AGENTS.md"

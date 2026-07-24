@@ -73,9 +73,8 @@ STALE_PI_FLOW_PATHS=(
 
 ROUTING_SKILL_TARGETS=(
   "$HOME/.claude/skills/kickoff/SKILL.md"
-  "$HOME/.codex/skills/model-orchestration/SKILL.md"
-  "$HOME/.codex/skills/model-orchestration/references/model-routing.md"
-  "$HOME/.grok/skills/model-orchestration/references/model-routing.md"
+  "$HOME/.agents/skills/model-orchestration/SKILL.md"
+  "$HOME/.agents/skills/model-orchestration/references/model-routing.md"
 )
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync.XXXXXX")"
