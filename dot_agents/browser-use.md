@@ -12,8 +12,9 @@ first one that works:
 1. **Official API or docs** — check for a public API first.
 2. **Derived HTTP client (HAR trick)** — see below. One browser session to
    capture traffic, then plain `curl`/scripted requests forever after.
-3. **Headless DOM via `chrome_devtools_evaluate`** — extract data with JS in
-   the page instead of screenshot-reading it.
+3. **Headless DOM via the harness's browser MCP** — extract data with page
+   text or JS in the page instead of screenshot-reading it. On Claude that is
+   `claude-in-chrome`'s `get_page_text` / `javascript_tool`.
 4. **Full visual browser driving** — last resort, only for pages that
    genuinely need interaction/vision (canvas apps, anti-bot walls, visual
    verification). Follow `~/.agents/desktop-capture.md` rules for any
@@ -55,10 +56,12 @@ Then pull full request/response bodies only for the specific entries needed.
 
 ## When browser driving is unavoidable
 
-- Use the `chrome_devtools_*` tools (navigate, evaluate, screenshot); don't
-  spawn ad-hoc browsers unless the tools can't reach the target.
-- Prefer `evaluate` (DOM queries, `fetch` from page context to reuse the
-  session) over screenshots for reading state.
+- Use the harness's browser MCP (navigate, page text, evaluate, screenshot);
+  don't spawn ad-hoc browsers unless those tools can't reach the target.
+- Prefer page text or `evaluate` (DOM queries, `fetch` from page context to
+  reuse the session) over screenshots for reading state.
+- If the browser MCP reports no extension or browser connected, say so and
+  stop — don't fall back to scraping walled pages by other means.
 - Screenshots are for visual verification only; downscale per
   `~/.agents/desktop-capture.md` before reading into context.
 - Delegate long interactive click/type/verify sessions to a vision-capable

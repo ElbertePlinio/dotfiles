@@ -1,13 +1,23 @@
 # Desktop capture, input, and screenshot handling
 
-Procedures for this machine (KDE Plasma Wayland). Read before driving desktop
-UI or loading screenshots into model context.
+Read before driving desktop UI or loading screenshots into model context.
+Capture tooling is per-OS; the downscaling rule at the bottom is not.
 
-## Capture and input routing
+## macOS
+
+- Capture with `screencapture -x <file>` (silent, full screen), `-o -l <window-id>`
+  for one window, `-R<x,y,w,h>` for a region.
+- Capture needs Screen Recording permission and input driving needs
+  Accessibility. If a capture comes back black or empty, that permission is
+  missing — say so instead of retrying.
+- Prefer the app's own CLI, `osascript`, or a test harness over synthetic
+  clicks.
+
+## Linux (KDE Plasma Wayland)
 
 - Never use ImageMagick `import` — it rings the X bell per capture and is
   unreliable under Xwayland.
-- First check which layer the target app runs on: if
+- Check which layer the target app runs on first: if
   `xdotool search --name <app>` finds the window it is Xwayland — use `xdotool`
   for input and `maim -i <window-id>` for capture.
 - Otherwise it is native Wayland — use `spectacle -b -n -o <file>` (full
@@ -15,7 +25,7 @@ UI or loading screenshots into model context.
   `ydotool` for input (daemon already running).
 - Headless PickLab/Xvfb labs are pure X11: `xdotool` + `maim`.
 
-## Screenshot downscaling
+## Screenshot downscaling (every platform)
 
 Before reading any screenshot into model context, downscale it:
 

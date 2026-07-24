@@ -27,7 +27,7 @@ REQUIRED_SHARED_INVARIANTS=(
   '- Never expose, print, commit, or send secrets or private production data.'
   '- Destructive filesystem, Git, account, or external-service actions require explicit confirmation.'
   '- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.'
-  '- Never use Anthropic Haiku — directly, via any tool, skill, subagent, fallback, or hidden route.'
+  '- Never use Anthropic Haiku or GPT-5.6 Luna/Terra; Sol is the only GPT-5.6 lane'
   'github.com/ElbertePlinio/'
   '- Protect user work. Check status before staging, committing, merging, or cleaning.'
   '- Treat untracked files as user-owned.'

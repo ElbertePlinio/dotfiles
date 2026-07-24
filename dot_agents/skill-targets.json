@@ -84,6 +84,13 @@
       "pi",
       "omp"
     ],
+    "gate-installer": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
+    ],
     "audit-report": [
       "claude",
       "codex",
@@ -125,6 +132,13 @@
       "pi",
       "omp",
       "hermes"
+    ],
+    "x-search": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
     ]
   }
 }
