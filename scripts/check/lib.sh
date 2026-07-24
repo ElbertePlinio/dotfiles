@@ -242,7 +242,8 @@ RUNTIME_IGNORE_PATHS=(
   .hermes/skills/.curator_state
   .hermes/skills/.usage.json
   .hermes/skills/.usage.json.lock
-  .hermes/skills/.hub/lock.json
+  .hermes/skills/.hub
+  .pi/agent/npm
   .pi/agent/sessions
   .pi/agent/run-history.jsonl
   .pi/agent/mcp-cache.json

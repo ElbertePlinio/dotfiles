@@ -20,12 +20,15 @@ dot_omp/gpu_cache.json
 dot_omp/puppeteer/
 
 
-private_dot_hermes/private_skills/dot_curator_backups/
-private_dot_hermes/private_skills/dot_hub/encrypted_private_lock.json.age
-private_dot_hermes/private_skills/encrypted_empty_dot_usage.json.lock.age
-private_dot_hermes/private_skills/encrypted_private_dot_bundled_manifest.age
-private_dot_hermes/private_skills/encrypted_private_dot_curator_state.age
-private_dot_hermes/private_skills/encrypted_private_dot_usage.json.age
+# Hermes ships and curates its own skill library plus that library's runtime
+# state. Only our portable skill symlinks belong in this repo, so allowlist
+# them rather than chasing each bundled path or encrypted/plaintext variant.
+private_dot_hermes/private_skills/*
+!private_dot_hermes/private_skills/symlink_*
+
+# Pi npm workspace — manifests and deps are reconstructible with `npm ci`, and
+# this tree carried 38 MB binaries into history once already.
+dot_pi/agent/npm/
 
 # Work-owned Codex credentials/config and generated app state.
 dot_codex/encrypted_private_auth.json.age
