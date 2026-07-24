@@ -128,7 +128,7 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
     err 'Pi settings JSON invalid'
   fi
 else
-  err 'could not decrypt Pi settings for runtime checks'
+  err 'could not read Pi settings for runtime checks'
 fi
 unset pi_settings
 
@@ -146,7 +146,7 @@ if pi_models="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/models.json")"; then
     err 'Pi models JSON invalid'
   fi
 else
-  err 'could not decrypt Pi models for runtime checks'
+  err 'could not read Pi models for runtime checks'
 fi
 unset pi_models
 
@@ -205,8 +205,8 @@ else
 fi
 
 local_review=''
-if local_review="$(chezmoi "${SRC[@]}" decrypt \
-  "$ROOT/dot_agents/skills/local-review/encrypted_SKILL.md.age")"; then
+if local_review="$(cat \
+  "$ROOT/dot_agents/skills/local-review/SKILL.md")"; then
   grep -Fq 'Every review includes a KISS gate' <<<"$local_review" \
     && grep -Fq 'mandatory KISS verdict' <<<"$local_review" \
     && pass 'local-review requires a scoped KISS gate' \
@@ -219,7 +219,7 @@ if local_review="$(chezmoi "${SRC[@]}" decrypt \
     && err 'local-review contains fixed model lane assignments' \
     || pass 'local-review contains no fixed model lane assignments'
 else
-  err 'could not decrypt local-review skill for checks'
+  err 'could not read local-review skill for checks'
 fi
 unset local_review
 

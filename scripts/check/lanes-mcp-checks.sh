@@ -238,13 +238,14 @@ EOF
   if jq -e '.skills["multi-model-lanes"] == ["claude", "pi"]' "$MANIFEST" >/dev/null 2>&1 \
     && [[ "$(tr -d '\n' <"$ROOT/dot_claude/skills/symlink_multi-model-lanes" 2>/dev/null)" == '../../.agents/skills/multi-model-lanes' ]] \
     && [[ "$(tr -d '\n' <"$ROOT/dot_pi/agent/skills/symlink_multi-model-lanes" 2>/dev/null)" == '../../../.agents/skills/multi-model-lanes' ]] \
-    && [[ ! -e "$ROOT/dot_agents/skills/multi-model-lanes/SKILL.md" ]]; then
-    pass 'multi-model lanes canonical source is encrypted with Claude/Pi relative symlinks only'
+    && [[ -f "$ROOT/dot_agents/skills/multi-model-lanes/SKILL.md" ]] \
+    && [[ ! -e "$ROOT/dot_agents/skills/multi-model-lanes/encrypted_SKILL.md.age" ]]; then
+    pass 'multi-model lanes canonical source is readable with Claude/Pi relative symlinks only'
   else
-    err 'multi-model lanes manifest, encryption, or symlink matrix invalid'
+    err 'multi-model lanes manifest, source form, or symlink matrix invalid'
   fi
 
-  if skill="$(chezmoi "${SRC[@]}" decrypt "$PICKFORGE_LANES_SKILL" 2>/dev/null)"; then
+  if skill="$(cat "$PICKFORGE_LANES_SKILL" 2>/dev/null)"; then
     if grep -Fq 'global model policy' <<<"$skill" \
       && grep -Fq 'Pi native lanes' <<<"$skill" \
       && grep -Fq 'Claude-to-Claude' <<<"$skill" \
@@ -261,7 +262,7 @@ EOF
       err 'multi-model lanes skill missing required routing or background-only invariants'
     fi
   else
-    err 'multi-model lanes encrypted canonical skill is unreadable'
+    err 'multi-model lanes canonical skill is unreadable'
   fi
   unset skill
 

@@ -1,0 +1,25 @@
+{
+  "lastChangelogVersion": "0.79.10",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-sol",
+  "defaultThinkingLevel": "high",
+  "packages": [
+    "npm:pi-mcp-adapter",
+    "npm:pi-bar",
+    "npm:@narumitw/pi-caffeinate",
+    "npm:pi-web-access",
+    "npm:@narumitw/pi-retry",
+    "../../Projects/Personal/pi-kit",
+    "npm:@plannotator/pi-extension"
+  ],
+  "enabledModels": [
+    "anthropic/claude-fable-5",
+    "anthropic/claude-opus-4-8",
+    "anthropic/claude-sonnet-5",
+    "ollama/glm-5.2:cloud",
+    "openai-codex/gpt-5.6-sol",
+    "xai/grok-4.5"
+  ],
+  "hideThinkingBlock": false,
+  "theme": "pickforge-ember"
+}

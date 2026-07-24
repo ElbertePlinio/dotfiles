@@ -171,7 +171,7 @@ check_active_target_completeness() {
     'dot_agents/skill-targets.json|.agents/skill-targets.json'
     'dot_agents/mcp-targets.json|.agents/mcp-targets.json'
     'dot_local/bin/executable_pickforge-lanes-mcp|.local/bin/pickforge-lanes-mcp'
-    'dot_pi/agent/encrypted_settings.json.age|.pi/agent/settings.json'
+    'dot_pi/agent/settings.json|.pi/agent/settings.json'
     'dot_pi/agent/extensions/btw.ts|.pi/agent/extensions/btw.ts'
   )
 
