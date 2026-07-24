@@ -8,7 +8,6 @@ TARGETS=(
   "$DEST/.claude/skills/ship-pr/SKILL.md"
   "$DEST/.claude/skills/pickgauge-usage/SKILL.md"
   "$DEST/.claude/skills/plan-issue/SKILL.md"
-  "$DEST/.claude/skills/x-research/SKILL.md"
   "$DEST/.codex/AGENTS.md"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json" "$DEST/.omp/agent/agents"
@@ -31,7 +30,6 @@ EXPECTED=(
   dot_claude/skills/ship-pr/encrypted_SKILL.md.age
   dot_claude/skills/pickgauge-usage/encrypted_SKILL.md.age
   dot_claude/skills/plan-issue/encrypted_private_SKILL.md.age
-  dot_claude/skills/x-research/encrypted_SKILL.md.age
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/config.yml dot_omp/agent/mcp.json.tmpl dot_omp/agent/agents
@@ -61,7 +59,6 @@ mkdir -p "$DEST/.grok" "$DEST/.hermes" \
   "$DEST/.claude/skills/ship-pr" \
   "$DEST/.claude/skills/pickgauge-usage" \
   "$DEST/.claude/skills/plan-issue" \
-  "$DEST/.claude/skills/x-research" \
   "$DEST/.codex/skills/ship-pr" \
   "$DEST/.grok/skills" \
   "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \

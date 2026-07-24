@@ -322,7 +322,6 @@ cmd_apply() {
     "${HOME}/.claude/skills/ship-pr"
     "${HOME}/.claude/skills/pickgauge-usage"
     "${HOME}/.claude/skills/plan-issue"
-    "${HOME}/.claude/skills/x-research"
   )
   local -a apply_targets=()
 

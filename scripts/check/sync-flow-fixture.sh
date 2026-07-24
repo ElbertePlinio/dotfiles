@@ -40,7 +40,6 @@ check_sync_command_flow() {
     dot_claude/skills/audit-report/SKILL.md
     dot_claude/skills/pickgauge-usage/SKILL.md
     dot_claude/skills/plan-issue/SKILL.md
-    dot_claude/skills/x-research/SKILL.md
     dot_claude/skills/model-runners/SKILL.md
     dot_agents/skills/model-orchestration/SKILL.md
     dot_codex/AGENTS.md
