@@ -215,7 +215,7 @@ if local_review="$(cat \
     && grep -Fq 'never treat a model as permanently assigned' <<<"$local_review" \
     && pass 'local-review delegates model selection to the current table' \
     || err 'local-review missing dynamic model selection'
-  grep -Eq 'Grok 4\.5|GPT-5\.6|Fable 5|Opus 4\.8|GLM-5\.2' <<<"$local_review" \
+  grep -Eq 'Grok 4\.5|GPT-5\.6|Fable 5|Opus 5|Opus 4\.8|Sonnet 5|GLM-5\.2' <<<"$local_review" \
     && err 'local-review contains fixed model lane assignments' \
     || pass 'local-review contains no fixed model lane assignments'
 else

@@ -123,7 +123,7 @@ check_portable_home_literals() {
   local needle='/home/'dev path unexpected=0
   while IFS= read -r path; do
     case "$path" in
-      .chezmoitemplates/zshrc-linux|dot_config/QtProject.conf|\
+      dot_config/QtProject.conf|\
       dot_config/plasma-org.kde.plasma.desktop-appletsrc|\
       dot_config/private_katerc|dot_config/private_spectaclerc) ;;
       *) err "literal Linux home remains outside an OS-gated source: $path"; unexpected=1 ;;

@@ -55,7 +55,7 @@ export PATH="$PATH":"$HOME/.pub-cache/bin"
 export PATH="$HOME/.local/bin:$PATH"
 
 # pnpm
-export PNPM_HOME="/Users/elberte/Library/pnpm"
+export PNPM_HOME="$HOME/Library/pnpm"
 case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
@@ -66,10 +66,10 @@ export PATH="$HOME/fvm/default/bin:$PATH"
 alias very_good="$HOME/fvm/default/bin/dart pub global run very_good_cli:very_good"
 export PATH="/opt/homebrew/bin:$PATH"
 
-alias claude-mem='/Users/elberte/.bun/bin/bun "/Users/elberte/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
+alias claude-mem='"$HOME/.bun/bin/bun" "$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
 
 # bun completions
-[ -s "/Users/elberte/.bun/_bun" ] && source "/Users/elberte/.bun/_bun"
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
@@ -77,7 +77,7 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 
 {{ template "zshrc-common" . }}
 # The next line updates PATH for the Google Cloud SDK.
-if [ -f '/Users/elberte/Downloads/google-cloud-sdk/path.zsh.inc' ]; then . '/Users/elberte/Downloads/google-cloud-sdk/path.zsh.inc'; fi
+if [ -f "$HOME/Downloads/google-cloud-sdk/path.zsh.inc" ]; then . "$HOME/Downloads/google-cloud-sdk/path.zsh.inc"; fi
 
 # The next line enables shell command completion for gcloud.
-if [ -f '/Users/elberte/Downloads/google-cloud-sdk/completion.zsh.inc' ]; then . '/Users/elberte/Downloads/google-cloud-sdk/completion.zsh.inc'; fi
+if [ -f "$HOME/Downloads/google-cloud-sdk/completion.zsh.inc" ]; then . "$HOME/Downloads/google-cloud-sdk/completion.zsh.inc"; fi

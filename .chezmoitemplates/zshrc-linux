@@ -10,7 +10,7 @@ source /usr/share/cachyos-zsh-config/cachyos-config.zsh
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-export PATH="/home/dev/fvm/bin:$PATH"
+export PATH="$HOME/fvm/bin:$PATH"
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
@@ -23,7 +23,7 @@ if [[ -z "${PI_CAFFEINATE_COMMAND:-}" ]]; then
 fi
 
 # pnpm
-export PNPM_HOME="/home/dev/.local/share/pnpm"
+export PNPM_HOME="$HOME/.local/share/pnpm"
 case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
@@ -31,14 +31,14 @@ esac
 # pnpm end
 
 # bun completions
-[ -s "/home/dev/.bun/_bun" ] && source "/home/dev/.bun/_bun"
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 export CHROME_EXECUTABLE=/usr/bin/google-chrome-stable
 
-alias claude-mem='bun "/home/dev/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
+alias claude-mem='bun "$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
 
 {{ template "zshrc-common" . -}}
 # Qwen3.6 35B A3B APEX - RX 9070 XT - 262K TurboQuant
