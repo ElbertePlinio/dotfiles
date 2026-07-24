@@ -309,8 +309,8 @@ check_live_primary_global_targets() {
 check_live_native_routing_files() {
   local live rendered
   local -a files=(
-    "${HOME}/.codex/skills/model-orchestration/SKILL.md"
-    "${HOME}/.codex/skills/model-orchestration/references/model-routing.md"
+    "${HOME}/.agents/skills/model-orchestration/SKILL.md"
+    "${HOME}/.agents/skills/model-orchestration/references/model-routing.md"
     "${HOME}/.claude/skills/kickoff/SKILL.md"
   )
 
