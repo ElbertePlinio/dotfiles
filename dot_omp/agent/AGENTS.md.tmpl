@@ -16,8 +16,7 @@
 
 ## Native model orchestration
 
-Outside the shared Grok effort and review rules, choose the agent prompt, model, and
-reasoning effort independently. Models are not permanently assigned to roles.
+Choose the agent prompt, model, and reasoning effort independently per call.
 
 For dynamic model selection, prefer the eval bridge:
 
@@ -39,18 +38,14 @@ Available managed pool:
 
 {{ template "model-table.md" (dict "grokSelector" "xai-oauth/grok-4.5" "glmStart" "provider default") }}
 
-`Start` is an initial reasoning-effort prior, not a role assignment. Grok 4.5
-always runs at high effort. Sol is the
-only GPT-5.6 lane: shift its effort (low/medium/high) instead of switching to a
-sibling model. `Cost` is relative marginal routing cost (1 = cheapest), not
-subscription price. Adjust other models for the task's uncertainty, context
-size, and validation surface. Ratings are comparative routing context. GPT-5.6
-Luna and Terra are excluded.
+`Start` is an initial reasoning-effort prior, not a role assignment. `Cost` is
+relative marginal routing cost (1 = cheapest), not subscription price. Ratings
+are comparative routing context — adjust for the task's uncertainty, context
+size, and validation surface.
 
 Prefer OMP-native subagents over launching `claude`, `codex`, `grok`, or
 `ollama` CLIs from inside OMP. Keep the CLIs for provider-native features or
 when operating from another harness.
 
 The main model owns scope, model selection, synthesis, validation, and the
-final answer. Parallelize only genuinely independent work. One writer per file
-or isolated workspace.
+final answer.
