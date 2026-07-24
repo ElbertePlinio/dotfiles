@@ -164,7 +164,7 @@ for target in "${ROUTING_SKILL_TARGETS[@]}"; do
 
   case "$target" in
     */references/model-routing.md)
-      if grep -Fq '$pickgauge-usage' <<<"$decrypted" \
+      if grep -Fq 'pickgauge-usage' <<<"$decrypted" \
         && grep -Fq 'intelligence > taste > cost' <<<"$decrypted" \
         && grep -Fq '`xai/grok-4.5` (Pi, pickforge-lanes MCP)' <<<"$decrypted" \
         && grep -Fq '`xai-oauth/grok-4.5` (OMP)' <<<"$decrypted"; then
