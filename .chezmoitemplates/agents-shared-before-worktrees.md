@@ -59,8 +59,8 @@ Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious 
 ### Pull requests
 
 - My GitHub repos use local, risk-adaptive review before shipping. GitHub-hosted Codex review is optional escalation, not a default merge prerequisite.
-- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `$ship-pr` when available. Run `$local-review` after focused behavioral validation and before opening or merging the PR.
-- In clearly identified Pickforge or Personal projects, treat ship/open-PR as automatic when it is the natural next step (via `$ship-pr` if available); outside those projects, ask first.
-- `$local-review` is the review-policy source of truth; do not restate its profiles, model composition, findings, or round rules elsewhere.
+- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `ship-pr` when available. Run `local-review` after focused behavioral validation and before opening or merging the PR.
+- In clearly identified Pickforge or Personal projects, treat ship/open-PR as automatic when it is the natural next step (via `ship-pr` if available); outside those projects, ask first.
+- `local-review` is the review-policy source of truth; do not restate its profiles, model composition, findings, or round rules elsewhere.
 - Promote generalizable review findings and repeated corrections into the repo's `AGENTS.md` (or curated memory) as part of the same PR, so mistakes compound into shared rules.
 - Do not merge with failing required checks, unanswered valid findings, or an incomplete review required by the change's risk class.

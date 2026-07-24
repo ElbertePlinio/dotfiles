@@ -34,7 +34,7 @@ REQUIRED_SHARED_INVARIANTS=(
   '- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects.'
   '- Commit messages must be English Conventional Commits.'
   '- Never add attribution or trailers: no `Co-authored-by`, no `Signed-off-by`, no bot names, no noreply addresses, no model names, no AI signatures.'
-  '- `$local-review` is the review-policy source of truth; do not restate its profiles, model composition, findings, or round rules elsewhere.'
+  '- `local-review` is the review-policy source of truth; do not restate its profiles, model composition, findings, or round rules elsewhere.'
   '- Do not merge with failing required checks, unanswered valid findings, or an incomplete review required by the change'
   '~/Projects/.worktrees/<repo-name>/<branch-name>'
   'Run the narrowest behavioral validation that proves the change.'
@@ -52,7 +52,7 @@ REQUIRED_SHARED_INVARIANTS=(
   '- `xhigh` is the absolute effort ceiling. Never use `ultra`, `max`, or any effort above xhigh'
   '- Establish the delivery mode before substantial work or any dispatch: plan-only, local-implement, or ship.'
   '- For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation.'
-  '- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `$ship-pr` when available.'
+  '- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `ship-pr` when available.'
 )
 
 ADAPTER_BUDGETS=(

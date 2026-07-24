@@ -50,7 +50,7 @@ done
 
 ADAPTER_OWNER_POINTERS=(
   'dot_claude/CLAUDE.md.tmpl|model-routing.md|Claude'
-  'dot_codex/AGENTS.md.tmpl|$model-orchestration|Codex'
+  'dot_codex/AGENTS.md.tmpl|model-orchestration|Codex'
   'dot_grok/AGENTS.md.tmpl|model-orchestration|Grok'
   'dot_pi/agent/AGENTS.md.tmpl|Available managed pool|Pi'
   'dot_omp/agent/AGENTS.md.tmpl|Available managed pool|OMP'
