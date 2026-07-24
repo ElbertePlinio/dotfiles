@@ -18,12 +18,9 @@ For substantial plans, diagrams, comparisons, or reports, offer an optional stan
 
 Run the narrowest behavioral validation that proves the change. If blocked, say why and name the command. Final coding reports are evidence-based: changed, validated, risks/uncertainties, and next action only if needed.
 
-### Decision audit gate
+### Decision audit
 
-- Before declaring any non-trivial task done or opening a PR, self-review: would you stand behind this branch as-is? If not, say exactly why — no hedging.
-- List every choice made that the user or plan did not explicitly specify: approach, scope, naming, data shapes, workarounds. Flag low-confidence choices and ones with a plausible alternative.
-- A fix that passes validation but relies on an incidental choice (magic constant, coincidental size, special-cased path) is not done — surface it as an open decision, not a success.
-- Subagent/lane reports must include this decision list; the orchestrator reviews decisions before diffs.
+Subagent and lane reports must include a decision list: every choice the user or plan did not specify, low-confidence ones flagged with their plausible alternative, and any fix resting on an incidental choice (magic constant, coincidental size, special-cased path) surfaced as an open decision rather than a success. The orchestrator reviews decisions before diffs. `~/.claude/hooks/decision-audit-gate.sh` blocks the first push or PR of a session and prints the full checklist.
 
 ## Pickforge issue workflow
 
@@ -33,4 +30,4 @@ Under `~/Projects/Pickforge`, follow workspace `AGENTS.md`. Use `plan-issue` whe
 
 ## Updating these rules
 
-Use `agent-config-sync` for global instructions, adapters, portable skills, and drift. Shared changes go to canonical chezmoi templates/adapters; never edit only a rendered `$HOME` file. Never run whole-tree `chezmoi diff`/`status`/`verify`; always scope to explicit paths and wrap in `timeout` (full-tree runs can hang on encrypted files). Harness changes stay in that adapter; repo rules stay local unless made global. Target only compatible harnesses; use documented native fallbacks elsewhere.
+Use `agent-config-sync` for global instructions, adapters, portable skills, and drift. Shared changes go to canonical chezmoi templates/adapters; never edit only a rendered `$HOME` file. Never run whole-tree `chezmoi diff`/`status`/`verify` — always scope to explicit paths, since full-tree runs can hang on encrypted files. Harness changes stay in that adapter; repo rules stay local unless made global. Target only compatible harnesses; use documented native fallbacks elsewhere.
