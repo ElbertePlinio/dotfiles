@@ -43,13 +43,13 @@ function usage(stream) {
       "claude-delegate - run Claude Code for model-orchestration lanes",
       "",
       "Usage:",
-      "  claude-delegate.mjs --model <fable-5|opus-4.8|sonnet-5> --mode <mode> --prompt <text>",
+      "  claude-delegate.mjs --model <fable-5|opus-5|sonnet-5> --mode <mode> --prompt <text>",
       "  claude-delegate.mjs --model <model> --mode <mode> --prompt-file <path>",
       "",
       "Modes: plan, implement, review, design-review",
       "",
       "Options:",
-      "  --model <model>       fable-5, opus-4.8, sonnet-5, fable, opus, sonnet, or full model id",
+      "  --model <model>       fable-5, opus-5, sonnet-5, fable, opus, sonnet, or full model id",
       "  --mode <mode>         one of: " + MODES.join(", "),
       "  --effort <level>      low, medium, high, xhigh, max (default by model)",
       "  --prompt <text>       prompt text",
@@ -143,7 +143,7 @@ function parseArgs(argv) {
 function normalizeModel(model) {
   const key = String(model || "").toLowerCase();
   if (key === "fable-5" || key === "fable5") return "fable";
-  if (key === "opus-4.8" || key === "opus48" || key === "opus-48") return "opus";
+  if (key === "opus-5" || key === "opus5") return "opus";
   if (key === "sonnet-5" || key === "sonnet5") return "sonnet";
   return model;
 }
