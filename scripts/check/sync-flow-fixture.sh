@@ -43,12 +43,20 @@ check_sync_command_flow() {
     dot_claude/skills/model-runners/SKILL.md
     dot_agents/skills/model-orchestration/SKILL.md
     dot_codex/AGENTS.md
+    dot_codex/agents/architecture-reviewer.toml
+    dot_codex/model.json
+    dot_codex/ollama-launch.config.toml
     dot_codex/skills/ship-pr/SKILL.md
     dot_grok/AGENTS.md
+    dot_grok/config.toml
     dot_pi/agent/AGENTS.md
     dot_pi/agent/settings.json
+    dot_pi/agent/mcp.json
+    dot_pi/agent/models.json
     dot_pi/agent/extensions/btw.ts
     dot_pi/agent/extensions/decision-audit-gate.ts
+    dot_pi/agent/skills/flutter-bloc/SKILL.md
+    dot_pi/agent/skills/flutter-widget/SKILL.md
     dot_pi/agent/skills/symlink_probe
     dot_omp/agent/AGENTS.md
     dot_omp/agent/config.yml
@@ -58,10 +66,12 @@ check_sync_command_flow() {
     dot_agents/dot_skill-lock.json
     dot_agents/mcp-targets.json
     dot_agents/skill-targets.json
+    dot_agents/doctor-targets.json
     dot_agents/desktop-capture.md
     dot_agents/browser-use.md
     dot_agents/codex-lane-override.md
     dot_hermes/SOUL.md
+    dot_hermes/config.yaml
     dot_agents/skills/probe/SKILL.md
     dot_local/bin/executable_sudo-askpass
     dot_local/bin/executable_pickforge-lanes-mcp
@@ -181,9 +191,17 @@ EOF
     else
       err 'temporary sync apply observability output is missing or misleading'
     fi
+    # Only OS-gated targets may be skipped. Naming the unexpected ones turns a
+    # policy/fixture drift into a diagnostic instead of a bare count mismatch.
+    local unexpected_skips
+    unexpected_skips="$(grep -F 'skipping target not managed on this machine' "$flow_error" \
+      | grep -Fv '/.config/environment.d/' || true)"
     if [[ ! -e "$flow_home/.config/environment.d/50-sudo-askpass.conf" ]] \
-      && [[ "$(grep -Fc 'skipping target not managed on this machine' "$flow_error")" -eq 3 ]]; then
+      && [[ "$(grep -Fc '/.config/environment.d/' <<<"$(grep -F 'skipping target not managed on this machine' "$flow_error")")" -eq 3 ]] \
+      && [[ -z "$unexpected_skips" ]]; then
       pass 'temporary sync skips chezmoiignore-gated targets instead of aborting apply'
+    elif [[ -n "$unexpected_skips" ]]; then
+      err "temporary sync skipped non-OS-gated targets absent from the flow fixture: $(sed -E 's/.*machine: //' <<<"$unexpected_skips" | tr '\n' ' ')"
     else
       err 'temporary sync applied or aborted on chezmoiignore-gated environment.d targets'
     fi

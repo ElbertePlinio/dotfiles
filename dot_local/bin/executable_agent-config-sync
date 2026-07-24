@@ -3,13 +3,14 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF' >&2
-Usage: agent-config-sync <check|check-live|apply|sync|doctor>
+Usage: agent-config-sync <check|check-live|apply|sync|doctor|targets>
 
   check       Validate source templates and portable-skill symlink matrix
   check-live  Read-only live migration checks against $HOME
   apply       Source check, live preflight, scoped agent apply, then live check
   sync        Fast-forward dotfiles and AgentMemory, then run apply
   doctor      Diagnose required local agent harness configuration
+  targets     Print the apply-path policy: active, excluded, and scope roots
 
 Apply exit codes: 73 self-update apply failed; 74 batched apply failed;
 75 the CLI updated itself — re-run apply once. Sync exit code: 76 dotfiles
@@ -50,6 +51,100 @@ PICKFORGE_LANES_CONFIGURE="$SOURCE/run_onchange_after_configure_pickforge_lanes_
 MANIFEST="$SOURCE/dot_agents/skill-targets.json"
 RETIREMENT_LIST="$SOURCE/.chezmoiremove"
 SRC=(--source "$SOURCE")
+
+AGENT_ACTIVE_TARGETS=(
+  "${HOME}/.zshrc"
+  "${HOME}/.bashrc"
+  "${HOME}/.claude/CLAUDE.md"
+  "${HOME}/.codex/AGENTS.md"
+  "${HOME}/.codex/agents"
+  "${HOME}/.codex/model.json"
+  "${HOME}/.codex/ollama-launch.config.toml"
+  "${HOME}/.codex/skills/ship-pr"
+  "${HOME}/.grok/AGENTS.md"
+  "${HOME}/.grok/config.toml"
+  "${HOME}/.pi/agent/AGENTS.md"
+  "${HOME}/.pi/agent/settings.json"
+  "${HOME}/.pi/agent/mcp.json"
+  "${HOME}/.pi/agent/models.json"
+  "${HOME}/.pi/agent/extensions/btw.ts"
+  "${HOME}/.pi/agent/extensions/decision-audit-gate.ts"
+  "${HOME}/.pi/agent/skills/flutter-bloc"
+  "${HOME}/.pi/agent/skills/flutter-widget"
+  "${HOME}/.omp/agent/AGENTS.md"
+  "${HOME}/.omp/agent/config.yml"
+  "${HOME}/.omp/agent/agents"
+  "${HOME}/.omp/agent/mcp.json"
+  "${HOME}/.omp/agent/extensions/decision-audit-gate.ts"
+  "${HOME}/.agents/.skill-lock.json"
+  "${HOME}/.agents/mcp-targets.json"
+  "${HOME}/.agents/skill-targets.json"
+  "${HOME}/.agents/doctor-targets.json"
+  "${HOME}/.agents/desktop-capture.md"
+  "${HOME}/.agents/browser-use.md"
+  "${HOME}/.agents/codex-lane-override.md"
+  "${HOME}/.hermes/SOUL.md"
+  "${HOME}/.hermes/config.yaml"
+  "${HOME}/.agents/skills"
+  "${HOME}/.local/bin/pickforge-lanes-mcp"
+  "${HOME}/.local/bin/sudo-askpass"
+  "${HOME}/.config/environment.d/50-sudo-askpass.conf"
+  "${HOME}/.config/environment.d/60-omp.conf"
+  "${HOME}/.config/environment.d/70-pi-caffeinate.conf"
+  "${HOME}/.claude/rules"
+  "${HOME}/.claude/settings.json"
+  "${HOME}/.claude/hooks/decision-audit-gate.sh"
+  "${HOME}/.claude/skills/kickoff"
+  "${HOME}/.claude/skills/ship-pr"
+  "${HOME}/.claude/skills/pickgauge-usage"
+  "${HOME}/.claude/skills/plan-issue"
+)
+
+# Managed agent-config targets that apply must never push, each with the reason
+# it stays off the apply path. scripts/check/sync-coverage-checks.sh fails when a
+# managed agent-config target is in neither list, when an entry is in both, and
+# when an exclusion goes stale — so this file cannot silently drift from the tree.
+AGENT_EXCLUDED_TARGETS=(
+  "${HOME}/.hermes/.env|live credential state, harness-owned"
+  "${HOME}/.hermes/auth.json|live credential state, harness-owned"
+  "${HOME}/.pi/agent/auth.json|live credential state, harness-owned"
+  "${HOME}/.pi/agent/mcp-oauth|live MCP OAuth token state, harness-owned"
+  "${HOME}/.pi/agent/npm|reconstructible npm deps, restored by npm ci"
+  "${HOME}/.pi/agent/pi-hermes-memory|vestigial empty tree, nothing to push"
+  "${HOME}/.pi/agent/projects-memory|vestigial empty tree, nothing to push"
+  "${HOME}/.hermes/skills|Hermes-curated bundled library; its portable symlinks stay active"
+)
+
+agent_config_scope_roots() {
+  printf '%s\n' \
+    "${HOME}/.agents" \
+    "${HOME}/.claude" \
+    "${HOME}/.codex" \
+    "${HOME}/.grok" \
+    "${HOME}/.pi" \
+    "${HOME}/.omp" \
+    "${HOME}/.hermes"
+}
+
+cmd_targets() {
+  local entry portable_output
+  for entry in "${AGENT_ACTIVE_TARGETS[@]}"; do
+    printf 'active\t%s\n' "$entry"
+  done
+  if ! portable_output="$(portable_link_targets)"; then
+    echo "agent-config-sync: cannot build portable skill targets" >&2
+    return 1
+  fi
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] && printf 'active\t%s\n' "$entry"
+  done <<<"$portable_output"
+  for entry in "${AGENT_EXCLUDED_TARGETS[@]}"; do
+    printf 'excluded\t%s\t%s\n' "${entry%%|*}" "${entry#*|}"
+  done
+  agent_config_scope_roots | while IFS= read -r entry; do
+    printf 'scope\t%s\n' "$entry"
+  done
+}
 
 cmd_check() {
   bash "$CHECK"
@@ -286,43 +381,7 @@ cmd_sync() {
 
 cmd_apply() {
   local link portable_output work_dir self_before check_output apply_output self_target
-  local -a active_targets=(
-    "${HOME}/.zshrc"
-    "${HOME}/.bashrc"
-    "${HOME}/.claude/CLAUDE.md"
-    "${HOME}/.codex/AGENTS.md"
-    "${HOME}/.codex/skills/ship-pr"
-    "${HOME}/.grok/AGENTS.md"
-    "${HOME}/.pi/agent/AGENTS.md"
-    "${HOME}/.pi/agent/settings.json"
-    "${HOME}/.pi/agent/extensions/btw.ts"
-    "${HOME}/.pi/agent/extensions/decision-audit-gate.ts"
-    "${HOME}/.omp/agent/AGENTS.md"
-    "${HOME}/.omp/agent/config.yml"
-    "${HOME}/.omp/agent/agents"
-    "${HOME}/.omp/agent/mcp.json"
-    "${HOME}/.omp/agent/extensions/decision-audit-gate.ts"
-    "${HOME}/.agents/.skill-lock.json"
-    "${HOME}/.agents/mcp-targets.json"
-    "${HOME}/.agents/skill-targets.json"
-    "${HOME}/.agents/desktop-capture.md"
-    "${HOME}/.agents/browser-use.md"
-    "${HOME}/.agents/codex-lane-override.md"
-    "${HOME}/.hermes/SOUL.md"
-    "${HOME}/.agents/skills"
-    "${HOME}/.local/bin/pickforge-lanes-mcp"
-    "${HOME}/.local/bin/sudo-askpass"
-    "${HOME}/.config/environment.d/50-sudo-askpass.conf"
-    "${HOME}/.config/environment.d/60-omp.conf"
-    "${HOME}/.config/environment.d/70-pi-caffeinate.conf"
-    "${HOME}/.claude/rules"
-    "${HOME}/.claude/settings.json"
-    "${HOME}/.claude/hooks/decision-audit-gate.sh"
-    "${HOME}/.claude/skills/kickoff"
-    "${HOME}/.claude/skills/ship-pr"
-    "${HOME}/.claude/skills/pickgauge-usage"
-    "${HOME}/.claude/skills/plan-issue"
-  )
+  local -a active_targets=("${AGENT_ACTIVE_TARGETS[@]}")
   local -a apply_targets=()
 
   if ! work_dir="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync-apply.XXXXXX")"; then
@@ -433,6 +492,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     apply) cmd_apply ;;
     sync) cmd_sync ;;
     doctor) shift; cmd_doctor "$@" ;;
+    targets) cmd_targets ;;
     *) usage ;;
   esac
 fi
