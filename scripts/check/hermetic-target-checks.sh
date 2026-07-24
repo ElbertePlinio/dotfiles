@@ -23,13 +23,13 @@ TARGETS=(
 EXPECTED=(
   dot_zshrc.tmpl dot_bashrc
   dot_claude/CLAUDE.md.tmpl
-  dot_claude/rules/context7.md dot_claude/encrypted_settings.json.age
+  dot_claude/rules/context7.md dot_claude/settings.json.tmpl
   dot_claude/skills/symlink_audit-report
-  dot_claude/skills/kickoff/encrypted_SKILL.md.age
+  dot_claude/skills/kickoff/SKILL.md
   dot_claude/skills/symlink_model-runners
-  dot_claude/skills/ship-pr/encrypted_SKILL.md.age
-  dot_claude/skills/pickgauge-usage/encrypted_SKILL.md.age
-  dot_claude/skills/plan-issue/encrypted_private_SKILL.md.age
+  dot_claude/skills/ship-pr/SKILL.md
+  dot_claude/skills/pickgauge-usage/SKILL.md
+  dot_claude/skills/plan-issue/private_SKILL.md
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/config.yml dot_omp/agent/mcp.json.tmpl dot_omp/agent/agents

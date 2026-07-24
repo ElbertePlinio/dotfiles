@@ -1,0 +1,154 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(find *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(diff *)",
+      "Bash(which *)",
+      "Bash(pwd)",
+      "Bash(echo *)",
+      "Bash(env *)",
+      "Edit",
+      "Write",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(rm *)",
+      "Bash(touch *)",
+      "Bash(chmod *)",
+      "Bash(tar *)",
+      "Bash(zip *)",
+      "Bash(unzip *)",
+      "Bash(git *)",
+      "Bash(flutter *)",
+      "Bash(dart *)",
+      "Bash(fvm *)",
+      "Bash(go *)",
+      "Bash(gofmt *)",
+      "Bash(golangci-lint *)",
+      "Bash(node *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(yarn *)",
+      "Bash(pnpm *)",
+      "Bash(bun *)",
+      "Bash(bunx *)",
+      "Bash(./gradlew *)",
+      "Bash(gradle *)",
+      "Bash(adb *)",
+      "Bash(aapt *)",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(pip *)",
+      "Bash(pip3 *)",
+      "Bash(sed *)",
+      "Bash(awk *)",
+      "Bash(sort *)",
+      "Bash(uniq *)",
+      "Bash(jq *)",
+      "Bash(xargs *)",
+      "Bash(tee *)",
+      "Bash(source *)",
+      "Bash(export *)",
+      "Bash(make *)",
+      "Bash(just *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "WebFetch(*)",
+      "mcp__codegraph__*",
+      "mcp__pickforge-lanes__lanes_spawn",
+      "mcp__pickforge-lanes__lanes_status",
+      "mcp__pickforge-lanes__lanes_wait",
+      "mcp__pickforge-lanes__lanes_abandon"
+    ],
+    "defaultMode": "auto"
+  },
+  "model": "claude-fable-5[1m]",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/decision-audit-gate.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "codegraph prompt-hook"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "pickforge-lanes statusline",
+    "refreshInterval": 5000
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": false,
+    "context7@claude-plugins-official": true,
+    "vgv-ai-flutter-plugin@very-good-claude-code-marketplace": false,
+    "claude-mem@thedotmack": false,
+    "andrej-karpathy-skills@karpathy-skills": false,
+    "vercel@claude-plugins-official": false,
+    "codex@openai-codex": false,
+    "stripe@claude-plugins-official": false,
+    "pyright-lsp@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "very-good-claude-code-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "VeryGoodOpenSource/very_good_claude_marketplace"
+      }
+    },
+    "thedotmack": {
+      "source": {
+        "source": "github",
+        "repo": "thedotmack/claude-mem"
+      }
+    },
+    "karpathy-skills": {
+      "source": {
+        "source": "github",
+        "repo": "forrestchang/andrej-karpathy-skills"
+      }
+    },
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
+      }
+    }
+  },
+  "effortLevel": "medium",
+  "tui": "fullscreen",
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true,
+  "mcpServers": {
+    "agentmemory-vault": {
+      "type": "stdio",
+      "command": "python3",
+      "args": [
+        "{{ .chezmoi.homeDir }}/AgentMemory/scripts/agent_memory_mcp.py"
+      ]
+    }
+  }
+}
