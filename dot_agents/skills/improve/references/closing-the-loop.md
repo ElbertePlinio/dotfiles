@@ -16,7 +16,7 @@ The founding rule survives unchanged: **the advisor never edits source code.** I
 
 ### Dispatch
 
-Spawn **one** `general-purpose` subagent with `isolation: "worktree"`. Executor model: default `sonnet`; use what the user named if they named one (`execute 003 sonnet-5`). Never Haiku — the global policy forbids it.
+Spawn **one** `general-purpose` subagent with `isolation: "worktree"`. Executor model: default `opus` at `low` effort; use what the user named if they named one (`execute 003 opus-5`). Never Haiku — the global policy forbids it. A plan file is already a written contract, so a taste-deficient executor is acceptable here when the harness supports one; inside a Claude-only harness, `opus` at `low` is the floor.
 
 The subagent prompt must contain:
 

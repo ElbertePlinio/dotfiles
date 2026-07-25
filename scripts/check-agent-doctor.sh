@@ -171,7 +171,7 @@ const ALL_ORIGINS = ["pi", "mcp"];
 export const MODEL_TABLE = [
   { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: [...ALL_ORIGINS] },
   { selector: "xai/grok-4.5", route: "pi", origins: [...ALL_ORIGINS] },
-  { selector: "anthropic/claude-sonnet-5", route: "claude-code", origins: ["pi"] },
+  { selector: "anthropic/claude-fable-5", route: "claude-code", origins: ["pi"] },
 ];
 TS
 }
@@ -505,17 +505,17 @@ assert_rc 2 'duplicate lane selector requirement is rejected as invalid'
 next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'; run_doctor --json
 assert_rc 2 'Pi lane requirement without the pi harness is rejected as invalid'
 
-next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'; run_doctor --json
+next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{}' '{}' '{"claude-code":["anthropic/claude-fable-5"]}'; run_doctor --json
 assert_rc 2 'Claude Code lane requirement without the claude harness is rejected as invalid'
 
 next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-route-mismatch"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
 write_pi_settings_packages "[\"$lane_root\"]"
-write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["anthropic/claude-sonnet-5"]}'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["anthropic/claude-fable-5"]}'
 run_doctor --json
 assert_rc 1 'Pi lane requiring a claude-code-routed selector fails'
-next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.anthropic.claude.sonnet.5.model" and .status == "fail" and (.message | contains("routes through claude-code")))' 'route mismatch names the actual runtime route'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.anthropic.claude.fable.5.model" and .status == "fail" and (.message | contains("routes through claude-code")))' 'route mismatch names the actual runtime route'
 
 next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
@@ -602,7 +602,7 @@ next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.xai.grok.4.5.pr
 next_test; setup_case; link_tool bun; link_tool head
 make_claude_harness '2.1.216 (Claude Code)'
 lane_root="$CASE_DIR/pi-kit-claude-ok"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
-write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-fable-5"]}'
 run_doctor --json
 assert_rc 0 'a safe, current Claude Code executable satisfies the claude-code lane requirement'
 next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.executable" and .status == "pass") and any(.checks[]; .id == "lanes.claude-code.version" and .status == "pass" and (.message | contains("2.1.216")))' 'safe executable and current version both pass'
@@ -610,7 +610,7 @@ next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.executable" and
 next_test; setup_case; link_tool bun; link_tool head
 make_claude_harness '2.0.999 (Claude Code)'
 lane_root="$CASE_DIR/pi-kit-claude-old"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
-write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-fable-5"]}'
 run_doctor --json
 assert_json 'any(.checks[]; .id == "lanes.claude-code.version" and .status == "fail" and (.message | contains("older than the required minimum")))' 'an outdated Claude Code version is a required failure'
 
@@ -618,7 +618,7 @@ next_test; setup_case; link_tool bun; link_tool head
 mkdir -p "$HOME_DIR/.claude"; printf '{}\n' >"$HOME_DIR/.claude/settings.json"
 write_mock claude 'printf "%s\n" "--dangerously-skip-permissions"; if [ "${1:-}" = "--version" ]; then echo "2.1.300 (Claude Code)"; exit 0; fi'
 lane_root="$CASE_DIR/pi-kit-claude-bypass-only"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
-write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-fable-5"]}'
 run_doctor --json
 assert_json 'any(.checks[]; .id == "lanes.claude-code.executable" and .status == "fail" and (.message | contains("no eligible Claude Code executable")))' 'a permission-bypass wrapper alone yields no eligible executable'
 next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.version" and .status == "skip")' 'version check is skipped when no safe executable exists'
@@ -635,7 +635,7 @@ echo "2.1.300"
 CLAUDEWRAP
 chmod +x "$extra_bin/claude"
 lane_root="$CASE_DIR/pi-kit-claude-later-safe"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
-write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-fable-5"]}'
 set +e
 OUTPUT="$(HOME="$HOME_DIR" PATH="$extra_bin:$BIN_DIR" TMPDIR="$CASE_DIR" AGENT_DOCTOR_CATALOG="$CATALOG" /bin/bash "$DOCTOR" --config "$CONFIG" --json 2>&1)"
 RC=$?
@@ -646,7 +646,7 @@ next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.version" and .s
 next_test; setup_case; link_tool bun; link_tool head
 make_claude_harness '2.1.300 (Claude Code)'
 lane_root="$CASE_DIR/pi-kit-anthropic-no-pi-auth"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
-write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-sonnet-5"]}'
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-fable-5"]}'
 run_doctor --json
 assert_rc 0 'Anthropic-routed claude-code lanes succeed without any Pi provider requirement'
 next_test; assert_json 'all(.checks[]; (.id | startswith("provider.")) | not)' 'no Pi provider checks are emitted for Anthropic-only lane requirements'

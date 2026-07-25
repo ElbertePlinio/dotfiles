@@ -80,18 +80,18 @@ fi
 PI_TABLE_OUT="$TMP/pi-model-table.md"
 OMP_TABLE_OUT="$TMP/omp-model-table.md"
 if render dot_pi/agent/AGENTS.md.tmpl "$PI_TABLE_OUT" \
-  && grep -Fq '| Grok 4.5 | `xai/grok-4.5` | high | 3 | 7 | 6 | yes |' "$PI_TABLE_OUT" \
-  && grep -Fq '| GLM-5.2 | `ollama/glm-5.2:cloud` | medium | 2 | 6 | 7 | no |' "$PI_TABLE_OUT"; then
-  pass 'rendered Pi routing table includes native Grok 4.5 selector and GLM start'
+  && grep -Eq '^\| Grok 4\.5 \| `xai/grok-4\.5` \| high \|.*\| yes \|$' "$PI_TABLE_OUT" \
+  && grep -Eq '^\| GLM-5\.2 \| `ollama/glm-5\.2:cloud` \| medium \|.*\| no \|$' "$PI_TABLE_OUT"; then
+  pass 'rendered Pi routing table includes native Grok 4.5 selector, GLM start, and both modalities'
 else
-  err 'rendered Pi routing table missing native Grok 4.5 selector or GLM start'
+  err 'rendered Pi routing table missing native Grok 4.5 selector, GLM start, or a modality cell'
 fi
 if render dot_omp/agent/AGENTS.md.tmpl "$OMP_TABLE_OUT" \
-  && grep -Fq '| Grok 4.5 | `xai-oauth/grok-4.5` | high | 3 | 7 | 6 | yes |' "$OMP_TABLE_OUT" \
-  && grep -Fq '| GLM-5.2 | `ollama/glm-5.2:cloud` | provider default | 2 | 6 | 7 | no |' "$OMP_TABLE_OUT"; then
-  pass 'rendered OMP routing table includes OAuth Grok 4.5 selector and GLM start'
+  && grep -Eq '^\| Grok 4\.5 \| `xai-oauth/grok-4\.5` \| high \|.*\| yes \|$' "$OMP_TABLE_OUT" \
+  && grep -Eq '^\| GLM-5\.2 \| `ollama/glm-5\.2:cloud` \| provider default \|.*\| no \|$' "$OMP_TABLE_OUT"; then
+  pass 'rendered OMP routing table includes OAuth Grok 4.5 selector, GLM start, and both modalities'
 else
-  err 'rendered OMP routing table missing OAuth Grok 4.5 selector or GLM start'
+  err 'rendered OMP routing table missing OAuth Grok 4.5 selector, GLM start, or a modality cell'
 fi
 
 if grep -Fq 'await agent(prompt' dot_omp/agent/AGENTS.md.tmpl \
@@ -139,6 +139,9 @@ if pi_models="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/models.json")"; then
     jq -e '.providers.ollama.models | any(.id == "glm-5.2:cloud")' >/dev/null <<<"$pi_models" \
       && pass 'Pi models include Ollama GLM-5.2 Cloud' \
       || err 'Pi models missing Ollama GLM-5.2 Cloud'
+    jq -e '.providers.ollama.models[] | select(.id == "glm-5.2:cloud") | .input == ["text"]' >/dev/null <<<"$pi_models" \
+      && pass 'Pi GLM-5.2 declares text-only input' \
+      || err 'Pi GLM-5.2 input is not text-only; its metadata advertises a multimodal class it does not implement'
     jq -e '(.providers | has("local-llama")) or any(.. | strings; ascii_downcase | contains("local-llama"))' >/dev/null <<<"$pi_models" \
       && err 'Pi models still contain removed local-llama provider or model' \
       || pass 'Pi models omit removed local-llama provider and model'
