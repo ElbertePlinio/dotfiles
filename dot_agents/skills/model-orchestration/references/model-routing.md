@@ -63,7 +63,7 @@ Review is two separate jobs and the pool splits on calibration.
 
 A model below that threshold may contribute findings but never issues the verdict on its own findings or anyone else's. Route its output to an adjudicator. Cheap-and-confident is the failure this rule exists to prevent: an uncalibrated lane reports real patterns and false alarms with identical confidence, and the cost of believing it exceeds what the cheap pass saved.
 
-Which axis gates an adjudicator depends on the profile. Correctness, security, and operational risk gate on calibration. Over-engineering, DRY, KISS, and simplification gate on taste, because recognizing that an abstraction was not earned is a taste judgment. Design-system fidelity and visual work gate on taste and require vision.
+Calibration 8 is the floor for every adjudicator, never traded away for another axis. Some profiles add a second requirement on top of it: over-engineering, DRY, KISS, simplification, and design-system fidelity additionally require taste 8 or above, because recognizing that an abstraction was not earned is a taste judgment; visual work additionally requires vision.
 
 ## Bounded Review and Escalation
 

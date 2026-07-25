@@ -357,6 +357,23 @@ async function main() {
   for (const extra of opts.extraArgs) {
     args.push(extra);
   }
+
+  const assembled = args.join(" ");
+  const smuggledFlag = DANGEROUS_CLAUDE_FLAGS.find((flag) => assembled.includes(flag));
+  if (smuggledFlag) {
+    process.stderr.write(`Error: ${JSON.stringify(smuggledFlag)} is not allowed, including via --extra-arg\n`);
+    process.exit(2);
+    return;
+  }
+  const smuggledModel = args.find((arg) => RETIRED_MODELS.some((retired) => arg.toLowerCase().includes(retired)));
+  if (smuggledModel) {
+    process.stderr.write(
+      `Error: retired model ${JSON.stringify(smuggledModel)} reached the argument list; pick a current model from the model table\n`,
+    );
+    process.exit(2);
+    return;
+  }
+
   if (prompt) {
     args.push("--", prompt);
   }
