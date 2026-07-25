@@ -15,7 +15,6 @@
   "enabledModels": [
     "anthropic/claude-fable-5",
     "anthropic/claude-opus-5",
-    "anthropic/claude-sonnet-5",
     "ollama/glm-5.2:cloud",
     "openai-codex/gpt-5.6-sol",
     "xai/grok-4.5"

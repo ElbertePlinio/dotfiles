@@ -35,6 +35,8 @@ For landing pages, portfolios, and marketing redesigns, also apply the anti-slop
 
 For directed work, select exactly one model as the **design lead** for this task. When model orchestration is available, choose from the available models based on the task's visual, product, vision, context, and tool needs. Do not permanently assign UI work to one model.
 
+Design-lead selection ranks taste above intelligence above cost, inverting the general preference order — this is the one seat where the artifact's quality is the whole deliverable. Weigh taste against the actual surface: a candidate whose taste is strongest on greenfield visual work is not automatically the lead for a change inside an established design system.
+
 The design lead must be able to inspect rendered output. Never select a text-only model as design lead.
 
 The design lead owns:

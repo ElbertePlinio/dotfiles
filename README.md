@@ -98,7 +98,7 @@ Each computer declares only the harnesses, Pi providers, MCP servers, and
 standalone pi-kit lane routes it requires in the deliberately unmanaged
 `~/.config/agent-config-sync/doctor.json`. The example below reflects the
 current pi-kit setup: `openai-codex`, `xai`, and `ollama` selectors dispatch
-through Pi's native route, while the Anthropic Fable/Opus/Sonnet selectors
+through Pi's native route, while the Anthropic Fable/Opus selectors
 dispatch through genuine Claude Code child processes — Anthropic is the
 Claude Code route, never a Pi provider. Core Pi has no MCP of its own, so only
 `pickforge-lanes` under `mcp.claude` is required here:
@@ -111,7 +111,7 @@ Claude Code route, never a Pi provider. Core Pi has no MCP of its own, so only
   "mcp": {"claude": ["pickforge-lanes"]},
   "lanes": {
     "pi": ["openai-codex/gpt-5.6-sol", "xai/grok-4.5", "ollama/glm-5.2:cloud"],
-    "claude-code": ["anthropic/claude-fable-5", "anthropic/claude-opus-5", "anthropic/claude-sonnet-5"]
+    "claude-code": ["anthropic/claude-fable-5", "anthropic/claude-opus-5"]
   }
 }
 ```

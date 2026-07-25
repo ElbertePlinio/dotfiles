@@ -43,7 +43,7 @@ function usage(stream) {
       "  --prompt <text>       review prompt text",
       "  --prompt-file <path>  read prompt from file",
       "  --cwd <path>          working directory (default: process cwd)",
-      "  --reviewer <model>    gpt-5.6-sol, grok-4.5, glm-5.2, fable-5, opus-5, or sonnet-5 (repeatable)",
+      "  --reviewer <model>    gpt-5.6-sol, grok-4.5, glm-5.2, fable-5, or opus-5 (repeatable)",
       "  --anti-overengineering append the simplification/overengineering review gate",
       "  --json                emit JSON summary",
       "  --dry-run             print commands without running them",

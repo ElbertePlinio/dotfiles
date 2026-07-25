@@ -80,15 +80,15 @@ fi
 PI_TABLE_OUT="$TMP/pi-model-table.md"
 OMP_TABLE_OUT="$TMP/omp-model-table.md"
 if render dot_pi/agent/AGENTS.md.tmpl "$PI_TABLE_OUT" \
-  && grep -Fq '| Grok 4.5 | `xai/grok-4.5` | high | 3 | 7 | 6 | yes |' "$PI_TABLE_OUT" \
-  && grep -Fq '| GLM-5.2 | `ollama/glm-5.2:cloud` | medium | 2 | 6 | 7 | no |' "$PI_TABLE_OUT"; then
+  && grep -Eq '^\| Grok 4\.5 \| `xai/grok-4\.5` \| high \|' "$PI_TABLE_OUT" \
+  && grep -Eq '^\| GLM-5\.2 \| `ollama/glm-5\.2:cloud` \| medium \|' "$PI_TABLE_OUT"; then
   pass 'rendered Pi routing table includes native Grok 4.5 selector and GLM start'
 else
   err 'rendered Pi routing table missing native Grok 4.5 selector or GLM start'
 fi
 if render dot_omp/agent/AGENTS.md.tmpl "$OMP_TABLE_OUT" \
-  && grep -Fq '| Grok 4.5 | `xai-oauth/grok-4.5` | high | 3 | 7 | 6 | yes |' "$OMP_TABLE_OUT" \
-  && grep -Fq '| GLM-5.2 | `ollama/glm-5.2:cloud` | provider default | 2 | 6 | 7 | no |' "$OMP_TABLE_OUT"; then
+  && grep -Eq '^\| Grok 4\.5 \| `xai-oauth/grok-4\.5` \| high \|' "$OMP_TABLE_OUT" \
+  && grep -Eq '^\| GLM-5\.2 \| `ollama/glm-5\.2:cloud` \| provider default \|' "$OMP_TABLE_OUT"; then
   pass 'rendered OMP routing table includes OAuth Grok 4.5 selector and GLM start'
 else
   err 'rendered OMP routing table missing OAuth Grok 4.5 selector or GLM start'

@@ -43,13 +43,13 @@ function usage(stream) {
       "claude-delegate - run Claude Code for model-orchestration lanes",
       "",
       "Usage:",
-      "  claude-delegate.mjs --model <fable-5|opus-5|sonnet-5> --mode <mode> --prompt <text>",
+      "  claude-delegate.mjs --model <fable-5|opus-5> --mode <mode> --prompt <text>",
       "  claude-delegate.mjs --model <model> --mode <mode> --prompt-file <path>",
       "",
       "Modes: plan, implement, review, design-review",
       "",
       "Options:",
-      "  --model <model>       fable-5, opus-5, sonnet-5, fable, opus, sonnet, or full model id",
+      "  --model <model>       fable-5, opus-5, fable, opus, or full model id",
       "  --mode <mode>         one of: " + MODES.join(", "),
       "  --effort <level>      low, medium, high, xhigh, max (default by model)",
       "  --prompt <text>       prompt text",
@@ -140,17 +140,21 @@ function parseArgs(argv) {
   return opts;
 }
 
+const RETIRED_MODELS = ["sonnet", "haiku"];
+
 function normalizeModel(model) {
   const key = String(model || "").toLowerCase();
+  if (RETIRED_MODELS.some((retired) => key.includes(retired))) {
+    throw new Error(
+      "model " + JSON.stringify(model) + " is retired from the routing pool; pick a current model from the model table",
+    );
+  }
   if (key === "fable-5" || key === "fable5") return "fable";
   if (key === "opus-5" || key === "opus5") return "opus";
-  if (key === "sonnet-5" || key === "sonnet5") return "sonnet";
   return model;
 }
 
-function defaultEffort(model) {
-  const key = String(model || "").toLowerCase();
-  if (key.includes("sonnet")) return "medium";
+function defaultEffort() {
   return "high";
 }
 
@@ -300,8 +304,15 @@ async function main() {
     process.exit(2);
     return;
   }
-  const model = normalizeModel(opts.model);
-  const effort = opts.effort || defaultEffort(model);
+  let model;
+  try {
+    model = normalizeModel(opts.model);
+  } catch (err) {
+    process.stderr.write("Error: " + err.message + "\n");
+    process.exit(2);
+    return;
+  }
+  const effort = opts.effort || defaultEffort();
 
   if (String(model).toLowerCase().includes("fable") && ["xhigh", "max"].includes(effort)) {
     process.stderr.write("Error: Fable effort must be high or lower.\n");
