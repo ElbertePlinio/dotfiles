@@ -29,8 +29,8 @@ Include:
 ## Writer Rules
 
 - Use one active writer unless parallel worktrees are already prepared.
-- Tell the writer to make the smallest clean change.
-- Tell the writer to preserve repo style and avoid unrelated refactors.
+- Tell the writer to make the smallest diff: do not modify existing lines unless the task requires it.
+- Tell the writer to preserve repo style and, instead of making adjacent refactors, list the ones it deliberately did not do in its report.
 - Give exact files or directories when possible.
 - For correction passes, send only concrete, valid findings.
 

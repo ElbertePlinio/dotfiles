@@ -38,6 +38,8 @@ Select every call independently from:
 
 Start at the table's documented effort. Grok 4.5 always uses high. For other models, raise effort only for concrete failed validation, unresolved evidence, irreversible risk, or an explicit user request; return to the table prior after that question is resolved.
 
+Small, precisely specified mechanical tasks run executor lanes at low effort by default — measured on Claude executors, higher effort buys edge-case hunting and validation depth, not better core code. A low-effort dispatch requires the contract to enumerate edge cases and input-validation expectations; if they cannot be enumerated, the spec is not ready or effort goes up.
+
 Choose the lightest sufficient compatible candidate. Rank the axes by what the task depends on rather than applying one fixed order:
 
 - **Solving a defined problem** — intelligence > taste > cost.
