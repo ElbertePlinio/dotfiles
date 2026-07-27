@@ -35,6 +35,7 @@ check_sync_command_flow() {
     dot_claude/rules/context7.md
     dot_claude/settings.json
     dot_claude/hooks/executable_decision-audit-gate.sh
+    dot_claude/hooks/executable_kickoff-delegation-gate.sh
     dot_claude/skills/kickoff/SKILL.md
     dot_claude/skills/ship-pr/SKILL.md
     dot_claude/skills/audit-report/SKILL.md

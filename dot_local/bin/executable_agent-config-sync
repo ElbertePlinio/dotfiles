@@ -94,6 +94,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.claude/rules"
   "${HOME}/.claude/settings.json"
   "${HOME}/.claude/hooks/decision-audit-gate.sh"
+  "${HOME}/.claude/hooks/kickoff-delegation-gate.sh"
   "${HOME}/.claude/skills/kickoff"
   "${HOME}/.claude/skills/ship-pr"
   "${HOME}/.claude/skills/pickgauge-usage"
