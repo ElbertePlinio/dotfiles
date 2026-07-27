@@ -1,6 +1,6 @@
 #!/bin/sh
 
-repo='git@github.com:ElbertePlinio/AgentMemory.git'
+repo_path='ElbertePlinio/AgentMemory'
 target="$HOME/AgentMemory"
 
 if [ -e "$target" ] || [ -L "$target" ]; then
@@ -11,10 +11,13 @@ if [ -e "$target" ] || [ -L "$target" ]; then
 
   origin=$(git -C "$target" remote get-url origin 2>/dev/null) || origin=
   origin=${origin%/}
+  origin=${origin%.git}
+  # Accept github.com and SSH config aliases like github.com-oElberte-dotfiles,
+  # which machines with a per-repository identity key use for personal repos.
   case "$origin" in
-    git@github.com:ElbertePlinio/AgentMemory|git@github.com:ElbertePlinio/AgentMemory.git|\
-    ssh://git@github.com/ElbertePlinio/AgentMemory|ssh://git@github.com/ElbertePlinio/AgentMemory.git|\
-    https://github.com/ElbertePlinio/AgentMemory|https://github.com/ElbertePlinio/AgentMemory.git)
+    git@github.com:"$repo_path"|git@github.com[-.]*:"$repo_path"|\
+    ssh://git@github.com/"$repo_path"|ssh://git@github.com[-.]*/"$repo_path"|\
+    https://github.com/"$repo_path")
       exit 0
       ;;
     *)
@@ -25,8 +28,17 @@ if [ -e "$target" ] || [ -L "$target" ]; then
 fi
 
 mkdir -p "$(dirname "$target")"
-git clone "$repo" "$target" || {
-  printf 'error: failed to clone %s into %s\n' "$repo" "$target" >&2
-  exit 1
-}
+if git clone "git@github.com:$repo_path.git" "$target" 2>/dev/null; then
+  exit 0
+fi
 
+# github.com may be bound to a different identity on this machine; try SSH
+# config host aliases that resolve back to github.com.
+for alias in $(awk 'tolower($1) == "host" { for (i = 2; i <= NF; i++) if ($i ~ /^github\.com[-.]/) print $i }' "$HOME/.ssh/config" 2>/dev/null); do
+  if git clone "git@$alias:$repo_path.git" "$target"; then
+    exit 0
+  fi
+done
+
+printf 'error: failed to clone %s into %s\n' "$repo_path" "$target" >&2
+exit 1
