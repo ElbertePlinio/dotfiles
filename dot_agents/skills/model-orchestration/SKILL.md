@@ -17,6 +17,24 @@ fan-out.
 - `references/review-schemas.md` — when asking reviewers for structured findings.
 - `references/dispatch.md` — how to actually launch a worker from this harness.
 
+## Provider boundary
+
+Check this before selecting anything. The boundary is the repository's git remote,
+never its directory — a worktree carries its repository's remote, so a client
+worktree parked outside the client tree is still client code.
+
+- Remotes under `github.com/ElbertePlinio` or `github.com/pickforge` may use the
+  whole table.
+- Every other remote, a repository with no remote, and a directory that is not a
+  repository are restricted to the Anthropic and OpenAI lanes. Grok and GLM are
+  not selectable there. `glm-5.2` dispatches as `glm-5.2:cloud` and leaves the
+  machine, so it is restricted like any other external provider.
+- Unsure means restricted. Do not infer ownership from a directory name.
+
+`scripts/lane-policy.mjs` enforces this in `fanout-review.mjs` and
+`ollama-delegate.mjs`, so a restricted dispatch fails rather than leaking. Treat
+that as a backstop, not permission to skip the check when planning.
+
 ## Per-call selection
 
 1. Classify the call: risk and irreversibility, modality and tool compatibility,

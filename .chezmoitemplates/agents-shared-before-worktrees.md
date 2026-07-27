@@ -16,6 +16,7 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 ## Model orchestration
 
 - Select model and effort per call from the current model table; no permanent roles. Read the `model-orchestration` skill before substantial or risky multi-model work — it owns the selection axes, escalation policy, and delegation contract.
+- Provider reach is bound to the repository's git remote, never its directory. Under a `github.com/ElbertePlinio` or `github.com/pickforge` remote, the full table is selectable. Under any other remote, a repository with no remote, or a directory that is not a repository, only the Anthropic and OpenAI lanes are selectable — Grok and GLM are not available there, and `glm-5.2` counts as external because it dispatches through Ollama's cloud. A worktree carries its repository's remote. Unsure means restricted.
 - `xhigh` is the absolute effort ceiling. Never use `ultra`, `max`, or any effort above xhigh. Start at the model's table prior; raise only on failed validation or unresolved evidence, and elevated effort ends when its trigger resolves.
 - Never use Anthropic Haiku or GPT-5.6 Luna/Terra; Sol is the only GPT-5.6 lane — shift its effort instead. Stop and report if a route lands on one anyway.
 - Hard constraints: Grok 4.5 always runs at `high` effort. GLM-5.2 is text-only. Kimi K3 is not selectable until its open weights ship on 2026-07-27 and a selector is confirmed working. If a selected model is unavailable or incompatible, take the closest compatible candidate and report the substitution.

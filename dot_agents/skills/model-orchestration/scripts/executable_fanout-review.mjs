@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
+import { assertModelAllowed } from "./lane-policy.mjs";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -124,6 +125,8 @@ function isGrok(model) {
 }
 
 function buildReviewerCommand(model, cwd, promptFile) {
+  assertModelAllowed(model, cwd);
+
   if (isCodex(model)) {
     return {
       model,

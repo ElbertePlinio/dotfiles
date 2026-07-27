@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { accessSync, closeSync, constants, openSync, readFileSync, readSync, realpathSync } from "node:fs";
 import { delimiter, resolve } from "node:path";
 import process from "node:process";
+import { assertModelAllowed } from "./lane-policy.mjs";
 
 const MODES = ["scout", "implement", "review", "dissent"];
 const DANGEROUS_CODEX_FLAGS = ["--dangerously-bypass-approvals-and-sandbox"];
@@ -178,6 +179,7 @@ function resolveSafeExecutable(name, explicitPath, dangerousFlags) {
 
 function buildCommand(opts, prompt) {
   const cwd = resolve(opts.cwd);
+  assertModelAllowed(opts.model, cwd);
   const codexBin = resolveSafeExecutable("codex", opts.codexBin, DANGEROUS_CODEX_FLAGS);
   const sandbox = opts.mode === "implement" ? "workspace-write" : "read-only";
   const args = [
