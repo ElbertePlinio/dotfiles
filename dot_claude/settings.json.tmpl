@@ -80,6 +80,15 @@
             "command": "$HOME/.claude/hooks/decision-audit-gate.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/delegation-gate.sh"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [

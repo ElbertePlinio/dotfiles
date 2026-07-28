@@ -91,6 +91,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.claude/rules"
   "${HOME}/.claude/settings.json"
   "${HOME}/.claude/hooks/decision-audit-gate.sh"
+  "${HOME}/.claude/hooks/delegation-gate.sh"
   "${HOME}/.claude/skills/ship-pr"
   "${HOME}/.claude/skills/plan-issue"
 )
