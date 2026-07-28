@@ -16,9 +16,9 @@ HARNESS=(
   'dot_omp/agent/AGENTS.md.tmpl|# Personal OMP Notes|# Personal Codex Notes'
 )
 SOUL=private_dot_hermes/SOUL.md.tmpl
-SHARED_MAX_BYTES=15000
-SHARED_SOURCE_BASELINE=13851
-SHARED_RENDERED_BASELINE=13853
+SHARED_MAX_BYTES=10000
+SHARED_SOURCE_BASELINE=9430
+SHARED_RENDERED_BASELINE=9273
 REQUIRED_SHARED_INVARIANTS=(
   'I like short, practical work. Read the repo, make the smallest clean change, and show proof before calling something done.'
   '- Be direct: no filler or ceremony. Fix root causes, not symptoms.'
@@ -53,6 +53,9 @@ REQUIRED_SHARED_INVARIANTS=(
   '- Establish the delivery mode before substantial work or any dispatch: plan-only, local-implement, or ship.'
   '- For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation.'
   '- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `ship-pr` when available.'
+  'intelligence > taste > cost'
+  'calibration 8 or above, never traded away'
+  'Provider reach is bound to the repository'
 )
 
 ADAPTER_BUDGETS=(
@@ -72,7 +75,6 @@ STALE_PI_FLOW_PATHS=(
 )
 
 ROUTING_SKILL_TARGETS=(
-  "$HOME/.claude/skills/kickoff/SKILL.md"
   "$HOME/.agents/skills/model-orchestration/SKILL.md"
   "$HOME/.agents/skills/model-orchestration/references/model-routing.md"
 )

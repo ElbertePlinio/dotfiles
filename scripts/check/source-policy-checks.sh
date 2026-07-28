@@ -33,23 +33,21 @@ if grep -Fq 'template "codex-behavior-override.md"' dot_codex/AGENTS.md.tmpl \
 else
   err 'Codex behavior override include missing from an adapter'
 fi
-if grep -Fq '~/.codex/skills/model-orchestration/references/model-routing.md' dot_claude/CLAUDE.md.tmpl; then
-  err 'Claude adapter hardcodes the Codex routing reference path'
-elif grep -Fq 'references/model-routing.md' dot_claude/CLAUDE.md.tmpl; then
-  pass 'Claude adapter uses a skill-relative routing reference'
+if grep -Fq 'template "model-table.md"' dot_claude/CLAUDE.md.tmpl \
+  && grep -Fq '"grokSelector" "xai/grok-4.5"' dot_claude/CLAUDE.md.tmpl; then
+  pass 'Claude adapter consumes shared model table with native parameters'
 else
-  err 'Claude adapter missing skill-relative routing reference'
+  err 'Claude adapter shared model table include or parameters mismatch'
 fi
 
-for path in dot_claude/CLAUDE.md.tmpl \
-  dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl; do
+for path in dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl; do
   grep -qiE '^\|.*cost.*intelligence.*taste.*vision.*\|$' "$path" \
     && err "adapter embeds a full model scoring table: $path" \
     || pass "adapter has no full model scoring table: $path"
 done
 
 ADAPTER_OWNER_POINTERS=(
-  'dot_claude/CLAUDE.md.tmpl|model-routing.md|Claude'
+  'dot_claude/CLAUDE.md.tmpl|Available managed pool|Claude'
   'dot_codex/AGENTS.md.tmpl|model-orchestration|Codex'
   'dot_grok/AGENTS.md.tmpl|model-orchestration|Grok'
   'dot_pi/agent/AGENTS.md.tmpl|Available managed pool|Pi'
@@ -167,19 +165,21 @@ for target in "${ROUTING_SKILL_TARGETS[@]}"; do
 
   case "$target" in
     */references/model-routing.md)
-      if grep -Fq 'pickgauge-usage' <<<"$decrypted" \
-        && grep -Fq 'intelligence > taste > cost' <<<"$decrypted" \
+      if grep -Fq 'lane-policy.mjs' <<<"$decrypted" \
         && grep -Fq '`xai/grok-4.5` (Pi, pickforge-lanes MCP)' <<<"$decrypted" \
         && grep -Fq '`xai-oauth/grok-4.5` (OMP)' <<<"$decrypted"; then
-        pass 'model-routing owns selection policy and harness-scoped Grok selectors'
+        pass 'model-routing owns the pool table and harness-scoped Grok selectors'
       else
-        err 'model-routing selection policy or harness-scoped Grok selectors missing'
+        err 'model-routing pool table or harness-scoped Grok selectors missing'
       fi
       ;;
-    */kickoff/SKILL.md)
-      grep -Fq 'model-routing.md' <<<"$decrypted" \
-        && pass 'kickoff fallback routing points to model-routing owner' \
-        || err 'kickoff fallback routing missing model-routing owner'
+    */model-orchestration/SKILL.md)
+      if grep -Fq 'pickgauge usage --json' <<<"$decrypted" \
+        && grep -Fq 'lane-policy.mjs' <<<"$decrypted"; then
+        pass 'model-orchestration owns quota check and provider-boundary backstop'
+      else
+        err 'model-orchestration missing quota check or provider-boundary backstop'
+      fi
       ;;
   esac
 done
@@ -263,9 +263,10 @@ GLOBAL_CLAUDE_OUT="$TMP/claude-global.md"
 if render dot_claude/CLAUDE.md.tmpl "$GLOBAL_CLAUDE_OUT"; then
   grep -Fq '## Claude model orchestration' "$GLOBAL_CLAUDE_OUT" \
     && grep -Fq "$HOME/AgentMemory" "$GLOBAL_CLAUDE_OUT" \
-    && grep -Fq 'model-routing.md' "$GLOBAL_CLAUDE_OUT" \
-    && pass 'global Claude profile renders full personal orchestration' \
-    || err 'global Claude profile is missing full personal policy'
+    && grep -Eq '^\| Grok 4\.5 \| `xai/grok-4\.5` \| high \|.*\| yes \|$' "$GLOBAL_CLAUDE_OUT" \
+    && grep -Eq '^\| Kimi K3 \| `ollama/kimi-k3:cloud` \| provider default \|.*\| yes \|$' "$GLOBAL_CLAUDE_OUT" \
+    && pass 'global Claude profile renders full personal orchestration and model table' \
+    || err 'global Claude profile is missing full personal policy or model table'
   grep -Fq '@RTK.md' "$GLOBAL_CLAUDE_OUT" \
     && err 'global Claude policy still loads retired RTK instructions' \
     || pass 'global Claude policy excludes retired RTK instructions'

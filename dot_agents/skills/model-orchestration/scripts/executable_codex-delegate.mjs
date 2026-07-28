@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { accessSync, closeSync, constants, openSync, readFileSync, readSync, realpathSync } from "node:fs";
 import { delimiter, resolve } from "node:path";
 import process from "node:process";
+import { assertModelPermitted } from "./lane-policy.mjs";
 
 const MODES = ["scout", "implement", "review"];
 const DANGEROUS_CODEX_FLAGS = ["--dangerously-bypass-approvals-and-sandbox"];
@@ -312,6 +313,7 @@ async function main() {
     if (!MODES.includes(opts.mode)) {
       throw new Error("invalid --mode " + JSON.stringify(opts.mode));
     }
+    assertModelPermitted(opts.model);
   } catch (err) {
     process.stderr.write("Error: " + err.message + "\n\n");
     usage(process.stderr);

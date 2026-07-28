@@ -2,11 +2,7 @@ TARGETS=(
   "$DEST/.zshrc" "$DEST/.bashrc"
   "$DEST/.claude/CLAUDE.md"
   "$DEST/.claude/rules/context7.md" "$DEST/.claude/settings.json"
-  "$DEST/.claude/skills/audit-report"
-  "$DEST/.claude/skills/kickoff/SKILL.md"
-  "$DEST/.claude/skills/model-runners"
   "$DEST/.claude/skills/ship-pr/SKILL.md"
-  "$DEST/.claude/skills/pickgauge-usage/SKILL.md"
   "$DEST/.claude/skills/plan-issue/SKILL.md"
   "$DEST/.codex/AGENTS.md"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
@@ -14,8 +10,6 @@ TARGETS=(
   "$DEST/.hermes/SOUL.md"
   "$DEST/.local/bin/agent-config-sync"
   "$DEST/.local/bin/pickforge-lanes-mcp"
-  "$DEST/.claude/skills/multi-model-lanes"
-  "$DEST/.pi/agent/skills/multi-model-lanes"
   "$DEST/.agents/.skill-lock.json"
   "$DEST/.agents/skill-targets.json"
   "$DEST/.agents/mcp-targets.json"
@@ -24,11 +18,7 @@ EXPECTED=(
   dot_zshrc.tmpl dot_bashrc
   dot_claude/CLAUDE.md.tmpl
   dot_claude/rules/context7.md dot_claude/settings.json.tmpl
-  dot_claude/skills/symlink_audit-report
-  dot_claude/skills/kickoff/SKILL.md
-  dot_claude/skills/symlink_model-runners
   dot_claude/skills/ship-pr/SKILL.md
-  dot_claude/skills/pickgauge-usage/SKILL.md
   dot_claude/skills/plan-issue/private_SKILL.md
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
@@ -36,8 +26,6 @@ EXPECTED=(
   private_dot_hermes/SOUL.md.tmpl
   dot_local/bin/executable_agent-config-sync
   dot_local/bin/executable_pickforge-lanes-mcp
-  dot_claude/skills/symlink_multi-model-lanes
-  dot_pi/agent/skills/symlink_multi-model-lanes
   dot_agents/dot_skill-lock.json
   dot_agents/skill-targets.json
   dot_agents/mcp-targets.json
@@ -55,9 +43,7 @@ chezmoi "${TMP_SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TM
 mkdir -p "$DEST/.grok" "$DEST/.hermes" \
   "$DEST/.local/bin" \
   "$DEST/.claude/rules" \
-  "$DEST/.claude/skills/kickoff" \
   "$DEST/.claude/skills/ship-pr" \
-  "$DEST/.claude/skills/pickgauge-usage" \
   "$DEST/.claude/skills/plan-issue" \
   "$DEST/.codex/skills/ship-pr" \
   "$DEST/.grok/skills" \
@@ -125,19 +111,6 @@ else
   cmp -s "$DEST/.agents/.skill-lock.json" "$SKILL_LOCK" \
     && pass 'temp skill lock applied' \
     || err 'temp skill lock apply mismatch'
-fi
-
-if [[ -d "$DEST/.agents/skills/context7-mcp" ]]; then
-  mkdir -p "$DEST/.claude/skills"
-  rm -rf "$DEST/.claude/skills/context7-mcp"
-  cp -a "$DEST/.agents/skills/context7-mcp" "$DEST/.claude/skills/context7-mcp"
-  if dirs_identical "$DEST/.claude/skills/context7-mcp" "$DEST/.agents/skills/context7-mcp"; then
-    pass 'seeded identical Context7 directory: .claude/skills'
-  else
-    err 'failed to seed Context7 directory: .claude/skills'
-  fi
-else
-  err 'canonical context7-mcp missing after seed apply'
 fi
 
 PORTABLE_TARGETS=()

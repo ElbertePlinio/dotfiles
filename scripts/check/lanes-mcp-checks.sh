@@ -235,14 +235,14 @@ EOF
     esac
   done
 
-  if jq -e '.skills["multi-model-lanes"] == ["claude", "pi"]' "$MANIFEST" >/dev/null 2>&1 \
-    && [[ "$(tr -d '\n' <"$ROOT/dot_claude/skills/symlink_multi-model-lanes" 2>/dev/null)" == '../../.agents/skills/multi-model-lanes' ]] \
-    && [[ "$(tr -d '\n' <"$ROOT/dot_pi/agent/skills/symlink_multi-model-lanes" 2>/dev/null)" == '../../../.agents/skills/multi-model-lanes' ]] \
-    && [[ -f "$ROOT/dot_agents/skills/multi-model-lanes/SKILL.md" ]] \
-    && [[ ! -e "$ROOT/dot_agents/skills/multi-model-lanes/encrypted_SKILL.md.age" ]]; then
-    pass 'multi-model lanes canonical source is readable with Claude/Pi relative symlinks only'
+  if jq -e '.skills["model-orchestration"] | index("claude") and index("pi")' "$MANIFEST" >/dev/null 2>&1 \
+    && [[ "$(tr -d '\n' <"$ROOT/dot_claude/skills/symlink_model-orchestration" 2>/dev/null)" == '../../.agents/skills/model-orchestration' ]] \
+    && [[ "$(tr -d '\n' <"$ROOT/dot_pi/agent/skills/symlink_model-orchestration" 2>/dev/null)" == '../../../.agents/skills/model-orchestration' ]] \
+    && [[ -f "$PICKFORGE_LANES_SKILL" ]] \
+    && [[ ! -e "$ROOT/dot_agents/skills/model-orchestration/references/encrypted_dispatch.md.age" ]]; then
+    pass 'lanes dispatch reference is readable with Claude/Pi relative symlinks only'
   else
-    err 'multi-model lanes manifest, source form, or symlink matrix invalid'
+    err 'lanes dispatch manifest, source form, or symlink matrix invalid'
   fi
 
   if skill="$(cat "$PICKFORGE_LANES_SKILL" 2>/dev/null)"; then
@@ -257,12 +257,12 @@ EOF
       && grep -Fq 'mcp__pickforge-lanes__lanes_abandon' <<<"$skill" \
       && grep -Fq 'Do not poll' <<<"$skill" \
       && grep -Fq 'Never use a foreground or synchronous provider CLI as fallback' <<<"$skill"; then
-      pass 'multi-model lanes skill enforces native/background routing and lifecycle invariants'
+      pass 'lanes dispatch reference enforces native/background routing and lifecycle invariants'
     else
-      err 'multi-model lanes skill missing required routing or background-only invariants'
+      err 'lanes dispatch reference missing required routing or background-only invariants'
     fi
   else
-    err 'multi-model lanes canonical skill is unreadable'
+    err 'lanes dispatch reference is unreadable'
   fi
   unset skill
 

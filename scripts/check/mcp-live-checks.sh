@@ -311,7 +311,6 @@ check_live_native_routing_files() {
   local -a files=(
     "${HOME}/.agents/skills/model-orchestration/SKILL.md"
     "${HOME}/.agents/skills/model-orchestration/references/model-routing.md"
-    "${HOME}/.claude/skills/kickoff/SKILL.md"
   )
 
   rendered="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-native-routing.XXXXXX")"

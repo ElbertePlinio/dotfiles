@@ -48,12 +48,6 @@
       "omp",
       "hermes"
     ],
-    "context7-mcp": [
-      "claude",
-      "codex",
-      "pi",
-      "omp"
-    ],
     "design-director": [
       "claude",
       "codex",
@@ -70,13 +64,6 @@
       "omp",
       "hermes"
     ],
-    "find-skills": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
     "local-review": [
       "claude",
       "codex",
@@ -91,33 +78,7 @@
       "pi",
       "omp"
     ],
-    "audit-report": [
-      "claude",
-      "codex",
-      "pi",
-      "omp"
-    ],
-    "model-runners": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp",
-      "hermes"
-    ],
-    "multi-model-lanes": [
-      "claude",
-      "pi"
-    ],
     "codebase-design": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp",
-      "hermes"
-    ],
-    "diagnosing-bugs": [
       "claude",
       "codex",
       "grok",

@@ -1,81 +1,68 @@
 ---
 name: model-orchestration
-description: Select compatible models and effort per call for substantial or risky work, using the current model table, validation evidence, and bounded complementary review. Use when explicit model selection, delegation, independent review, dissent, or fan-out materially improves the result.
+description: Dispatch work to other models — native subagents, provider CLIs, cross-provider lanes — with per-call model and effort selection from the current table. Use when delegating implementation, review, research, or any multi-model work, or when quota headroom must be checked before a dispatch wave.
 ---
 
 # Model orchestration
 
 The current session is the orchestrator: it owns scope, contracts, routing, synthesis,
 validation, and final acceptance. Workers are leaves unless it explicitly authorizes
-fan-out.
+fan-out. Selection policy — axis ranking, quota asymmetry, effort ceilings, model bans —
+lives in the shared global rules; this skill owns the mechanics.
 
 ## Read what the task needs
 
-- `references/model-routing.md` — before selecting any model or effort.
+- `references/dispatch.md` — how to launch a worker: native subagents, provider CLIs,
+  pickforge-lanes MCP lifecycle.
+- `references/model-routing.md` — pool table, harness-scoped selectors, compatibility
+  notes, for harnesses without an inline table.
 - `references/delegation-contract.md` — before delegating implementation, creating
   fan-out reviewers, or using parallel worktrees.
 - `references/review-schemas.md` — when asking reviewers for structured findings.
-- `references/dispatch.md` — how to actually launch a worker from this harness.
 
 ## Provider boundary
 
-Check this before selecting anything. The boundary is the repository's git remote,
-never its directory — a worktree carries its repository's remote, so a client
-worktree parked outside the client tree is still client code.
+The boundary is the repository's git remote, never its directory — a worktree carries
+its repository's remote. Full table under `github.com/ElbertePlinio` or
+`github.com/pickforge` remotes; every other remote, a repository with no remote, a
+non-repository directory, or any doubt restricts to the Anthropic and OpenAI lanes.
+`scripts/lane-policy.mjs` enforces this in the dispatch wrappers, so a restricted
+dispatch fails rather than leaking. Treat that as a backstop, not permission to skip
+the check when planning.
 
-- Remotes under `github.com/ElbertePlinio` or `github.com/pickforge` may use the
-  whole table.
-- Every other remote, a repository with no remote, and a directory that is not a
-  repository are restricted to the Anthropic and OpenAI lanes. Grok and Kimi are
-  not selectable there. `kimi-k3` dispatches as `kimi-k3:cloud` and leaves the
-  machine, so it is restricted like any other external provider.
-- Unsure means restricted. Do not infer ownership from a directory name.
+## Quota headroom
 
-`scripts/lane-policy.mjs` enforces this in `fanout-review.mjs` and
-`ollama-delegate.mjs`, so a restricted dispatch fails rather than leaking. Treat
-that as a backstop, not permission to skip the check when planning.
+Before a multi-task dispatch wave, check pool headroom once (not before every call):
 
-## Per-call selection
+```sh
+pickgauge usage --json || ~/.local/bin/pickgauge usage --json
+```
 
-1. Classify the call: risk and irreversibility, modality and tool compatibility,
-   uncertainty and context size, validation strength.
-2. Exclude incompatible or unavailable options, then take the lightest sufficient
-   candidate from the table and start at its documented effort.
-3. Never assign permanent roles, named lanes, fixed provider sequences, or
-   task-class defaults. Scores and past successful routes are evidence, not
-   assignments — select builders, reviewers, researchers, and adjudicators
-   independently from the same table.
-4. Grok 4.5 always uses high. Raise any other effort only when a lower-effort result
-   fails targeted validation, material evidence stays unresolved or contradictory, or
-   an irreversible decision lacks adequate proof. Record the trigger and its
-   resolution; elevated effort ends when its question resolves.
-5. The session cannot silently upgrade its own turn — dispatch an explicit second
-   opinion or escalation call instead.
-
-## Mode
-
-Use the lightest that fits: the session completes and validates the task; one
-implementation lane then `local-review`; risk-targeted orchestration then
-`local-review`; isolated worktrees only for genuinely independent scopes.
+Read `services`: `remainingPercent` and `windows.fiveHour`/`windows.week` are the
+gauges; `source`, `confidence`, and `staleSeconds` say how much to trust a reading.
+Route by available headroom, not sticker price — a cheap lane near its cap loses to a
+pricier lane with room. `remainingPercent: null` means no gauge: treat the pool as
+unknown, never as empty. If the binary is missing on this machine, note it and
+continue rather than blocking.
 
 ## Bounds
 
 - `local-review` owns risk classes, profile selection, and review counts. Pick each
   reviewer for its concrete failure mode, with distinct prompts against the same
-  frozen HEAD. Do not repeat reviewers against a generic prompt. It also owns the
-  overengineering and simplification verdicts.
+  frozen HEAD. It also owns the overengineering and simplification verdicts.
+- Use the lightest mode that fits: the session completes and validates the task; one
+  implementation lane then `local-review`; risk-targeted orchestration; isolated
+  worktrees only for genuinely independent scopes.
 - Add an adjudicator only for unresolved material evidence or reviewer disagreement;
   it answers the named question rather than restarting review.
 - One writer per file or worktree. Keep scouts, reviewers, and dissenters read-only.
-  Review parallel writers' patches before integration.
-- Prefer a two-level tree: workers propose further splits to the orchestrator rather
-  than delegating recursively.
+  Prefer a two-level tree: workers propose further splits instead of delegating
+  recursively.
 - Reuse a healthy builder for follow-up fixes. Abandon stuck, failed, or interrupted
-  runs instead of rescuing them: capture the short cause, cancel owned work, and
-  redispatch fresh. Never spawn a new agent per verification step, and never repeat a
-  full review panel after fixes.
-- Keep one accountable owner for taste-heavy work; provider identity does not define
-  ownership.
+  runs: capture the short cause, cancel owned work, redispatch fresh. Never spawn a
+  new agent per verification step, and never repeat a full review panel after fixes.
+- The session cannot silently upgrade its own turn — dispatch an explicit second
+  opinion or escalation call instead.
 - Synthesize every worker result yourself. Reject weak or contradictory output,
   validate with the narrowest useful proof, and report changes, evidence,
   substitutions, and residual risk.

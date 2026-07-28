@@ -134,7 +134,7 @@ trap 'rm -f "$OMP_MCP"' EXIT
 chezmoi "${SRC[@]}" execute-template --file "$OMP_MCP_SOURCE" >"$OMP_MCP"
 PICKFORGE_LANES_WRAPPER="$ROOT/dot_local/bin/executable_pickforge-lanes-mcp"
 PICKFORGE_LANES_CONFIGURE="$ROOT/run_onchange_after_configure_pickforge_lanes_mcp.sh"
-PICKFORGE_LANES_SKILL="$ROOT/dot_agents/skills/multi-model-lanes/SKILL.md"
+PICKFORGE_LANES_SKILL="$ROOT/dot_agents/skills/model-orchestration/references/dispatch.md"
 CLAUDE_SETTINGS="$ROOT/dot_claude/settings.json.tmpl"
 OMP_AGENT_OVERRIDES_DIR="$ROOT/dot_omp/agent/agents"
 OMP_TASK_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/task.md"
@@ -155,6 +155,16 @@ RETIRED_SOURCE_PATHS=(
   dot_config/opencode
   .chezmoitemplates/claude-restricted.md
   .chezmoitemplates/claude-personal-lite.md
+  dot_agents/skills/model-runners
+  dot_agents/skills/multi-model-lanes
+  dot_agents/skills/context7-mcp
+  dot_agents/skills/find-skills
+  dot_agents/skills/audit-report
+  dot_agents/skills/diagnosing-bugs
+  dot_claude/skills/kickoff
+  dot_claude/skills/pickgauge-usage
+  dot_claude/hooks/executable_kickoff-delegation-gate.sh.tmpl
+  .chezmoitemplates/kickoff-delegation-gate.sh
 )
 
 RETIRED_SKILL_LOCK_ENTRIES=(
@@ -166,6 +176,7 @@ RETIRED_SKILL_LOCK_ENTRIES=(
   caveman-stats
   cavecrew
   compress
+  find-skills
 )
 
 RETIRED_TARGET_PATHS=(
@@ -192,6 +203,37 @@ RETIRED_TARGET_PATHS=(
   .agents/skills/caveman-stats
   .agents/skills/cavecrew
   .agents/skills/compress
+  .agents/skills/model-runners
+  .agents/skills/multi-model-lanes
+  .agents/skills/context7-mcp
+  .agents/skills/find-skills
+  .agents/skills/audit-report
+  .agents/skills/diagnosing-bugs
+  .claude/skills/model-runners
+  .claude/skills/multi-model-lanes
+  .claude/skills/context7-mcp
+  .claude/skills/find-skills
+  .claude/skills/audit-report
+  .claude/skills/diagnosing-bugs
+  .claude/skills/kickoff
+  .claude/skills/pickgauge-usage
+  .claude/hooks/kickoff-delegation-gate.sh
+  .pi/agent/skills/model-runners
+  .pi/agent/skills/multi-model-lanes
+  .pi/agent/skills/context7-mcp
+  .pi/agent/skills/find-skills
+  .pi/agent/skills/audit-report
+  .pi/agent/skills/diagnosing-bugs
+  .omp/agent/skills/model-runners
+  .omp/agent/skills/context7-mcp
+  .omp/agent/skills/find-skills
+  .omp/agent/skills/audit-report
+  .omp/agent/skills/diagnosing-bugs
+  .grok/skills/model-runners
+  .grok/skills/find-skills
+  .grok/skills/diagnosing-bugs
+  .hermes/skills/model-runners
+  .hermes/skills/diagnosing-bugs
 )
 
 RUNTIME_SOURCE_PATHS=(

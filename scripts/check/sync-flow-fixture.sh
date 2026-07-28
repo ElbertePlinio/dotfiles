@@ -35,13 +35,8 @@ check_sync_command_flow() {
     dot_claude/rules/context7.md
     dot_claude/settings.json
     dot_claude/hooks/executable_decision-audit-gate.sh
-    dot_claude/hooks/executable_kickoff-delegation-gate.sh
-    dot_claude/skills/kickoff/SKILL.md
     dot_claude/skills/ship-pr/SKILL.md
-    dot_claude/skills/audit-report/SKILL.md
-    dot_claude/skills/pickgauge-usage/SKILL.md
     dot_claude/skills/plan-issue/SKILL.md
-    dot_claude/skills/model-runners/SKILL.md
     dot_agents/skills/model-orchestration/SKILL.md
     dot_codex/AGENTS.md
     dot_codex/agents/architecture-reviewer.toml
@@ -458,7 +453,6 @@ check_primary_global_live_regressions() {
     "$DEST/.claude/CLAUDE.md"
     "$DEST/.claude/settings.json"
     "$DEST/.claude/rules/context7.md"
-    "$DEST/.claude/skills/kickoff/SKILL.md"
     "$DEST/.zshrc"
     "$DEST/.bashrc"
   )

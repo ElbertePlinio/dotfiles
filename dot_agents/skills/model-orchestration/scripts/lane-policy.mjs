@@ -22,6 +22,22 @@ const PERSONAL_REMOTES = [
 // even though it is dispatched through the Ollama delegate.
 const RESTRICTED_MODEL = /^(?:grok-|kimi-)|:cloud$/i;
 
+// Models banned everywhere regardless of repository: Anthropic Haiku and the
+// GPT-5.6 Luna/Terra lanes. Sol is the only GPT-5.6 lane.
+const BANNED_MODEL = /haiku|luna|terra/i;
+
+// Throws when `model` is a banned lane. Repository-independent.
+export function assertModelPermitted(model) {
+  if (!BANNED_MODEL.test(String(model))) return;
+  throw new Error(
+    [
+      `lane-policy: ${model} is a banned lane.`,
+      "  Anthropic Haiku and GPT-5.6 Luna/Terra are never selectable;",
+      "  Sol is the only GPT-5.6 lane — shift its effort instead.",
+    ].join("\n"),
+  );
+}
+
 export function repoRemote(cwd) {
   try {
     return execFileSync("git", ["-C", cwd, "remote", "get-url", "origin"], {
@@ -44,6 +60,7 @@ export function isRestrictedModel(model) {
 
 // Throws unless `model` is allowed to see the repository at `cwd`.
 export function assertModelAllowed(model, cwd) {
+  assertModelPermitted(model);
   if (!isRestrictedModel(model)) return;
   if (isPersonalRepo(cwd)) return;
 
