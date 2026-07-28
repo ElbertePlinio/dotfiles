@@ -62,6 +62,8 @@ case ":$PATH:" in
 esac
 # pnpm end
 
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+
 export PATH="$HOME/fvm/default/bin:$PATH"
 alias very_good="$HOME/fvm/default/bin/dart pub global run very_good_cli:very_good"
 export PATH="/opt/homebrew/bin:$PATH"

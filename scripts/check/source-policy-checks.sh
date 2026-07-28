@@ -64,15 +64,13 @@ done
 
 need .chezmoitemplates/model-table.md
 if grep -Fq 'template "model-table.md"' dot_pi/agent/AGENTS.md.tmpl \
-  && grep -Fq '"grokSelector" "xai/grok-4.5"' dot_pi/agent/AGENTS.md.tmpl \
-  && grep -Fq '"glmStart" "medium"' dot_pi/agent/AGENTS.md.tmpl; then
+  && grep -Fq '"grokSelector" "xai/grok-4.5"' dot_pi/agent/AGENTS.md.tmpl; then
   pass 'Pi adapter consumes shared model table with native parameters'
 else
   err 'Pi adapter shared model table include or parameters mismatch'
 fi
 if grep -Fq 'template "model-table.md"' dot_omp/agent/AGENTS.md.tmpl \
-  && grep -Fq '"grokSelector" "xai-oauth/grok-4.5"' dot_omp/agent/AGENTS.md.tmpl \
-  && grep -Fq '"glmStart" "provider default"' dot_omp/agent/AGENTS.md.tmpl; then
+  && grep -Fq '"grokSelector" "xai-oauth/grok-4.5"' dot_omp/agent/AGENTS.md.tmpl; then
   pass 'OMP adapter consumes shared model table with native parameters'
 else
   err 'OMP adapter shared model table include or parameters mismatch'
@@ -81,17 +79,19 @@ PI_TABLE_OUT="$TMP/pi-model-table.md"
 OMP_TABLE_OUT="$TMP/omp-model-table.md"
 if render dot_pi/agent/AGENTS.md.tmpl "$PI_TABLE_OUT" \
   && grep -Eq '^\| Grok 4\.5 \| `xai/grok-4\.5` \| high \|.*\| yes \|$' "$PI_TABLE_OUT" \
-  && grep -Eq '^\| GLM-5\.2 \| `ollama/glm-5\.2:cloud` \| medium \|.*\| no \|$' "$PI_TABLE_OUT"; then
-  pass 'rendered Pi routing table includes native Grok 4.5 selector, GLM start, and both modalities'
+  && grep -Eq '^\| Kimi K3 \| `ollama/kimi-k3:cloud` \| provider default \|.*\| yes \|$' "$PI_TABLE_OUT" \
+  && ! grep -Fq 'GLM-5.2' "$PI_TABLE_OUT"; then
+  pass 'rendered Pi routing table includes native Grok 4.5 selector and Kimi K3, without GLM-5.2'
 else
-  err 'rendered Pi routing table missing native Grok 4.5 selector, GLM start, or a modality cell'
+  err 'rendered Pi routing table missing native Grok 4.5 selector or Kimi K3, or still lists GLM-5.2'
 fi
 if render dot_omp/agent/AGENTS.md.tmpl "$OMP_TABLE_OUT" \
   && grep -Eq '^\| Grok 4\.5 \| `xai-oauth/grok-4\.5` \| high \|.*\| yes \|$' "$OMP_TABLE_OUT" \
-  && grep -Eq '^\| GLM-5\.2 \| `ollama/glm-5\.2:cloud` \| provider default \|.*\| no \|$' "$OMP_TABLE_OUT"; then
-  pass 'rendered OMP routing table includes OAuth Grok 4.5 selector, GLM start, and both modalities'
+  && grep -Eq '^\| Kimi K3 \| `ollama/kimi-k3:cloud` \| provider default \|.*\| yes \|$' "$OMP_TABLE_OUT" \
+  && ! grep -Fq 'GLM-5.2' "$OMP_TABLE_OUT"; then
+  pass 'rendered OMP routing table includes OAuth Grok 4.5 selector and Kimi K3, without GLM-5.2'
 else
-  err 'rendered OMP routing table missing OAuth Grok 4.5 selector, GLM start, or a modality cell'
+  err 'rendered OMP routing table missing OAuth Grok 4.5 selector or Kimi K3, or still lists GLM-5.2'
 fi
 
 if grep -Fq 'await agent(prompt' dot_omp/agent/AGENTS.md.tmpl \
@@ -136,12 +136,12 @@ pi_models=''
 if pi_models="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/models.json")"; then
   if jq -e . >/dev/null 2>&1 <<<"$pi_models"; then
     pass 'Pi models JSON valid'
-    jq -e '.providers.ollama.models | any(.id == "glm-5.2:cloud")' >/dev/null <<<"$pi_models" \
-      && pass 'Pi models include Ollama GLM-5.2 Cloud' \
-      || err 'Pi models missing Ollama GLM-5.2 Cloud'
-    jq -e '.providers.ollama.models[] | select(.id == "glm-5.2:cloud") | .input == ["text"]' >/dev/null <<<"$pi_models" \
-      && pass 'Pi GLM-5.2 declares text-only input' \
-      || err 'Pi GLM-5.2 input is not text-only; its metadata advertises a multimodal class it does not implement'
+    jq -e '.providers.ollama.models | any(.id == "kimi-k3:cloud")' >/dev/null <<<"$pi_models" \
+      && pass 'Pi models include Ollama Kimi K3 Cloud' \
+      || err 'Pi models missing Ollama Kimi K3 Cloud'
+    jq -e '.providers.ollama.models[] | select(.id == "kimi-k3:cloud") | .input == ["text", "image"]' >/dev/null <<<"$pi_models" \
+      && pass 'Pi Kimi K3 declares text and image input' \
+      || err 'Pi Kimi K3 input does not match its vision-capable model class'
     jq -e '(.providers | has("local-llama")) or any(.. | strings; ascii_downcase | contains("local-llama"))' >/dev/null <<<"$pi_models" \
       && err 'Pi models still contain removed local-llama provider or model' \
       || pass 'Pi models omit removed local-llama provider and model'
@@ -218,7 +218,7 @@ if local_review="$(cat \
     && grep -Fq 'never treat a model as permanently assigned' <<<"$local_review" \
     && pass 'local-review delegates model selection to the current table' \
     || err 'local-review missing dynamic model selection'
-  grep -Eq 'Grok 4\.5|GPT-5\.6|Fable 5|Opus 5|Opus 4\.8|Sonnet 5|GLM-5\.2' <<<"$local_review" \
+  grep -Eq 'Grok 4\.5|GPT-5\.6|Fable 5|Opus 5|Opus 4\.8|Sonnet 5|Kimi K3' <<<"$local_review" \
     && err 'local-review contains fixed model lane assignments' \
     || pass 'local-review contains no fixed model lane assignments'
 else

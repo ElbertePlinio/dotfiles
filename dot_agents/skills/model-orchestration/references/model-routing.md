@@ -8,12 +8,11 @@ This is comparative pool metadata, not a role-assignment table. Scores are relat
 | Fable 5 | `anthropic/claude-fable-5` | high | 6 | 9 | 9 | 9 | yes | candidate when context, tools, quota, and validation fit |
 | Opus 5 | `anthropic/claude-opus-5` | high | 5 | 9 | 8 | 9 | yes | candidate when context, tools, quota, and validation fit |
 | Grok 4.5 | `xai/grok-4.5` (Pi, pickforge-lanes MCP) / `xai-oauth/grok-4.5` (OMP) | high | 3 | 7 | 5 | 3 | yes | provider prefix is harness-scoped; always high |
-| GLM-5.2 | `ollama/glm-5.2:cloud` | provider default | 2 | 7 | 6 | 4 | no | text-only; never receive visual inputs |
-| Kimi K3 | none yet — verify before first use | provider default | 3 | 7 | 8 | 5 | yes | **not selectable**; open weights due 2026-07-27 |
+| Kimi K3 | `ollama/kimi-k3:cloud` | provider default | 4 | 8 | 8 | 4 | yes | slow (~30 tok/s, hour-scale agentic tasks); Ollama bills it as extra usage, not plan quota |
 
 GPT-5.6 Luna and Anthropic Haiku are prohibited. Do not use Codex `ultra`; its internal delegation duplicates this workflow.
 
-Kimi K3 is listed for planning only and must not be dispatched until its weights ship and a selector is confirmed working in the target harness. Treat a Kimi K3 selection before then as an unavailable model and substitute per the fallback policy. Its taste score is weighted toward greenfield visual work, where it ranks first on blind frontend comparisons; it drops materially on structural code quality and on changes inside a large existing codebase, so score the task, not the headline.
+Kimi K3's taste score is weighted toward greenfield visual work, where it ranks first on blind frontend comparisons; it drops materially on structural code quality and on changes inside a large existing codebase, so score the task, not the headline. Its calibration is measured, not guessed: review precision 0.684 vs 0.84–0.91 for peers (Semgrep, 2026-07) and a hallucination rate that regressed generation-over-generation — use it as a high-recall finder, never an adjudicator. Its cost score reflects effective cost: cheap list price, but slow and token-hungry enough that cost per successful task measures above Opus-class.
 
 ## The Three Score Axes
 
@@ -79,7 +78,6 @@ Calibration 8 is the floor for every adjudicator, never traded away for another 
 
 ## Compatibility and Fallback
 
-- GLM-5.2 is text-only. When visual context matters, select a vision-capable candidate or provide a faithful text summary before a GLM call.
 - Preserve each candidate's tool, modality, privacy, and context constraints. Never send secrets, credentials, or private production data to cloud prompts.
 - If a selected model is unavailable or incompatible, reselect the closest compatible candidate from this table and report the substitution. Stop only when the user required that exact model or no candidate fits.
 - Parallelize only genuinely independent scopes with enough headroom to justify coordination. Keep one writer per file/worktree; use isolated worktrees and patch review for parallel writers.

@@ -18,9 +18,9 @@ const PERSONAL_REMOTES = [
 ];
 
 // Providers outside the Anthropic and OpenAI lanes. `:cloud` is here because
-// fanout-review rewrites glm-5.2 to glm-5.2:cloud, which leaves the machine
+// fanout-review rewrites kimi-k3 to kimi-k3:cloud, which leaves the machine
 // even though it is dispatched through the Ollama delegate.
-const RESTRICTED_MODEL = /^(?:grok-|glm-)|:cloud$/i;
+const RESTRICTED_MODEL = /^(?:grok-|kimi-)|:cloud$/i;
 
 export function repoRemote(cwd) {
   try {

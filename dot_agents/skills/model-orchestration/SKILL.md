@@ -26,8 +26,8 @@ worktree parked outside the client tree is still client code.
 - Remotes under `github.com/ElbertePlinio` or `github.com/pickforge` may use the
   whole table.
 - Every other remote, a repository with no remote, and a directory that is not a
-  repository are restricted to the Anthropic and OpenAI lanes. Grok and GLM are
-  not selectable there. `glm-5.2` dispatches as `glm-5.2:cloud` and leaves the
+  repository are restricted to the Anthropic and OpenAI lanes. Grok and Kimi are
+  not selectable there. `kimi-k3` dispatches as `kimi-k3:cloud` and leaves the
   machine, so it is restricted like any other external provider.
 - Unsure means restricted. Do not infer ownership from a directory name.
 
@@ -82,7 +82,6 @@ implementation lane then `local-review`; risk-targeted orchestration then
 
 ## Hard constraints
 
-- GLM-5.2 is text-only — convert visual evidence to text before routing it there.
 - Never route secrets, credentials, or private production data into a model prompt.
 - Report every substitution. If a selected model is unavailable or incompatible, take
   the closest compatible candidate from the table; stop only when the user required

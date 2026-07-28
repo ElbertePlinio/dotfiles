@@ -34,7 +34,7 @@ node ~/.agents/skills/model-orchestration/scripts/codex-delegate.mjs \
 ```
 
 `claude-delegate.mjs` and `ollama-delegate.mjs` take the same flags; use
-`--model glm-5.2:cloud` for the Ollama wrapper. `fanout-review.mjs` drives multiple
+`--model kimi-k3:cloud` for the Ollama wrapper. `fanout-review.mjs` drives multiple
 reviewers in one wave — give each a distinct prompt.
 
 For per-CLI invocation detail (Codex `codex exec`, the `grok` CLI), see the

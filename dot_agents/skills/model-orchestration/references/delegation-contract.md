@@ -8,7 +8,6 @@ Use this when preparing implementation prompts, reviewer prompts, dissent prompt
 - Writer: exactly one model writes a given file/worktree by default; independent writers should run in parallel in isolated worktrees.
 - Reviewers: read-only agents that report concrete findings.
 - Dissenters: read-only agents that challenge assumptions and risk.
-- GLM-5.2: text-only Ollama reviewer/dissenter. Give it text/code only; if visual evidence matters, include an orchestrator-written image description.
 
 ## Handoff Prompt
 
@@ -24,7 +23,6 @@ Include:
 - Frozen contract for APIs, types, payloads, state, permissions, persistence, and migrations.
 - Validation commands to run.
 - Expected output: changed files, validation, risks, next action.
-- For GLM-5.2: explicit note that image/video/diagram evidence is unavailable unless described in text.
 
 ## Writer Rules
 

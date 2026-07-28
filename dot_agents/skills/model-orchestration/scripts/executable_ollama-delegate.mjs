@@ -7,11 +7,11 @@ import { assertModelAllowed } from "./lane-policy.mjs";
 
 const MODES = ["scout", "implement", "review", "dissent"];
 const DANGEROUS_CODEX_FLAGS = ["--dangerously-bypass-approvals-and-sandbox"];
-const DEFAULT_MODEL = "glm-5.2:cloud";
+const DEFAULT_MODEL = "kimi-k3:cloud";
 
 const NO_VISION_RULE = [
-  "You are GLM-5.2 running as a text-only model through Ollama.",
-  "You do not have vision capabilities.",
+  "You are running through a text-only Ollama delegate lane.",
+  "No visual inputs reach you in this lane, regardless of your model's capabilities.",
   "Do not attempt to inspect, open, decode, OCR, or infer from image files, screenshots, diagrams, videos, or visual attachments.",
   "If the task references visual material, rely only on the text description supplied by the orchestrator.",
   "If no text description is supplied, say the visual evidence is unavailable to you and limit your review to text/code.",
@@ -29,7 +29,7 @@ function usage(stream) {
       "",
       "Options:",
       "  --mode <mode>         scout, implement, review, or dissent",
-      "  --model <model>       Ollama model (default: glm-5.2:cloud)",
+      "  --model <model>       Ollama model (default: kimi-k3:cloud)",
       "  --prompt <text>       prompt text",
       "  --prompt-file <path>  read prompt from file",
       "  --cwd <path>          working directory (default: process cwd)",

@@ -46,4 +46,4 @@ Add checks for:
 - Error handling and observability.
 - Test coverage for edge cases.
 
-Choose an independent technical reviewer such as Sol, Grok, or GLM. Add Fable/Opus when architecture tradeoffs or product judgment are material.
+Choose an independent technical reviewer such as Sol, Grok, or Kimi. Add Fable/Opus when architecture tradeoffs or product judgment are material.
