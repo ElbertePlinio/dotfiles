@@ -27,6 +27,8 @@ done
 
 TABLE_ROW_GROK='^\| Grok 4\.5 \| .*grok-4\.5.* \| high \|.*\| yes \|$'
 TABLE_ROW_KIMI='^\| Kimi K3 \| `ollama/kimi-k3:cloud` \| provider default \|.*\| yes \|$'
+TABLE_ROW_OPUS='^\| Opus 5 \| `anthropic/claude-opus-5` \| medium \|.*\| yes \|$'
+OPUS_EFFORT_RULE='Opus 5 defaults to `medium` and may use only `low` or `medium`; `high` and above are prohibited.'
 for entry in \
   'dot_pi/agent/AGENTS.md.tmpl|Pi' \
   'dot_omp/agent/AGENTS.md.tmpl|OMP' \
@@ -35,10 +37,24 @@ for entry in \
   out="$TMP/table-$(echo "$path" | tr '/' '_')"
   if render "$path" "$out" \
     && grep -Eq "$TABLE_ROW_GROK" "$out" \
-    && grep -Eq "$TABLE_ROW_KIMI" "$out"; then
-    pass "rendered $harness routing table includes Grok 4.5 and Kimi K3 rows"
+    && grep -Eq "$TABLE_ROW_KIMI" "$out" \
+    && grep -Eq "$TABLE_ROW_OPUS" "$out" \
+    && grep -Fq "$OPUS_EFFORT_RULE" "$out"; then
+    pass "rendered $harness routing table and Opus effort policy are current"
   else
-    err "rendered $harness routing table missing Grok 4.5 or Kimi K3 rows"
+    err "rendered $harness routing table or Opus effort policy is stale"
+  fi
+done
+
+for entry in \
+  'dot_codex/AGENTS.md.tmpl|Codex' \
+  'dot_grok/AGENTS.md.tmpl|Grok'; do
+  IFS='|' read -r path harness <<<"$entry"
+  out="$TMP/opus-policy-$(echo "$path" | tr '/' '_')"
+  if render "$path" "$out" && grep -Fq "$OPUS_EFFORT_RULE" "$out"; then
+    pass "rendered $harness instructions include the Opus effort policy"
+  else
+    err "rendered $harness instructions are missing the Opus effort policy"
   fi
 done
 
