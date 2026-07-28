@@ -22,4 +22,4 @@ Under `~/Projects/Pickforge`, follow workspace `AGENTS.md`. Use `plan-issue` whe
 
 ## Updating these rules
 
-Use `agent-config-sync` for global instructions, adapters, portable skills, and drift. Shared changes go to canonical chezmoi templates/adapters; never edit only a rendered `$HOME` file. Never run whole-tree `chezmoi diff`/`status`/`verify` — always scope to explicit paths, since full-tree runs can hang on encrypted files. Pi and OMP are the primary automation harnesses; Codex and Grok get instructions-only.
+Use `agent-config-sync` for global instructions, adapters, portable skills, and drift. Shared changes go to canonical chezmoi templates/adapters; never edit only a rendered `$HOME` file. Never run whole-tree `chezmoi diff`/`status`/`verify` — always scope to explicit paths, since full-tree runs can hang on encrypted files. Pi and Claude Code are the primary automation harnesses; OMP, Codex, and Grok get instructions-only mirrors where compatible.
