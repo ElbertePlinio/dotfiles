@@ -16,8 +16,6 @@ ENCRYPTION_ALLOWED_SOURCES=(
   'dot_pi/agent/encrypted_private_auth.json.age|Pi provider credentials'
   'dot_pi/agent/private_mcp-oauth/*/encrypted_private_tokens.json.age|Pi MCP OAuth token state'
   'private_dot_context7/encrypted_private_credentials.json.age|Context7 API credentials'
-  'private_dot_hermes/encrypted_dot_env.age|Hermes environment secrets'
-  'private_dot_hermes/encrypted_private_auth.json.age|Hermes provider credentials'
 )
 
 # Rendered target basenames that must never be committed in plaintext.
@@ -153,35 +151,6 @@ check_unversioned_trees() {
   done
   [[ "$present" -eq 0 ]] && pass 'trees excluded from versioning stay out of the source state'
 
-  # Hermes' bundled library and our portable symlinks share one directory, so
-  # the invariant is per-entry rather than a tree exclusion: only direct-child
-  # symlink_* sources may live here.
-  local rel stray=0
-  while IFS= read -r rel; do
-    [[ -n "$rel" ]] || continue
-    local leaf="${rel#private_dot_hermes/private_skills/}"
-    if [[ "$leaf" == */* ]]; then
-      err "Hermes bundled skill content returned to the source state: $rel"
-      stray=$((stray + 1))
-    elif [[ "$leaf" != symlink_* ]]; then
-      err "unexpected non-symlink source under the Hermes skills directory: $rel"
-      stray=$((stray + 1))
-    fi
-  done < <(cd "$ROOT" && git ls-files private_dot_hermes/private_skills/ || true)
-  [[ "$stray" -eq 0 ]] \
-    && pass 'only portable skill symlinks live under the Hermes skills source'
-
-  # Prove the removal kept those symlinks rather than taking the directory with
-  # it. The distribution manifest is the source of truth for how many exist.
-  local expected actual
-  expected="$(jq -r '[.skills | to_entries[] | select(.value | index("hermes"))] | length' \
-    "$ROOT/dot_agents/skill-targets.json" 2>/dev/null || echo 0)"
-  actual="$(cd "$ROOT" && git ls-files 'private_dot_hermes/private_skills/symlink_*' | wc -l | tr -d ' ')"
-  if [[ "$expected" -gt 0 && "$expected" == "$actual" ]]; then
-    pass "Hermes portable skill symlinks survive the bundled-library removal ($actual)"
-  else
-    err "Hermes portable skill symlinks do not match the manifest: manifest $expected, source $actual"
-  fi
 }
 
 check_encryption_gitignore() {

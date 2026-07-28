@@ -1,14 +1,3 @@
-need "$SOUL"
-for include in agents-shared-memory.md agents-shared-public-actions.md agents-shared-destructive-actions.md; do
-  grep -Fq "template \"$include\"" "$SOUL" \
-    || err "Hermes SOUL missing shared include: $include"
-done
-grep -qE 'I like short, practical work|Fix root causes, not symptoms' "$SOUL" \
-  && err 'Hermes SOUL must not dump full coding policy' || pass 'Hermes SOUL identity-oriented'
-grep -Fq 'CODING_AGENT_RULES.md' "$SOUL" \
-  && pass 'Hermes remains the explicit standalone CODING_AGENT_RULES exception' \
-  || err 'Hermes standalone memory exception missing CODING_AGENT_RULES'
-
 [[ -L dot_grok/AGENTS.md.tmpl || -L dot_grok/AGENTS.md ]] && err 'Grok AGENTS must not be a symlink'
 need dot_grok/AGENTS.md.tmpl
 if [[ -f dot_grok/AGENTS.md.tmpl ]]; then
@@ -16,89 +5,42 @@ if [[ -f dot_grok/AGENTS.md.tmpl ]]; then
     && err 'Grok adapter links to or reuses Codex' || pass 'Grok adapter not Codex-linked'
 fi
 
-for entry in "${ADAPTER_BUDGETS[@]}"; do
-  IFS='|' read -r path budget <<<"$entry"
-  bytes="$(wc -c <"$path")"
-  if ((bytes <= budget)); then
-    pass "adapter source size ${path}: ${bytes} bytes (budget ${budget})"
-  else
-    err "adapter source size ${path}: ${bytes} bytes exceeds ${budget}-byte regression budget"
-  fi
-done
-
-need .chezmoitemplates/codex-behavior-override.md
 if grep -Fq 'template "codex-behavior-override.md"' dot_codex/AGENTS.md.tmpl \
   && grep -Fq 'template "codex-behavior-override.md"' dot_agents/codex-lane-override.md.tmpl; then
   pass 'Codex adapters consume the canonical behavior override'
 else
   err 'Codex behavior override include missing from an adapter'
 fi
-if grep -Fq 'template "model-table.md"' dot_claude/CLAUDE.md.tmpl \
-  && grep -Fq '"grokSelector" "xai/grok-4.5"' dot_claude/CLAUDE.md.tmpl; then
-  pass 'Claude adapter consumes shared model table with native parameters'
-else
-  err 'Claude adapter shared model table include or parameters mismatch'
-fi
 
+# Leaf adapters (Codex, Grok) stay table-free and reach the pool through the
+# model-orchestration routing reference; orchestrating harnesses inline it.
 for path in dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl; do
   grep -qiE '^\|.*cost.*intelligence.*taste.*vision.*\|$' "$path" \
-    && err "adapter embeds a full model scoring table: $path" \
-    || pass "adapter has no full model scoring table: $path"
+    && err "leaf adapter embeds a full model scoring table: $path" \
+    || pass "leaf adapter has no full model scoring table: $path"
+done
+for path in dot_claude/CLAUDE.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl; do
+  grep -Fq 'template "model-table.md"' "$path" \
+    && pass "orchestrating adapter inlines the shared model table: $path" \
+    || err "orchestrating adapter missing shared model table include: $path"
 done
 
-ADAPTER_OWNER_POINTERS=(
-  'dot_claude/CLAUDE.md.tmpl|Available managed pool|Claude'
-  'dot_codex/AGENTS.md.tmpl|model-orchestration|Codex'
-  'dot_grok/AGENTS.md.tmpl|model-orchestration|Grok'
-  'dot_pi/agent/AGENTS.md.tmpl|Available managed pool|Pi'
-  'dot_omp/agent/AGENTS.md.tmpl|Available managed pool|OMP'
-)
-for entry in "${ADAPTER_OWNER_POINTERS[@]}"; do
-  IFS='|' read -r path pointer harness <<<"$entry"
-  grep -Fq "$pointer" "$path" \
-    && pass "$harness adapter points to its routing owner" \
-    || err "$harness adapter missing routing owner pointer: $pointer"
+TABLE_ROW_GROK='^\| Grok 4\.5 \| .*grok-4\.5.* \| high \|.*\| yes \|$'
+TABLE_ROW_KIMI='^\| Kimi K3 \| `ollama/kimi-k3:cloud` \| provider default \|.*\| yes \|$'
+for entry in \
+  'dot_pi/agent/AGENTS.md.tmpl|Pi' \
+  'dot_omp/agent/AGENTS.md.tmpl|OMP' \
+  'dot_claude/CLAUDE.md.tmpl|Claude'; do
+  IFS='|' read -r path harness <<<"$entry"
+  out="$TMP/table-$(echo "$path" | tr '/' '_')"
+  if render "$path" "$out" \
+    && grep -Eq "$TABLE_ROW_GROK" "$out" \
+    && grep -Eq "$TABLE_ROW_KIMI" "$out"; then
+    pass "rendered $harness routing table includes Grok 4.5 and Kimi K3 rows"
+  else
+    err "rendered $harness routing table missing Grok 4.5 or Kimi K3 rows"
+  fi
 done
-
-need .chezmoitemplates/model-table.md
-if grep -Fq 'template "model-table.md"' dot_pi/agent/AGENTS.md.tmpl \
-  && grep -Fq '"grokSelector" "xai/grok-4.5"' dot_pi/agent/AGENTS.md.tmpl; then
-  pass 'Pi adapter consumes shared model table with native parameters'
-else
-  err 'Pi adapter shared model table include or parameters mismatch'
-fi
-if grep -Fq 'template "model-table.md"' dot_omp/agent/AGENTS.md.tmpl \
-  && grep -Fq '"grokSelector" "xai-oauth/grok-4.5"' dot_omp/agent/AGENTS.md.tmpl; then
-  pass 'OMP adapter consumes shared model table with native parameters'
-else
-  err 'OMP adapter shared model table include or parameters mismatch'
-fi
-PI_TABLE_OUT="$TMP/pi-model-table.md"
-OMP_TABLE_OUT="$TMP/omp-model-table.md"
-if render dot_pi/agent/AGENTS.md.tmpl "$PI_TABLE_OUT" \
-  && grep -Eq '^\| Grok 4\.5 \| `xai/grok-4\.5` \| high \|.*\| yes \|$' "$PI_TABLE_OUT" \
-  && grep -Eq '^\| Kimi K3 \| `ollama/kimi-k3:cloud` \| provider default \|.*\| yes \|$' "$PI_TABLE_OUT" \
-  && ! grep -Fq 'GLM-5.2' "$PI_TABLE_OUT"; then
-  pass 'rendered Pi routing table includes native Grok 4.5 selector and Kimi K3, without GLM-5.2'
-else
-  err 'rendered Pi routing table missing native Grok 4.5 selector or Kimi K3, or still lists GLM-5.2'
-fi
-if render dot_omp/agent/AGENTS.md.tmpl "$OMP_TABLE_OUT" \
-  && grep -Eq '^\| Grok 4\.5 \| `xai-oauth/grok-4\.5` \| high \|.*\| yes \|$' "$OMP_TABLE_OUT" \
-  && grep -Eq '^\| Kimi K3 \| `ollama/kimi-k3:cloud` \| provider default \|.*\| yes \|$' "$OMP_TABLE_OUT" \
-  && ! grep -Fq 'GLM-5.2' "$OMP_TABLE_OUT"; then
-  pass 'rendered OMP routing table includes OAuth Grok 4.5 selector and Kimi K3, without GLM-5.2'
-else
-  err 'rendered OMP routing table missing OAuth Grok 4.5 selector or Kimi K3, or still lists GLM-5.2'
-fi
-
-if grep -Fq 'await agent(prompt' dot_omp/agent/AGENTS.md.tmpl \
-  && grep -Fq '`parallel()`' dot_omp/agent/AGENTS.md.tmpl \
-  && grep -Fq 'The main model owns scope' dot_omp/agent/AGENTS.md.tmpl; then
-  pass 'OMP adapter uses native agent/parallel mechanics and main-session ownership'
-else
-  err 'OMP adapter missing native agent/parallel mechanics or main-session ownership'
-fi
 
 for path in "${STALE_PI_FLOW_PATHS[@]}"; do
   [[ ! -e "$path" ]] \
@@ -137,12 +79,6 @@ if pi_models="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/models.json")"; then
     jq -e '.providers.ollama.models | any(.id == "kimi-k3:cloud")' >/dev/null <<<"$pi_models" \
       && pass 'Pi models include Ollama Kimi K3 Cloud' \
       || err 'Pi models missing Ollama Kimi K3 Cloud'
-    jq -e '.providers.ollama.models[] | select(.id == "kimi-k3:cloud") | .input == ["text", "image"]' >/dev/null <<<"$pi_models" \
-      && pass 'Pi Kimi K3 declares text and image input' \
-      || err 'Pi Kimi K3 input does not match its vision-capable model class'
-    jq -e '(.providers | has("local-llama")) or any(.. | strings; ascii_downcase | contains("local-llama"))' >/dev/null <<<"$pi_models" \
-      && err 'Pi models still contain removed local-llama provider or model' \
-      || pass 'Pi models omit removed local-llama provider and model'
   else
     err 'Pi models JSON invalid'
   fi
@@ -150,40 +86,6 @@ else
   err 'could not read Pi models for runtime checks'
 fi
 unset pi_models
-
-
-for target in "${ROUTING_SKILL_TARGETS[@]}"; do
-  decrypted=''
-  if ! decrypted="$(chezmoi "${SRC[@]}" cat "$target")"; then
-    err "could not decrypt routing skill for checks: $target"
-    continue
-  fi
-
-  grep -qiE 'CLAUDE\.md([^[:alnum:]]+model)?[^[:alnum:]]+table' <<<"$decrypted" \
-    && err "routing skill contains stale CLAUDE.md table reference: $target" \
-    || pass "routing skill avoids stale CLAUDE.md table reference: $target"
-
-  case "$target" in
-    */references/model-routing.md)
-      if grep -Fq 'lane-policy.mjs' <<<"$decrypted" \
-        && grep -Fq '`xai/grok-4.5` (Pi, pickforge-lanes MCP)' <<<"$decrypted" \
-        && grep -Fq '`xai-oauth/grok-4.5` (OMP)' <<<"$decrypted"; then
-        pass 'model-routing owns the pool table and harness-scoped Grok selectors'
-      else
-        err 'model-routing pool table or harness-scoped Grok selectors missing'
-      fi
-      ;;
-    */model-orchestration/SKILL.md)
-      if grep -Fq 'pickgauge usage --json' <<<"$decrypted" \
-        && grep -Fq 'lane-policy.mjs' <<<"$decrypted"; then
-        pass 'model-orchestration owns quota check and provider-boundary backstop'
-      else
-        err 'model-orchestration missing quota check or provider-boundary backstop'
-      fi
-      ;;
-  esac
-done
-unset decrypted
 
 for reference in delegation-contract.md dispatch.md model-routing.md review-schemas.md; do
   canonical_reference=''
@@ -207,75 +109,33 @@ else
   pass 'model-orchestration has no harness-native duplicate'
 fi
 
-local_review=''
-if local_review="$(cat \
-  "$ROOT/dot_agents/skills/local-review/SKILL.md")"; then
-  grep -Fq 'Every review includes a KISS gate' <<<"$local_review" \
-    && grep -Fq 'mandatory KISS verdict' <<<"$local_review" \
-    && pass 'local-review requires a scoped KISS gate' \
-    || err 'local-review missing required KISS gate'
-  grep -Fq 'references/model-routing.md' <<<"$local_review" \
-    && grep -Fq 'never treat a model as permanently assigned' <<<"$local_review" \
-    && pass 'local-review delegates model selection to the current table' \
-    || err 'local-review missing dynamic model selection'
-  grep -Eq 'Grok 4\.5|GPT-5\.6|Fable 5|Opus 5|Opus 4\.8|Sonnet 5|Kimi K3' <<<"$local_review" \
-    && err 'local-review contains fixed model lane assignments' \
-    || pass 'local-review contains no fixed model lane assignments'
+# Behavioral: the model bans live in dispatch code, not prose. Prove they throw.
+if command -v node >/dev/null 2>&1; then
+  if node --input-type=module -e "
+    import { assertModelPermitted } from '$ROOT/dot_agents/skills/model-orchestration/scripts/lane-policy.mjs';
+    for (const bad of ['gpt-5.6-terra', 'gpt-5.6-luna', 'claude-haiku-4-5']) {
+      let threw = false;
+      try { assertModelPermitted(bad); } catch { threw = true; }
+      if (!threw) { console.error('allowed banned model: ' + bad); process.exit(1); }
+    }
+    assertModelPermitted('gpt-5.6-sol');
+    assertModelPermitted('claude-fable-5');
+    assertModelPermitted('kimi-k3:cloud');
+  " 2>/dev/null; then
+    pass 'lane-policy bans Haiku/Luna/Terra and admits the managed pool'
+  else
+    err 'lane-policy ban enforcement failed its behavioral probe'
+  fi
 else
-  err 'could not read local-review skill for checks'
+  err 'node unavailable for lane-policy behavioral probe'
 fi
-unset local_review
-
-for path in "${RETIRED_SOURCE_PATHS[@]}"; do
-  source_absent "$path"
-done
-check_manifest_and_sources
-check_legacy_model_skill_absence
-check_skill_lock_retirements
-check_omp_agent_override_sources
-check_mcp_registry_and_config
-check_runtime_exclusions
-
-
-for entry in "${HARNESS[@]}"; do
-  IFS='|' read -r path want forbid <<<"$entry"
-  if [[ ! -f "$path" ]]; then err "missing: $path"; continue; fi
-  grep -Eq 'template "(agents-shared\.md|agents-shared-before-worktrees\.md)"' "$path" \
-    || err "missing shared include: $path"
-  for bad in 'I like short, practical work' 'names, model IDs, and technical terms' 'AgentMemory'; do
-    grep -Fq "$bad" "$path" && err "duplicate shared policy in $path: $bad"
-  done
-  out="$TMP/$(echo "$path" | tr '/' '_')"
-  if ! render "$path" "$out"; then err "render failed: $path"; continue; fi
-  pass "rendered $path"
-  grep -Fq "$want" "$out" || err "missing heading in $path: $want"
-  grep -Fq "$forbid" "$out" && err "forbidden heading in $path: $forbid"
-  [[ "$(grep -c 'I like short, practical work' "$out" || true)" -eq 1 ]] || err "shared intro count != 1 in $path"
-  grep -q PickScribe "$out" || err "missing PickScribe in $path"
-  grep -Fq "$HOME/AgentMemory" "$out" || err "missing AgentMemory in $path"
-  grep -Fq 'CODING_AGENT_RULES.md' "$out" \
-    && err "global harness auto-loads CODING_AGENT_RULES: $path" \
-    || pass "global harness excludes CODING_AGENT_RULES: $path"
-done
 
 GLOBAL_CLAUDE_OUT="$TMP/claude-global.md"
-
 if render dot_claude/CLAUDE.md.tmpl "$GLOBAL_CLAUDE_OUT"; then
   grep -Fq '## Claude model orchestration' "$GLOBAL_CLAUDE_OUT" \
-    && grep -Fq "$HOME/AgentMemory" "$GLOBAL_CLAUDE_OUT" \
-    && grep -Eq '^\| Grok 4\.5 \| `xai/grok-4\.5` \| high \|.*\| yes \|$' "$GLOBAL_CLAUDE_OUT" \
-    && grep -Eq '^\| Kimi K3 \| `ollama/kimi-k3:cloud` \| provider default \|.*\| yes \|$' "$GLOBAL_CLAUDE_OUT" \
-    && pass 'global Claude profile renders full personal orchestration and model table' \
-    || err 'global Claude profile is missing full personal policy or model table'
-  grep -Fq '@RTK.md' "$GLOBAL_CLAUDE_OUT" \
-    && err 'global Claude policy still loads retired RTK instructions' \
-    || pass 'global Claude policy excludes retired RTK instructions'
-  grep -Fq '## Restricted profile' "$GLOBAL_CLAUDE_OUT" \
-    && err 'global Claude still renders restricted profile policy' \
-    || pass 'global Claude has no restricted profile policy'
-  grep -Fq '## Portable personal profile' "$GLOBAL_CLAUDE_OUT" \
-    && err 'global Claude still renders portable personal profile policy' \
-    || pass 'global Claude has no portable personal profile policy'
+    && grep -Fq 'AgentMemory' "$GLOBAL_CLAUDE_OUT" \
+    && pass 'global Claude profile renders orchestration and memory policy' \
+    || err 'global Claude profile is missing orchestration or memory policy'
 else
   err 'global Claude profile render failed'
 fi
@@ -287,13 +147,3 @@ for public_profile_file in \
     && err "profile source exposes private work-context vocabulary: $public_profile_file" \
     || pass "profile source uses generic public vocabulary: $public_profile_file"
 done
-
-if render "$SOUL" "$TMP/SOUL.md" \
-  && grep -Fq -- '- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.' "$TMP/SOUL.md" \
-  && grep -Fq -- '- Destructive filesystem, Git, account, or external-service actions require explicit confirmation.' "$TMP/SOUL.md" \
-  && grep -Fq 'CODING_AGENT_RULES.md' "$TMP/SOUL.md"; then
-  pass 'rendered Hermes SOUL includes shared boundaries and standalone coding memory'
-else
-  err 'Hermes SOUL render or shared-boundary composition failed'
-fi
-

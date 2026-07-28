@@ -1,1 +1,0 @@
-- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.

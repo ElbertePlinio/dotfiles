@@ -8,9 +8,6 @@ if [[ "$MODE" == live ]]; then
   OMP_AGENTS_LIVE="${HOME}/.omp/agent/AGENTS.md"
   OMP_CONFIG_LIVE="${HOME}/.omp/agent/config.yml"
   OMP_MCP_LIVE="${HOME}/.omp/agent/mcp.json"
-  SOUL_LIVE="${HOME}/.hermes/SOUL.md"
-  NOUS_DEFAULT='You are Hermes Agent, an intelligent AI assistant created by Nous Research.'
-  check_omp_agent_override_sources
   check_live_retired_targets
 
   if [[ ! -e "$GROK_LIVE" ]]; then
@@ -65,20 +62,9 @@ if [[ "$MODE" == live ]]; then
   else
     err 'live OMP MCP config differs from canonical source; refusing an implicit overwrite'
   fi
-  check_live_omp_agent_overrides
   check_live_native_routing_files
   if [[ "$STRICT_PREFLIGHT" -eq 0 ]]; then
     check_live_primary_global_targets
-  fi
-
-  if [[ ! -f "$SOUL_LIVE" ]]; then
-    err "live Hermes SOUL missing: $SOUL_LIVE"
-  elif grep -q '^# Hermes' "$SOUL_LIVE" && grep -Fq "$HOME/AgentMemory" "$SOUL_LIVE"; then
-    pass 'live Hermes SOUL already rendered (managed identity)'
-  elif grep -Fq "$NOUS_DEFAULT" "$SOUL_LIVE" && ! grep -Fq 'I like short, practical work' "$SOUL_LIVE"; then
-    pass 'live Hermes SOUL is known Nous default one-line identity'
-  else
-    err 'live Hermes SOUL is neither Nous default nor rendered managed SOUL'
   fi
 
   check_mcp_registry_and_config

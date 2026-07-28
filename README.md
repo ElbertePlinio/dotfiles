@@ -66,7 +66,7 @@ chezmoi cd                           # open the source repository
   - Shared policy: `.chezmoitemplates/agents-shared*.md`
   - Global Claude adapter: `~/.claude/CLAUDE.md` (unrestricted `claude` shell wrapper)
   - Global Codex adapter: `~/.codex/AGENTS.md` (unrestricted `codex` shell wrapper)
-  - Other harness adapters: Grok, Pi, OMP, Hermes
+  - Other harness adapters: Grok, Pi, OMP
   - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`
   - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `sync` | `doctor` | `targets`)
   - Skills, prompts, and harness configuration are plaintext and meant to be read — see [Secrets](#secrets-age-encryption) for the six files that are not
@@ -190,8 +190,6 @@ Encryption here is for credentials only. Exactly six files are encrypted:
 | `~/.pi/agent/auth.json` | Pi provider credentials |
 | `~/.pi/agent/mcp-oauth/**/tokens.json` | Pi MCP OAuth token state |
 | `~/.context7/credentials.json` | Context7 API credentials |
-| `~/.hermes/.env` | Hermes environment secrets |
-| `~/.hermes/auth.json` | Hermes provider credentials |
 
 Everything else — every skill, prompt, rule, hook, and harness config — is plaintext on purpose, so the repo can actually be read and borrowed from.
 
@@ -351,7 +349,7 @@ Credentials for Codex and Context7 live in the repo, age-encrypted (see [Secrets
 | Path               | Contents                                  |
 |--------------------|-------------------------------------------|
 | `~/.claude.json`   | Claude Code auth / session                |
-| `~/.hermes/`       | Hermes data                               |
+| `~/.hermes/`       | Hermes data (unmanaged; single source of truth lives on this machine) |
 | `~/.codex/sessions`, `logs_*.sqlite*`, `memories/` | Codex runtime state |
 | `~/.copilot/`      | GitHub Copilot token                      |
 

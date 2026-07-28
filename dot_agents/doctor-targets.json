@@ -1,91 +1,197 @@
 {
   "version": 1,
-  "bootstrap": ["bash", "jq", "git", "chezmoi", "age"],
+  "bootstrap": [
+    "bash",
+    "jq",
+    "git",
+    "chezmoi",
+    "age"
+  ],
   "harnesses": {
     "claude": {
       "displayName": "Claude",
       "binary": "claude",
-      "versionArgs": ["--version"],
-      "configPaths": ["~/.claude/CLAUDE.md", "~/.claude/settings.json"],
-      "mcp": {"path": "~/.claude.json", "root": "mcpServers"},
-      "onlineProbe": ["auth", "status"]
+      "versionArgs": [
+        "--version"
+      ],
+      "configPaths": [
+        "~/.claude/CLAUDE.md",
+        "~/.claude/settings.json"
+      ],
+      "mcp": {
+        "path": "~/.claude.json",
+        "root": "mcpServers"
+      },
+      "onlineProbe": [
+        "auth",
+        "status"
+      ]
     },
     "codex": {
       "displayName": "Codex",
       "binary": "codex",
-      "versionArgs": ["--version"],
-      "configPaths": ["~/.codex/AGENTS.md", "~/.codex/config.toml"],
-      "onlineProbe": ["login", "status"]
+      "versionArgs": [
+        "--version"
+      ],
+      "configPaths": [
+        "~/.codex/AGENTS.md",
+        "~/.codex/config.toml"
+      ],
+      "onlineProbe": [
+        "login",
+        "status"
+      ]
     },
     "grok": {
       "displayName": "Grok",
       "binary": "grok",
-      "versionArgs": ["--version"],
-      "configPaths": ["~/.grok/AGENTS.md", "~/.grok/config.toml"]
+      "versionArgs": [
+        "--version"
+      ],
+      "configPaths": [
+        "~/.grok/AGENTS.md",
+        "~/.grok/config.toml"
+      ]
     },
     "pi": {
       "displayName": "Pi",
       "binary": "pi",
-      "versionArgs": ["--version"],
-      "configPaths": ["~/.pi/agent/AGENTS.md", "~/.pi/agent/settings.json", "~/.pi/agent/models.json"],
+      "versionArgs": [
+        "--version"
+      ],
+      "configPaths": [
+        "~/.pi/agent/AGENTS.md",
+        "~/.pi/agent/settings.json",
+        "~/.pi/agent/models.json"
+      ],
       "providerAuth": {
         "path": "~/.pi/agent/auth.json",
         "modelsPath": "~/.pi/agent/models.json",
         "env": {
-          "amazon-bedrock": ["AWS_BEARER_TOKEN_BEDROCK"],
-          "ant-ling": ["ANT_LING_API_KEY"],
-          "anthropic": ["ANTHROPIC_API_KEY"],
-          "azure-openai-responses": ["AZURE_OPENAI_API_KEY"],
-          "cerebras": ["CEREBRAS_API_KEY"],
-          "cloudflare-ai-gateway": ["CLOUDFLARE_API_KEY"],
-          "cloudflare-workers-ai": ["CLOUDFLARE_API_KEY"],
-          "deepseek": ["DEEPSEEK_API_KEY"],
-          "fireworks": ["FIREWORKS_API_KEY"],
-          "google": ["GEMINI_API_KEY"],
-          "groq": ["GROQ_API_KEY"],
-          "huggingface": ["HF_TOKEN"],
-          "kimi-coding": ["KIMI_API_KEY"],
-          "minimax": ["MINIMAX_API_KEY"],
-          "minimax-cn": ["MINIMAX_CN_API_KEY"],
-          "mistral": ["MISTRAL_API_KEY"],
-          "nvidia": ["NVIDIA_API_KEY"],
-          "openai": ["OPENAI_API_KEY"],
-          "openrouter": ["OPENROUTER_API_KEY"],
-          "qwen-token-plan": ["QWEN_TOKEN_PLAN_API_KEY"],
-          "qwen-token-plan-cn": ["QWEN_TOKEN_PLAN_CN_API_KEY"],
-          "radius": ["RADIUS_API_KEY"],
-          "together": ["TOGETHER_API_KEY"],
-          "vercel-ai-gateway": ["AI_GATEWAY_API_KEY"],
-          "xai": ["XAI_API_KEY"],
-          "xiaomi": ["XIAOMI_API_KEY"],
-          "xiaomi-token-plan-ams": ["XIAOMI_TOKEN_PLAN_AMS_API_KEY"],
-          "xiaomi-token-plan-cn": ["XIAOMI_TOKEN_PLAN_CN_API_KEY"],
-          "xiaomi-token-plan-sgp": ["XIAOMI_TOKEN_PLAN_SGP_API_KEY"],
-          "zai": ["ZAI_API_KEY"],
-          "zai-coding-cn": ["ZAI_CODING_CN_API_KEY"]
+          "amazon-bedrock": [
+            "AWS_BEARER_TOKEN_BEDROCK"
+          ],
+          "ant-ling": [
+            "ANT_LING_API_KEY"
+          ],
+          "anthropic": [
+            "ANTHROPIC_API_KEY"
+          ],
+          "azure-openai-responses": [
+            "AZURE_OPENAI_API_KEY"
+          ],
+          "cerebras": [
+            "CEREBRAS_API_KEY"
+          ],
+          "cloudflare-ai-gateway": [
+            "CLOUDFLARE_API_KEY"
+          ],
+          "cloudflare-workers-ai": [
+            "CLOUDFLARE_API_KEY"
+          ],
+          "deepseek": [
+            "DEEPSEEK_API_KEY"
+          ],
+          "fireworks": [
+            "FIREWORKS_API_KEY"
+          ],
+          "google": [
+            "GEMINI_API_KEY"
+          ],
+          "groq": [
+            "GROQ_API_KEY"
+          ],
+          "huggingface": [
+            "HF_TOKEN"
+          ],
+          "kimi-coding": [
+            "KIMI_API_KEY"
+          ],
+          "minimax": [
+            "MINIMAX_API_KEY"
+          ],
+          "minimax-cn": [
+            "MINIMAX_CN_API_KEY"
+          ],
+          "mistral": [
+            "MISTRAL_API_KEY"
+          ],
+          "nvidia": [
+            "NVIDIA_API_KEY"
+          ],
+          "openai": [
+            "OPENAI_API_KEY"
+          ],
+          "openrouter": [
+            "OPENROUTER_API_KEY"
+          ],
+          "qwen-token-plan": [
+            "QWEN_TOKEN_PLAN_API_KEY"
+          ],
+          "qwen-token-plan-cn": [
+            "QWEN_TOKEN_PLAN_CN_API_KEY"
+          ],
+          "radius": [
+            "RADIUS_API_KEY"
+          ],
+          "together": [
+            "TOGETHER_API_KEY"
+          ],
+          "vercel-ai-gateway": [
+            "AI_GATEWAY_API_KEY"
+          ],
+          "xai": [
+            "XAI_API_KEY"
+          ],
+          "xiaomi": [
+            "XIAOMI_API_KEY"
+          ],
+          "xiaomi-token-plan-ams": [
+            "XIAOMI_TOKEN_PLAN_AMS_API_KEY"
+          ],
+          "xiaomi-token-plan-cn": [
+            "XIAOMI_TOKEN_PLAN_CN_API_KEY"
+          ],
+          "xiaomi-token-plan-sgp": [
+            "XIAOMI_TOKEN_PLAN_SGP_API_KEY"
+          ],
+          "zai": [
+            "ZAI_API_KEY"
+          ],
+          "zai-coding-cn": [
+            "ZAI_CODING_CN_API_KEY"
+          ]
         }
       },
-      "mcp": {"path": "~/.pi/agent/mcp.json", "root": "mcpServers", "disabledKey": "disabledServers"}
+      "mcp": {
+        "path": "~/.pi/agent/mcp.json",
+        "root": "mcpServers",
+        "disabledKey": "disabledServers"
+      }
     },
     "omp": {
       "displayName": "OMP",
       "binary": "omp",
-      "versionArgs": ["--version"],
-      "configPaths": ["~/.omp/agent/AGENTS.md", "~/.omp/agent/config.yml"],
-      "mcp": {"path": "~/.omp/agent/mcp.json", "root": "mcpServers", "disabledKey": "disabledServers"}
+      "versionArgs": [
+        "--version"
+      ],
+      "configPaths": [
+        "~/.omp/agent/AGENTS.md",
+        "~/.omp/agent/config.yml"
+      ],
+      "mcp": {
+        "path": "~/.omp/agent/mcp.json",
+        "root": "mcpServers",
+        "disabledKey": "disabledServers"
+      }
     },
     "ollama": {
       "displayName": "Ollama",
       "binary": "ollama",
-      "versionArgs": ["--version"],
+      "versionArgs": [
+        "--version"
+      ],
       "configPaths": []
-    },
-    "hermes": {
-      "displayName": "Hermes",
-      "binary": "hermes",
-      "versionArgs": ["--version"],
-      "configPaths": ["~/.hermes/SOUL.md", "~/.hermes/config.yaml"],
-      "onlineProbe": ["auth", "status"]
     }
   },
   "lanes": {

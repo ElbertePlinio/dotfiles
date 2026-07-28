@@ -6,8 +6,7 @@ TARGETS=(
   "$DEST/.claude/skills/plan-issue/SKILL.md"
   "$DEST/.codex/AGENTS.md"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
-  "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json" "$DEST/.omp/agent/agents"
-  "$DEST/.hermes/SOUL.md"
+  "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json"
   "$DEST/.local/bin/agent-config-sync"
   "$DEST/.local/bin/pickforge-lanes-mcp"
   "$DEST/.agents/.skill-lock.json"
@@ -22,8 +21,7 @@ EXPECTED=(
   dot_claude/skills/plan-issue/private_SKILL.md
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
-  dot_omp/agent/config.yml dot_omp/agent/mcp.json.tmpl dot_omp/agent/agents
-  private_dot_hermes/SOUL.md.tmpl
+  dot_omp/agent/config.yml dot_omp/agent/mcp.json.tmpl
   dot_local/bin/executable_agent-config-sync
   dot_local/bin/executable_pickforge-lanes-mcp
   dot_agents/dot_skill-lock.json
@@ -40,7 +38,7 @@ fi
 chezmoi "${TMP_SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TMP/st.err" \
   && pass 'dry-run status (temp dest)' || err "dry-run status failed: $(tr '\n' ' ' <"$TMP/st.err")"
 
-mkdir -p "$DEST/.grok" "$DEST/.hermes" \
+mkdir -p "$DEST/.grok" \
   "$DEST/.local/bin" \
   "$DEST/.claude/rules" \
   "$DEST/.claude/skills/ship-pr" \
@@ -48,9 +46,8 @@ mkdir -p "$DEST/.grok" "$DEST/.hermes" \
   "$DEST/.codex/skills/ship-pr" \
   "$DEST/.grok/skills" \
   "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
-  "$DEST/.hermes/skills" "$DEST/.agents/skills"
+  "$DEST/.agents/skills"
 ln -s ../.codex/AGENTS.md "$DEST/.grok/AGENTS.md"
-printf '%s\n' 'You are Hermes Agent, an intelligent AI assistant created by Nous Research.' >"$DEST/.hermes/SOUL.md"
 
 if ! chezmoi "${TMP_SRC[@]}" --destination "$DEST" apply "$DEST/.agents/skills" "${TARGETS[@]}"; then
   err 'temp seed apply (canonical skills / adapters) failed'
@@ -80,8 +77,6 @@ else
     || err 'temp agent-config-sync invalid'
   [[ ! -L "$DEST/.grok/AGENTS.md" ]] && grep -q '^# Personal Grok Notes' "$DEST/.grok/AGENTS.md" \
     && pass 'temp migration replaces Grok symlink safely' || err 'temp Grok symlink migration failed'
-  grep -q '^# Hermes' "$DEST/.hermes/SOUL.md" && grep -Fq "$HOME/AgentMemory" "$DEST/.hermes/SOUL.md" \
-    && pass 'temp migration replaces default Hermes SOUL safely' || err 'temp Hermes SOUL migration failed'
   grep -q '^# Personal OMP Notes' "$DEST/.omp/agent/AGENTS.md" \
     && ! grep -Fq 'CODING_AGENT_RULES.md' "$DEST/.omp/agent/AGENTS.md" \
     && pass 'temp OMP adapter applied without global CODING_AGENT_RULES load' \
@@ -94,20 +89,6 @@ else
   ' "$DEST/.omp/agent/mcp.json" >/dev/null \
     && pass 'temp OMP MCP config applied with rendered home paths' \
     || err 'temp OMP MCP config apply mismatch'
-  if [[ -d "$DEST/.omp/agent/agents" && ! -L "$DEST/.omp/agent/agents" ]]; then
-    pass 'temp OMP agent override directory applied'
-  else
-    err 'temp OMP agent override directory apply mismatch'
-  fi
-  for role in task reviewer; do
-    validate_omp_agent_override "$role" "$DEST/.omp/agent/agents/${role}.md"
-    if [[ -f "$DEST/.omp/agent/agents/${role}.md" ]] \
-      && cmp -s "$DEST/.omp/agent/agents/${role}.md" "$OMP_AGENT_OVERRIDES_DIR/${role}.md"; then
-      pass "temp OMP ${role} override matches canonical source"
-    else
-      err "temp OMP ${role} override apply mismatch"
-    fi
-  done
   cmp -s "$DEST/.agents/.skill-lock.json" "$SKILL_LOCK" \
     && pass 'temp skill lock applied' \
     || err 'temp skill lock apply mismatch'

@@ -31,12 +31,6 @@
       "source_root": "dot_omp/agent/skills",
       "discovery": "symlink",
       "relative_prefix": "../../../.agents/skills"
-    },
-    "hermes": {
-      "skills_root": "~/.hermes/skills",
-      "source_root": "private_dot_hermes/private_skills",
-      "discovery": "symlink",
-      "relative_prefix": "../../.agents/skills"
     }
   },
   "skills": {
@@ -45,24 +39,21 @@
       "codex",
       "grok",
       "pi",
-      "omp",
-      "hermes"
+      "omp"
     ],
     "design-director": [
       "claude",
       "codex",
       "grok",
       "pi",
-      "omp",
-      "hermes"
+      "omp"
     ],
     "improve": [
       "claude",
       "codex",
       "grok",
       "pi",
-      "omp",
-      "hermes"
+      "omp"
     ],
     "local-review": [
       "claude",
@@ -83,16 +74,14 @@
       "codex",
       "grok",
       "pi",
-      "omp",
-      "hermes"
+      "omp"
     ],
     "bro": [
       "claude",
       "codex",
       "grok",
       "pi",
-      "omp",
-      "hermes"
+      "omp"
     ],
     "x-search": [
       "claude",

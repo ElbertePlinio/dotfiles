@@ -56,7 +56,6 @@ check_sync_command_flow() {
     dot_pi/agent/skills/symlink_probe
     dot_omp/agent/AGENTS.md
     dot_omp/agent/config.yml
-    dot_omp/agent/agents/task.md
     dot_omp/agent/mcp.json.tmpl
     dot_omp/agent/extensions/decision-audit-gate.ts
     dot_agents/dot_skill-lock.json
@@ -66,8 +65,6 @@ check_sync_command_flow() {
     dot_agents/desktop-capture.md
     dot_agents/browser-use.md
     dot_agents/codex-lane-override.md
-    dot_hermes/SOUL.md
-    dot_hermes/config.yaml
     dot_agents/skills/probe/SKILL.md
     dot_local/bin/executable_sudo-askpass
     dot_local/bin/executable_pickforge-lanes-mcp

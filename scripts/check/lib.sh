@@ -39,92 +39,6 @@ managed_regular_file_unchanged() {
   [[ "$actual" == "$expected" ]]
 }
 
-validate_omp_agent_override() {
-  local role="$1" path="$2"
-
-  if [[ ! -f "$path" ]]; then
-    err "OMP ${role} override missing: $path"
-    return
-  fi
-
-  if grep -Eq '^(model|thinkingLevel):' "$path"; then
-    err "OMP ${role} override fixes a model or effort instead of deferring selection"
-  else
-    pass "OMP ${role} override defers model and effort selection"
-  fi
-
-  if [[ "$role" == reviewer ]]; then
-    if grep -Fq 'output:' "$path" \
-      && grep -Fq 'overall_correctness:' "$path" \
-      && grep -Fq 'findings:' "$path"; then
-      pass 'OMP reviewer override retains structured output'
-    else
-      err 'OMP reviewer override missing structured output schema'
-    fi
-    if grep -Fq 'Bash is read-only:' "$path" \
-      && grep -Fq 'You NEVER make file edits or trigger builds.' "$path" \
-      && grep -Fq 'Every finding MUST be patch-anchored and evidence-backed.' "$path"; then
-      pass 'OMP reviewer override retains read-only review contract'
-    else
-      err 'OMP reviewer override missing read-only review contract'
-    fi
-  fi
-}
-
-check_omp_agent_override_sources() {
-  validate_omp_agent_override task "$OMP_TASK_OVERRIDE"
-  validate_omp_agent_override reviewer "$OMP_REVIEWER_OVERRIDE"
-}
-
-check_live_omp_agent_overrides() {
-  local live_dir="${HOME}/.omp/agent/agents"
-  local role live_override canonical_override
-
-  if [[ ! -e "$live_dir" ]]; then
-    if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-      pass "live OMP agent overrides not yet applied: $live_dir"
-    else
-      err "live OMP agent overrides missing: $live_dir"
-    fi
-    return
-  fi
-  if [[ ! -d "$live_dir" || -L "$live_dir" ]]; then
-    err "live OMP agent overrides must be a managed regular directory: $live_dir"
-    return
-  fi
-
-  for role in task reviewer; do
-    live_override="$live_dir/${role}.md"
-    canonical_override="$OMP_AGENT_OVERRIDES_DIR/${role}.md"
-
-    if [[ -L "$live_override" ]]; then
-      err "live OMP ${role} override must be a managed regular file: $live_override"
-      continue
-    fi
-    if [[ ! -f "$live_override" ]]; then
-      err "live OMP ${role} override missing or not a regular file: $live_override"
-      continue
-    fi
-    if [[ ! -f "$canonical_override" ]]; then
-      err "canonical OMP ${role} override missing: $canonical_override"
-      continue
-    fi
-
-    if cmp -s "$live_override" "$canonical_override"; then
-      validate_omp_agent_override "$role" "$live_override"
-      pass "live OMP ${role} override matches canonical source"
-      continue
-    fi
-
-    if [[ "$STRICT_PREFLIGHT" -eq 1 ]] && managed_regular_file_unchanged "$live_override"; then
-      pass "live OMP ${role} override has managed pending drift"
-      continue
-    fi
-    err "live OMP ${role} override differs from canonical source"
-  done
-}
-
-
 MANIFEST="$ROOT/dot_agents/skill-targets.json"
 SKILL_LOCK="$ROOT/dot_agents/dot_skill-lock.json"
 MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"
@@ -136,9 +50,6 @@ PICKFORGE_LANES_WRAPPER="$ROOT/dot_local/bin/executable_pickforge-lanes-mcp"
 PICKFORGE_LANES_CONFIGURE="$ROOT/run_onchange_after_configure_pickforge_lanes_mcp.sh"
 PICKFORGE_LANES_SKILL="$ROOT/dot_agents/skills/model-orchestration/references/dispatch.md"
 CLAUDE_SETTINGS="$ROOT/dot_claude/settings.json.tmpl"
-OMP_AGENT_OVERRIDES_DIR="$ROOT/dot_omp/agent/agents"
-OMP_TASK_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/task.md"
-OMP_REVIEWER_OVERRIDE="$OMP_AGENT_OVERRIDES_DIR/reviewer.md"
 
 RETIRED_SOURCE_PATHS=(
   dot_claude-personal
@@ -237,12 +148,6 @@ RETIRED_TARGET_PATHS=(
 )
 
 RUNTIME_SOURCE_PATHS=(
-  private_dot_hermes/private_skills/dot_curator_backups
-  private_dot_hermes/private_skills/encrypted_empty_dot_usage.json.lock.age
-  private_dot_hermes/private_skills/encrypted_private_dot_bundled_manifest.age
-  private_dot_hermes/private_skills/encrypted_private_dot_curator_state.age
-  private_dot_hermes/private_skills/encrypted_private_dot_usage.json.age
-  private_dot_hermes/private_skills/dot_hub/encrypted_private_lock.json.age
   dot_pi/agent/sessions
   dot_pi/agent/encrypted_run-history.jsonl.age
   dot_pi/agent/encrypted_mcp-cache.json.age
@@ -279,12 +184,6 @@ RUNTIME_SOURCE_PATHS=(
 )
 
 RUNTIME_IGNORE_PATHS=(
-  .hermes/skills/.bundled_manifest
-  .hermes/skills/.curator_backups
-  .hermes/skills/.curator_state
-  .hermes/skills/.usage.json
-  .hermes/skills/.usage.json.lock
-  .hermes/skills/.hub
   .pi/agent/npm
   .pi/agent/sessions
   .pi/agent/run-history.jsonl

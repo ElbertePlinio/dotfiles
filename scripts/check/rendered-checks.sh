@@ -3,11 +3,9 @@ echo "source: $ROOT"
 
 SHARED=(
   .chezmoitemplates/agents-shared.md
-  .chezmoitemplates/agents-shared-before-worktrees.md
-  .chezmoitemplates/agents-shared-after-git.md
-  .chezmoitemplates/agents-shared-destructive-actions.md
-  .chezmoitemplates/agents-shared-public-actions.md
-  .chezmoitemplates/agents-shared-memory.md
+  .chezmoitemplates/model-table.md
+  .chezmoitemplates/claude-adapter-common.md
+  .chezmoitemplates/codex-behavior-override.md
 )
 HARNESS=(
   'dot_codex/AGENTS.md.tmpl|# Personal Codex Notes|# Global Claude Rules'
@@ -15,48 +13,9 @@ HARNESS=(
   'dot_pi/agent/AGENTS.md.tmpl|# Personal Pi Notes|# Personal Codex Notes'
   'dot_omp/agent/AGENTS.md.tmpl|# Personal OMP Notes|# Personal Codex Notes'
 )
-SOUL=private_dot_hermes/SOUL.md.tmpl
+# Size ratchet: the shared policy shrank deliberately (2026-07); the budget stops
+# it regrowing. Raise only with an explicit decision, never to make a check pass.
 SHARED_MAX_BYTES=10000
-SHARED_SOURCE_BASELINE=9430
-SHARED_RENDERED_BASELINE=9273
-REQUIRED_SHARED_INVARIANTS=(
-  'I like short, practical work. Read the repo, make the smallest clean change, and show proof before calling something done.'
-  '- Be direct: no filler or ceremony. Fix root causes, not symptoms.'
-  '- No hacks, monkey patches, fake fixes, temporary workarounds, or unrelated refactors.'
-  'Dictation can corrupt names, model IDs, and technical terms. Confirm suspicious or contradictory wording instead of following it literally.'
-  '- Never expose, print, commit, or send secrets or private production data.'
-  '- Destructive filesystem, Git, account, or external-service actions require explicit confirmation.'
-  '- Public actions (posts, replies, likes, follows, DMs, publishing) are drafts only; the user performs them.'
-  '- Never use Anthropic Haiku or GPT-5.6 Luna/Terra; Sol is the only GPT-5.6 lane'
-  'github.com/ElbertePlinio/'
-  '- Protect user work. Check status before staging, committing, merging, or cleaning.'
-  '- Treat untracked files as user-owned.'
-  '- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects.'
-  '- Commit messages must be English Conventional Commits.'
-  '- Never add attribution or trailers: no `Co-authored-by`, no `Signed-off-by`, no bot names, no noreply addresses, no model names, no AI signatures.'
-  '- `local-review` is the review-policy source of truth; do not restate its profiles, model composition, findings, or round rules elsewhere.'
-  '- Do not merge with failing required checks, unanswered valid findings, or an incomplete review required by the change'
-  '~/Projects/.worktrees/<repo-name>/<branch-name>'
-  'Run the narrowest behavioral validation that proves the change.'
-  "$HOME/AgentMemory"
-  'CORE_PROFILE.md'
-  'WRITING_STYLE.md'
-  'BOUNDARIES.md'
-  'WORK_AND_PROJECTS.md'
-  'projects/*.md'
-  'Never store secrets in memory.'
-  'never edit only a rendered `$HOME` file'
-  '- Use Context7 when library/API details matter.'
-  '- When dispatching a swarm or any multi-subagent wave, explicitly choose and state each task'"'"'s model and effort from the current table.'
-  '- Anything done or requested more than twice becomes a skill, command, or hook'
-  '- `xhigh` is the absolute effort ceiling. Never use `ultra`, `max`, or any effort above xhigh'
-  '- Establish the delivery mode before substantial work or any dispatch: plan-only, local-implement, or ship.'
-  '- For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation.'
-  '- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `ship-pr` when available.'
-  'intelligence > taste > cost'
-  'calibration 8 or above, never traded away'
-  'Provider reach is bound to the repository'
-)
 
 ADAPTER_BUDGETS=(
   'dot_claude/CLAUDE.md.tmpl|2400'
@@ -72,11 +31,6 @@ STALE_PI_FLOW_PATHS=(
   dot_pi/agent/agents/encrypted_git.md.age
   dot_pi/agent/agents/encrypted_planner.md.age
   dot_pi/agent/agents/encrypted_reviewer.md.age
-)
-
-ROUTING_SKILL_TARGETS=(
-  "$HOME/.agents/skills/model-orchestration/SKILL.md"
-  "$HOME/.agents/skills/model-orchestration/references/model-routing.md"
 )
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync.XXXXXX")"
@@ -149,62 +103,59 @@ check_os_gating
 check_portable_home_literals
 
 for f in "${SHARED[@]}"; do need "$f"; done
-[[ -f .chezmoitemplates/agents-shared.md ]] && \
-  grep -q 'agents-shared-before-worktrees.md' .chezmoitemplates/agents-shared.md && \
-  grep -q 'agents-shared-after-git.md' .chezmoitemplates/agents-shared.md && \
-  pass 'agents-shared.md composes parts' || err 'agents-shared.md must include before/after parts'
 
-shared_source_bytes=$((
-  $(wc -c <.chezmoitemplates/agents-shared-before-worktrees.md) +
-  $(wc -c <.chezmoitemplates/agents-shared-after-git.md) +
-  $(wc -c <.chezmoitemplates/agents-shared-destructive-actions.md) +
-  $(wc -c <.chezmoitemplates/agents-shared-public-actions.md) +
-  $(wc -c <.chezmoitemplates/agents-shared-memory.md)
-))
-if ((shared_source_bytes <= SHARED_MAX_BYTES)); then
-  pass "shared source size ${shared_source_bytes} bytes (recorded baseline ${SHARED_SOURCE_BASELINE}; budget ${SHARED_MAX_BYTES})"
+shared_bytes="$(wc -c <.chezmoitemplates/agents-shared.md)"
+if ((shared_bytes <= SHARED_MAX_BYTES)); then
+  pass "shared policy size ${shared_bytes} bytes (budget ${SHARED_MAX_BYTES})"
 else
-  err "shared source size ${shared_source_bytes} bytes exceeds ${SHARED_MAX_BYTES}-byte regression budget (recorded source baseline: ${SHARED_SOURCE_BASELINE})"
+  err "shared policy size ${shared_bytes} bytes exceeds ${SHARED_MAX_BYTES}-byte regression budget"
 fi
 
 if render .chezmoitemplates/agents-shared.md "$TMP/agents-shared.md"; then
-  shared_output_bytes="$(wc -c <"$TMP/agents-shared.md")"
-  if ((shared_output_bytes <= SHARED_MAX_BYTES)); then
-    pass "shared rendered size ${shared_output_bytes} bytes (recorded baseline ${SHARED_RENDERED_BASELINE}; budget ${SHARED_MAX_BYTES})"
-  else
-    err "shared rendered size ${shared_output_bytes} bytes exceeds ${SHARED_MAX_BYTES}-byte regression budget (recorded rendered baseline: ${SHARED_RENDERED_BASELINE})"
-  fi
-  for invariant in "${REQUIRED_SHARED_INVARIANTS[@]}"; do
-    grep -Fq -- "$invariant" "$TMP/agents-shared.md" \
-      && pass "shared output invariant: $invariant" || err "shared output invariant missing: $invariant"
-  done
+  pass 'shared template renders'
 else
   err 'shared template render failed'
-  rm -f "$TMP/agents-shared.md"
 fi
 
-if grep -Fq 'CODING_AGENT_RULES.md' "$TMP/agents-shared.md"; then
-  err 'shared global harness loader must not auto-load CODING_AGENT_RULES'
-else
-  pass 'shared global harness loader excludes CODING_AGENT_RULES'
-fi
+for path in "${RETIRED_SOURCE_PATHS[@]}"; do
+  source_absent "$path"
+done
+check_manifest_and_sources
+check_legacy_model_skill_absence
+check_skill_lock_retirements
+check_mcp_registry_and_config
+check_runtime_exclusions
 
-if [[ -f "$TMP/agents-shared.md" ]]; then
-  if grep -Fq '.agent-safety' "$TMP/agents-shared.md"; then
-    err 'shared policy still contains retired .agent-safety instructions'
-  else
-    pass 'shared policy excludes retired .agent-safety instructions'
-  fi
-fi
-for invariant in \
-  '- Never push unless I explicitly ask, except in clearly identified Pickforge or Personal projects.' \
-  '- Pickforge or Personal means the repo path or GitHub remote makes that ownership clear' \
-  '- In clearly identified Pickforge or Personal projects, treat ship/open-PR as automatic'; do
-  grep -Fq -- "$invariant" "$TMP/agents-shared.md" \
-    && pass "shared policy retains permission: $invariant" \
-    || err "shared policy permission missing: $invariant"
+for entry in "${HARNESS[@]}"; do
+  IFS='|' read -r path want forbid <<<"$entry"
+  if [[ ! -f "$path" ]]; then err "missing: $path"; continue; fi
+  grep -Fq 'template "agents-shared.md"' "$path" \
+    || err "missing shared include: $path"
+  for bad in 'I like short, practical work' 'names, model IDs, and technical terms' 'AgentMemory'; do
+    grep -Fq "$bad" "$path" && err "duplicate shared policy in $path: $bad"
+  done
+  out="$TMP/$(echo "$path" | tr '/' '_')"
+  if ! render "$path" "$out"; then err "render failed: $path"; continue; fi
+  pass "rendered $path"
+  grep -Fq "$want" "$out" || err "missing heading in $path: $want"
+  grep -Fq "$forbid" "$out" && err "forbidden heading in $path: $forbid"
+  [[ "$(grep -c 'I like short, practical work' "$out" || true)" -eq 1 ]] || err "shared intro count != 1 in $path"
+  grep -q PickScribe "$out" || err "missing PickScribe in $path"
+  grep -Fq 'AgentMemory' "$out" || err "missing AgentMemory in $path"
+  grep -Fq 'CODING_AGENT_RULES.md' "$out" \
+    && err "global harness auto-loads CODING_AGENT_RULES: $path" \
+    || pass "global harness excludes CODING_AGENT_RULES: $path"
 done
 
+for entry in "${ADAPTER_BUDGETS[@]}"; do
+  IFS='|' read -r path budget <<<"$entry"
+  bytes="$(wc -c <"$path")"
+  if ((bytes <= budget)); then
+    pass "adapter source size ${path}: ${bytes} bytes (budget ${budget})"
+  else
+    err "adapter source size ${path}: ${bytes} bytes exceeds ${budget}-byte regression budget"
+  fi
+done
 
 zsh_claude_wrapper="$(awk '
   /^claude\(\) \{/ { in_function=1 }
@@ -257,4 +208,3 @@ if [[ -f .chezmoitemplates/zshrc-linux ]]; then
 else
   err 'missing: .chezmoitemplates/zshrc-linux'
 fi
-

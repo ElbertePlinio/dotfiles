@@ -73,7 +73,6 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.pi/agent/skills/flutter-widget"
   "${HOME}/.omp/agent/AGENTS.md"
   "${HOME}/.omp/agent/config.yml"
-  "${HOME}/.omp/agent/agents"
   "${HOME}/.omp/agent/mcp.json"
   "${HOME}/.omp/agent/extensions/decision-audit-gate.ts"
   "${HOME}/.agents/.skill-lock.json"
@@ -83,8 +82,6 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.agents/desktop-capture.md"
   "${HOME}/.agents/browser-use.md"
   "${HOME}/.agents/codex-lane-override.md"
-  "${HOME}/.hermes/SOUL.md"
-  "${HOME}/.hermes/config.yaml"
   "${HOME}/.agents/skills"
   "${HOME}/.local/bin/pickforge-lanes-mcp"
   "${HOME}/.local/bin/sudo-askpass"
@@ -103,8 +100,6 @@ AGENT_ACTIVE_TARGETS=(
 # managed agent-config target is in neither list, when an entry is in both, and
 # when an exclusion goes stale — so this file cannot silently drift from the tree.
 AGENT_EXCLUDED_TARGETS=(
-  "${HOME}/.hermes/.env|live credential state, harness-owned"
-  "${HOME}/.hermes/auth.json|live credential state, harness-owned"
   "${HOME}/.pi/agent/auth.json|live credential state, harness-owned"
   "${HOME}/.pi/agent/mcp-oauth|live MCP OAuth token state, harness-owned"
   "${HOME}/.pi/agent/pi-hermes-memory|vestigial empty tree, nothing to push"
@@ -118,8 +113,7 @@ agent_config_scope_roots() {
     "${HOME}/.codex" \
     "${HOME}/.grok" \
     "${HOME}/.pi" \
-    "${HOME}/.omp" \
-    "${HOME}/.hermes"
+    "${HOME}/.omp"
 }
 
 cmd_targets() {
@@ -432,7 +426,6 @@ cmd_apply() {
     "${HOME}/.omp/agent/extensions" \
     "${HOME}/.omp/agent/skills" \
     "${HOME}/.agents/skills" \
-    "${HOME}/.hermes" \
     "${HOME}/.local/bin"
   if ! portable_output="$(portable_link_targets)"; then
     echo "agent-config-sync: cannot build portable skill targets" >&2
