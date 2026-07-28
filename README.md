@@ -351,14 +351,13 @@ Credentials for Codex and Context7 live in the repo, age-encrypted (see [Secrets
 | Path               | Contents                                  |
 |--------------------|-------------------------------------------|
 | `~/.claude.json`   | Claude Code auth / session                |
-| `~/.claude-mem/`   | Claude memory DB                          |
 | `~/.hermes/`       | Hermes data                               |
 | `~/.codex/sessions`, `logs_*.sqlite*`, `memories/` | Codex runtime state |
 | `~/.copilot/`      | GitHub Copilot token                      |
 
 ```bash
 tar --zstd -cf - -C ~ \
-  .claude.json .claude-mem .hermes .copilot \
+  .claude.json .hermes .copilot \
   | age -R ~/age-recipients.txt -o ~/ai-state.tar.zst.age
 ```
 

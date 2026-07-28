@@ -38,8 +38,6 @@ export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 export CHROME_EXECUTABLE=/usr/bin/google-chrome-stable
 
-alias claude-mem='bun "$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
-
 {{ template "zshrc-common" . -}}
 # Qwen3.6 35B A3B APEX - RX 9070 XT - 262K TurboQuant
 qwen262k() {

@@ -66,8 +66,6 @@ export PATH="$HOME/fvm/default/bin:$PATH"
 alias very_good="$HOME/fvm/default/bin/dart pub global run very_good_cli:very_good"
 export PATH="/opt/homebrew/bin:$PATH"
 
-alias claude-mem='"$HOME/.bun/bin/bun" "$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
-
 # bun completions
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
