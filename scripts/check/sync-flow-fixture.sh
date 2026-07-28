@@ -52,6 +52,7 @@ check_sync_command_flow() {
     dot_pi/agent/models.json
     dot_pi/agent/extensions/btw.ts
     dot_pi/agent/extensions/decision-audit-gate.ts
+    dot_pi/agent/extensions/delegation-gate.ts
     dot_pi/agent/skills/flutter-bloc/SKILL.md
     dot_pi/agent/skills/flutter-widget/SKILL.md
     dot_pi/agent/skills/symlink_probe
