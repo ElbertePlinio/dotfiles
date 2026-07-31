@@ -39,6 +39,19 @@ managed_regular_file_unchanged() {
   [[ "$actual" == "$expected" ]]
 }
 
+managed_directory_unchanged() {
+  local live="$1" file found=0
+  [[ -d "$live" && ! -L "$live" ]] || return 1
+  if [[ -n "$(find "$live" -mindepth 1 ! -type d ! -type f -print -quit)" ]]; then
+    return 1
+  fi
+  while IFS= read -r -d '' file; do
+    found=1
+    managed_regular_file_unchanged "$file" || return 1
+  done < <(find "$live" -type f -print0)
+  [[ "$found" -eq 1 ]]
+}
+
 MANIFEST="$ROOT/dot_agents/skill-targets.json"
 SKILL_LOCK="$ROOT/dot_agents/dot_skill-lock.json"
 MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"
@@ -71,7 +84,7 @@ RETIRED_SOURCE_PATHS=(
   dot_agents/skills/context7-mcp
   dot_agents/skills/find-skills
   dot_agents/skills/audit-report
-  dot_agents/skills/diagnosing-bugs
+  dot_codex/skills/ship-pr
   dot_claude/skills/kickoff
   dot_claude/skills/pickgauge-usage
   dot_claude/hooks/executable_kickoff-delegation-gate.sh.tmpl
@@ -106,6 +119,7 @@ RETIRED_TARGET_PATHS=(
   .agents/skills/superpowers
   .config/superpowers
   .codex/superpowers
+  .codex/skills/ship-pr
   .agents/skills/caveman
   .agents/skills/caveman-commit
   .agents/skills/caveman-compress
@@ -119,13 +133,11 @@ RETIRED_TARGET_PATHS=(
   .agents/skills/context7-mcp
   .agents/skills/find-skills
   .agents/skills/audit-report
-  .agents/skills/diagnosing-bugs
   .claude/skills/model-runners
   .claude/skills/multi-model-lanes
   .claude/skills/context7-mcp
   .claude/skills/find-skills
   .claude/skills/audit-report
-  .claude/skills/diagnosing-bugs
   .claude/skills/kickoff
   .claude/skills/pickgauge-usage
   .claude/hooks/kickoff-delegation-gate.sh
@@ -134,15 +146,12 @@ RETIRED_TARGET_PATHS=(
   .pi/agent/skills/context7-mcp
   .pi/agent/skills/find-skills
   .pi/agent/skills/audit-report
-  .pi/agent/skills/diagnosing-bugs
   .omp/agent/skills/model-runners
   .omp/agent/skills/context7-mcp
   .omp/agent/skills/find-skills
   .omp/agent/skills/audit-report
-  .omp/agent/skills/diagnosing-bugs
   .grok/skills/model-runners
   .grok/skills/find-skills
-  .grok/skills/diagnosing-bugs
   .hermes/skills/model-runners
   .hermes/skills/diagnosing-bugs
 )

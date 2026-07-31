@@ -36,14 +36,11 @@ check_sync_command_flow() {
     dot_claude/settings.json
     dot_claude/hooks/executable_decision-audit-gate.sh
     dot_claude/hooks/executable_delegation-gate.sh
-    dot_claude/skills/ship-pr/SKILL.md
-    dot_claude/skills/plan-issue/SKILL.md
     dot_agents/skills/model-orchestration/SKILL.md
     dot_codex/AGENTS.md
     dot_codex/agents/architecture-reviewer.toml
     dot_codex/model.json
     dot_codex/ollama-launch.config.toml
-    dot_codex/skills/ship-pr/SKILL.md
     dot_grok/AGENTS.md
     dot_grok/config.toml
     dot_pi/agent/AGENTS.md
@@ -53,8 +50,6 @@ check_sync_command_flow() {
     dot_pi/agent/extensions/btw.ts
     dot_pi/agent/extensions/decision-audit-gate.ts
     dot_pi/agent/extensions/delegation-gate.ts
-    dot_pi/agent/skills/flutter-bloc/SKILL.md
-    dot_pi/agent/skills/flutter-widget/SKILL.md
     dot_pi/agent/skills/symlink_probe
     dot_omp/agent/AGENTS.md
     dot_omp/agent/config.yml

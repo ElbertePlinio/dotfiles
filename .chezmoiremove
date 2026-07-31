@@ -13,6 +13,7 @@ Projects/Personal/.agent-safety
 .agents/skills/superpowers
 .config/superpowers
 .codex/superpowers
+.codex/skills/ship-pr
 .agents/skills/caveman
 .agents/skills/caveman-commit
 .agents/skills/caveman-compress
@@ -26,13 +27,11 @@ Projects/Personal/.agent-safety
 .agents/skills/context7-mcp
 .agents/skills/find-skills
 .agents/skills/audit-report
-.agents/skills/diagnosing-bugs
 .claude/skills/model-runners
 .claude/skills/multi-model-lanes
 .claude/skills/context7-mcp
 .claude/skills/find-skills
 .claude/skills/audit-report
-.claude/skills/diagnosing-bugs
 .claude/skills/kickoff
 .claude/skills/pickgauge-usage
 .claude/hooks/kickoff-delegation-gate.sh
@@ -41,14 +40,11 @@ Projects/Personal/.agent-safety
 .pi/agent/skills/context7-mcp
 .pi/agent/skills/find-skills
 .pi/agent/skills/audit-report
-.pi/agent/skills/diagnosing-bugs
 .omp/agent/skills/model-runners
 .omp/agent/skills/context7-mcp
 .omp/agent/skills/find-skills
 .omp/agent/skills/audit-report
-.omp/agent/skills/diagnosing-bugs
 .grok/skills/model-runners
 .grok/skills/find-skills
-.grok/skills/diagnosing-bugs
 .hermes/skills/model-runners
 .hermes/skills/diagnosing-bugs

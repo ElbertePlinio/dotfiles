@@ -251,8 +251,10 @@ check_live_portable_links() {
     if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
       if [[ -d "$canon" && -d "$link" ]] && dirs_identical "$link" "$canon"; then
         pass "live path identical to canonical (migratable): $harness/$skill"
+      elif managed_directory_unchanged "$link"; then
+        pass "live managed path unchanged (migratable): $harness/$skill"
       else
-        err "live non-symlink path differs from canonical: $link"
+        err "live non-symlink path has unmanaged or modified content: $link"
       fi
       continue
     fi
