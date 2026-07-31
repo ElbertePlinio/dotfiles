@@ -5,3 +5,5 @@
 | Opus 5 | `anthropic/claude-opus-5` | medium | 5 | 9 | 8 | 9 | yes |
 | Grok 4.5 | `xai/grok-4.5` (Pi, lanes MCP) / `xai-oauth/grok-4.5` (OMP) | high | 3 | 7 | 5 | 3 | yes |
 | Kimi K3 | `ollama/kimi-k3:cloud` | provider default | 4 | 8 | 8 | 4 | yes |
+
+`Start` is the initial effort prior. `Cost` is relative marginal routing cost (1 = cheapest), not subscription price. Scores are comparative routing context, not permanent roles.

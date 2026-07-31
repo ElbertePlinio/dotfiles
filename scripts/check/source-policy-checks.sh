@@ -64,6 +64,24 @@ for path in "${STALE_PI_FLOW_PATHS[@]}"; do
     || err "stale Pi flow source remains: $path"
 done
 
+if grep -Fq '`max` reasoning level is allowed' dot_pi/agent/AGENTS.md.tmpl \
+  && grep -Fq 'shared `xhigh` ceiling still applies to' dot_pi/agent/AGENTS.md.tmpl; then
+  pass 'Pi adapter allows main-session Max while preserving the lane ceiling'
+else
+  err 'Pi adapter Max exception is missing or overbroad'
+fi
+
+fast_extension='dot_pi/agent/extensions/fast-mode.ts'
+if [[ -f "$fast_extension" ]] \
+  && grep -Fq 'registerCommand("fast"' "$fast_extension" \
+  && grep -Fq 'service_tier: "priority"' "$fast_extension" \
+  && grep -Fq 'model?.provider === "openai-codex"' "$fast_extension"; then
+  pass 'Pi Fast mode extension maps supported Codex requests to priority tier'
+else
+  err 'Pi Fast mode extension is missing its command, provider guard, or priority mapping'
+fi
+unset fast_extension
+
 pi_settings=''
 if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; then
   if jq -e . >/dev/null 2>&1 <<<"$pi_settings"; then

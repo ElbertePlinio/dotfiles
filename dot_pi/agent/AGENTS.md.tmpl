@@ -2,6 +2,13 @@
 
 {{ template "agents-shared.md" . }}
 
+## Pi model modes
+
+For the interactive main `openai-codex/gpt-5.6-sol` session, a user-selected
+`max` reasoning level is allowed. The shared `xhigh` ceiling still applies to
+dispatched lanes. Keep `ultra` disabled; Pi uses explicit native lanes for
+multi-agent work.
+
 Include `plannotator-url` output when opening Plannotator or grill review so another Tailscale device can open it.
 
 ## Native model orchestration
@@ -16,14 +23,7 @@ Available managed pool:
 
 {{ template "model-table.md" }}
 
-`Start` is an initial effort prior. `Cost` is relative marginal routing cost
-(1 = cheapest). Scores are comparative routing context, not permanent roles.
-Grok stays at high; adjust other efforts to task uncertainty.
-
 Prefer Pi-native subagents over launching `claude`, `codex`, `grok`, or
 `ollama` CLIs from inside Pi. Keep the CLIs for provider-native features or
 when operating from another harness.
-
-The main model owns scope, model selection, synthesis, validation, and the
-final answer. Use parallel subagents only for genuinely independent work.
 

@@ -1,12 +1,15 @@
-I like short, practical work. Read the repo, make the smallest clean change, and show proof before calling something done.
+I like short, practical work. Understand the real constraint, make the smallest clean change that fully solves it, and show proof before calling it done. Bold alternatives are welcome when they materially simplify the result.
 
 ## Core behavior
 
 - Be direct: no filler or ceremony. Fix root causes, not symptoms.
+- **Fight for the obvious solution:** simple means cleanly decomposed with one job; obvious means the next reader understands why it exists. Refuse hypothetical problems, prefer clarity over cleverness, and push back before taking a less obvious path.
 - No hacks, monkey patches, fake fixes, temporary workarounds, or unrelated refactors.
 - Follow repo conventions; add explanatory comments only when asked.
-- Anything done or requested more than twice becomes a skill, command, or hook — propose the automation. When agent output needs repeated correction in a repo, install a machine-checkable gate (`gate-installer`) as part of the fix.
-- Establish the delivery mode before substantial work or any dispatch: plan-only, local-implement, or ship. Default is no push or merge until the mode allows it.
+- Anything done or requested more than twice becomes a skill, command, or hook — propose automation. Repeated agent corrections require a machine-checkable gate (`gate-installer`).
+- **Questions are read-only:** answer how, why, whether, feasibility, and opinion questions first; do not edit unless instructed. Offer trivial changes rather than making them.
+- Establish delivery mode before substantial work or dispatch: plan-only = no source edits; local-implement = edit and validate locally, no push or merge; ship = approved review/delivery flow. Default is no push or merge.
+- Preferences about style and workflow are defaults: surface conflicts and ask before deviating. Safety, privacy, and destructive-action boundaries remain hard.
 - Ask before changing architecture, persistence, auth, security, or scope; ask rather than assume when uncertainty affects the result.
 - Never expose, print, commit, or send secrets or private production data.
 - Destructive filesystem, Git, account, or external-service actions require explicit confirmation.
@@ -15,10 +18,10 @@ I like short, practical work. Read the repo, make the smallest clean change, and
 
 ## Model orchestration
 
-Select model and effort per call from the harness's model table; no permanent roles, no fixed provider sequences. The `model-orchestration` skill owns dispatch mechanics and quota checks. Rank the axes by what the task depends on: solving a defined problem — intelligence > taste > cost; an artifact that must survive review (UI, API, copy) — taste first; a verdict or severity — calibration 8 or above, never traded away, and lower-calibration findings route to an adjudicator.
+Select model and effort per call from the harness table; no permanent roles or fixed provider sequences. `model-orchestration` owns mechanics and quota checks. Rank by task: defined problem — intelligence > taste > cost; reviewable artifact — taste first; verdict or severity — calibration 8+, with lower-calibration findings adjudicated.
 
-- The orchestrator is the expensive lane. Delegate self-contained work — mechanical edits, test and build runs, doc lookups, log digging, bulk surveys, long validations — and keep scope, model selection, synthesis, and taste-heavy ownership. Escalate on bad output: judge the result, not the price.
-- State the delegation plan before the first edit of a multi-step task: which chunks dispatch to which lanes or subagents (model and effort each), which run in parallel, and what stays in-session and why. A delegation gate (Claude hook `delegation-gate.sh`, Pi extension `delegation-gate.ts`) enforces this once per session.
+- **Match ceremony to the task:** do one-pass work directly; delegate only genuinely independent, long-running, mechanical, or adversarial-review chunks. The main session keeps scope, routing, synthesis, validation, and taste.
+- Before the first edit of a multi-step task, state the delegation plan: chunks, model and effort per lane, parallel work, and what stays in-session and why. This is enforced by the delegation gate, which re-arms after 30 idle minutes.
 - Fable 5 and Opus 5 draw on separate quotas — spend outward. A Fable session prefers Opus lanes for long-horizon execution, large-context sweeps, and correctness review; an Opus session prefers Fable lanes for design authority, visual judgment, and taste review. Neither dispatches lanes of its own model for spec implementation or mechanical work.
 - Implementation from a precise spec routes to cheap lanes, Sol first, at low effort, under a written contract: files in scope, interfaces, acceptance criteria, what must not change, smallest diff, edge cases enumerated. If the contract cannot be written, the design is not ready — resolve it first with the highest-taste compatible candidate.
 - When dispatching a swarm or any multi-subagent wave, explicitly choose and state each task's model and effort from the current table. A default agent type is not a model selection.
@@ -33,7 +36,6 @@ Select model and effort per call from the harness's model table; no permanent ro
 - Never wrap commands where exact output matters: tests, analyzers, Dart, Flutter, FVM.
 - For `sudo` in non-interactive sessions, use `sudo -A` with `SUDO_ASKPASS=~/.local/bin/sudo-askpass`; never request, capture, or store the sudo password — if askpass is unavailable, stop and ask me to run it manually.
 - For X (Twitter) research, use the `x-search` skill.
-- Model-lane re-auth uses the provider's normal interactive login (Google `elberte.dev@gmail.com` for Claude, ChatGPT, and Ollama; Microsoft `eoberte@outlook.com` for Grok). Never handle passwords, recovery codes, 2FA codes, cookies, or tokens; if login cannot complete without me, stop and prompt me.
 
 ## UI and UX
 
@@ -66,7 +68,7 @@ Keep Markdown short, useful, and human-written. For substantial plans or reports
 
 ## Before finishing
 
-Run the narrowest behavioral validation that proves the change. If blocked, say why and name the command. Final coding reports are evidence-based: changed, validated, risks/uncertainties, and next action only if needed. Subagent and lane reports include a decision list — every choice the user or plan did not specify, low-confidence ones flagged with their plausible alternative, and fixes resting on incidental choices surfaced as open decisions; the orchestrator reviews decisions before diffs (`~/.claude/hooks/decision-audit-gate.sh` enforces this at the session's first push or PR).
+Run the narrowest behavioral validation that proves the change. If blocked, say why and name the command. Exact numbers that drive decisions name their measurement or source. Developer-facing failures name what failed, the expectation or limit, actual state or request, and next step; never fail silently. Final coding reports contain changed, validated, risks/uncertainties, and next action only when needed. Lane reports list every unspecified choice and low-confidence alternatives; review them before diffs.
 
 ## Pickforge issue workflow
 

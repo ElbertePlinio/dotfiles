@@ -28,6 +28,16 @@ For first-machine setup or a harness-only request such as "sync only Pi", read [
 7. For shared/full scope, run `agent-config-sync apply`. For harness-only scope, use the reference's scoped `chezmoi apply` targets; never pass a harness name to the CLI.
 8. Confirm `agent-config-sync check-live` passes and report source changes, validation, and unresolved risks.
 
+## Behavior-driven policy updates
+
+When updating policy from agent behavior:
+
+1. Inspect only representative, relevant local sessions; categorize recurring or expensive failures.
+2. For each category, ask why that path was chosen and whether current instructions contributed.
+3. Record only anonymized categories and counts; never promote secrets or private/proprietary content.
+4. Add permanent prose only for a demonstrated failure. Prefer machine gates for repeated corrections, and remove or narrow stale rules.
+5. Report the sessions sampled, anonymized category counts, instruction contribution, and resulting prose/gate/removal decision.
+
 ## Skill quality gate
 
 Apply when creating or materially rewriting any skill:

@@ -10,8 +10,6 @@ Available managed pool:
 
 {{ template "model-table.md" }}
 
-`Start` is an initial effort prior; `Cost` is relative marginal routing cost (1 = cheapest). Scores are comparative routing context, not permanent roles.
-
 - Claude subagents use the Agent or Workflow model parameter. Cross-provider lanes (Sol, Grok, Kimi) go through the `pickforge-lanes` MCP tools, which reject Anthropic selectors by design. The `model-orchestration` skill owns dispatch mechanics.
 - Workers and reviewers are leaves unless the main session explicitly authorizes fan-out.
 - When Claude is invoked non-interactively as a worker under another orchestrator, do the assigned work directly and do not re-delegate.

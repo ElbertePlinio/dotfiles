@@ -30,6 +30,10 @@ non-repository directory, or any doubt restricts to the Anthropic and OpenAI lan
 dispatch fails rather than leaking. Treat that as a backstop, not permission to skip
 the check when planning.
 
+## Provider re-authentication
+
+Use each provider's normal interactive login: Google `elberte.dev@gmail.com` for Claude, ChatGPT, and Ollama; Microsoft `eoberte@outlook.com` for Grok. Never handle passwords, recovery codes, 2FA codes, cookies, or tokens. If login cannot complete without the user, stop and prompt them.
+
 ## Quota headroom
 
 Before a multi-task dispatch wave, check pool headroom once (not before every call):

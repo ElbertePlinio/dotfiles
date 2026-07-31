@@ -173,6 +173,7 @@ check_active_target_completeness() {
     'dot_local/bin/executable_pickforge-lanes-mcp|.local/bin/pickforge-lanes-mcp'
     'dot_pi/agent/settings.json|.pi/agent/settings.json'
     'dot_pi/agent/extensions/btw.ts|.pi/agent/extensions/btw.ts'
+    'dot_pi/agent/extensions/fast-mode.ts|.pi/agent/extensions/fast-mode.ts'
   )
 
   need "$sync_command"

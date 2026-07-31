@@ -38,14 +38,6 @@ Available managed pool:
 
 {{ template "model-table.md" }}
 
-`Start` is an initial reasoning-effort prior, not a role assignment. `Cost` is
-relative marginal routing cost (1 = cheapest), not subscription price. Ratings
-are comparative routing context — adjust for the task's uncertainty, context
-size, and validation surface.
-
 Prefer OMP-native subagents over launching `claude`, `codex`, `grok`, or
 `ollama` CLIs from inside OMP. Keep the CLIs for provider-native features or
 when operating from another harness.
-
-The main model owns scope, model selection, synthesis, validation, and the
-final answer.
