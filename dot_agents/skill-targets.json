@@ -131,6 +131,27 @@
       "grok",
       "pi",
       "omp"
+    ],
+    "stripe-docs": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
+    ],
+    "stripe-best-practices": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
+    ],
+    "upgrade-stripe": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
     ]
   }
 }
