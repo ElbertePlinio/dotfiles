@@ -67,6 +67,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.pi/agent/mcp.json"
   "${HOME}/.pi/agent/models.json"
   "${HOME}/.pi/agent/extensions/btw.ts"
+  "${HOME}/.pi/agent/extensions/fast-mode.ts"
   "${HOME}/.pi/agent/extensions/decision-audit-gate.ts"
   "${HOME}/.pi/agent/extensions/delegation-gate.ts"
   "${HOME}/.omp/agent/AGENTS.md"
@@ -80,6 +81,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.agents/desktop-capture.md"
   "${HOME}/.agents/browser-use.md"
   "${HOME}/.agents/codex-lane-override.md"
+  "${HOME}/.agents/stripe.env"
   "${HOME}/.agents/skills"
   "${HOME}/.local/bin/pickforge-lanes-mcp"
   "${HOME}/.local/bin/sudo-askpass"
@@ -90,6 +92,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.claude/settings.json"
   "${HOME}/.claude/hooks/decision-audit-gate.sh"
   "${HOME}/.claude/hooks/delegation-gate.sh"
+  "${HOME}/.claude/hooks/orchestration-reminder.sh"
 )
 
 # Managed agent-config targets that apply must never push, each with the reason

@@ -36,6 +36,7 @@ check_sync_command_flow() {
     dot_claude/settings.json
     dot_claude/hooks/executable_decision-audit-gate.sh
     dot_claude/hooks/executable_delegation-gate.sh
+    dot_claude/hooks/executable_orchestration-reminder.sh
     dot_agents/skills/model-orchestration/SKILL.md
     dot_codex/AGENTS.md
     dot_codex/agents/architecture-reviewer.toml
@@ -48,6 +49,7 @@ check_sync_command_flow() {
     dot_pi/agent/mcp.json
     dot_pi/agent/models.json
     dot_pi/agent/extensions/btw.ts
+    dot_pi/agent/extensions/fast-mode.ts
     dot_pi/agent/extensions/decision-audit-gate.ts
     dot_pi/agent/extensions/delegation-gate.ts
     dot_pi/agent/skills/symlink_probe
@@ -62,6 +64,7 @@ check_sync_command_flow() {
     dot_agents/desktop-capture.md
     dot_agents/browser-use.md
     dot_agents/codex-lane-override.md
+    dot_agents/private_stripe.env
     dot_agents/skills/probe/SKILL.md
     dot_local/bin/executable_sudo-askpass
     dot_local/bin/executable_pickforge-lanes-mcp
@@ -155,6 +158,7 @@ EOF
       && grep -Fxq managed "$flow_home/.agents/browser-use.md" \
       && grep -Fxq managed "$flow_home/.pi/agent/settings.json" \
       && grep -Fxq managed "$flow_home/.pi/agent/extensions/btw.ts" \
+      && grep -Fxq managed "$flow_home/.pi/agent/extensions/fast-mode.ts" \
       && [[ -L "$flow_home/.pi/agent/skills/probe" ]] \
       && [[ "$(readlink "$flow_home/.pi/agent/skills/probe")" == '../../../.agents/skills/probe' ]] \
       && [[ ! -e "$flow_home/.retired-agent-config-probe" \
@@ -167,7 +171,7 @@ EOF
       && cmp -s "$expected_log" "$flow_log"; then
       pass 'temporary scoped sync updates skill-lock metadata target from source'
       pass 'temporary scoped sync applies browser-use policy target'
-      pass 'temporary scoped sync applies curated Pi settings and btw extension targets'
+      pass 'temporary scoped sync applies curated Pi settings and extension targets'
       pass 'temporary scoped sync removes present retirement and skips absent retirement'
       pass 'temporary sync applies only agent targets and retirements without implicit run scripts'
       pass 'temporary sync invokes managed pickforge-lanes registration once after target apply'

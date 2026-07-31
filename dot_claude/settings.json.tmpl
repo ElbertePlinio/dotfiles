@@ -70,6 +70,7 @@
     ],
     "defaultMode": "auto"
   },
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -97,6 +98,10 @@
           {
             "type": "command",
             "command": "codegraph prompt-hook"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/orchestration-reminder.sh"
           }
         ]
       }
@@ -115,7 +120,8 @@
     "vercel@claude-plugins-official": false,
     "codex@openai-codex": false,
     "stripe@claude-plugins-official": false,
-    "pyright-lsp@claude-plugins-official": true
+    "pyright-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "very-good-claude-code-marketplace": {
@@ -137,7 +143,7 @@
       }
     }
   },
-  "effortLevel": "high",
+  "effortLevel": "medium",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
