@@ -2,8 +2,6 @@ TARGETS=(
   "$DEST/.zshrc" "$DEST/.bashrc"
   "$DEST/.claude/CLAUDE.md"
   "$DEST/.claude/rules/context7.md" "$DEST/.claude/settings.json"
-  "$DEST/.claude/skills/ship-pr/SKILL.md"
-  "$DEST/.claude/skills/plan-issue/SKILL.md"
   "$DEST/.codex/AGENTS.md"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json"
@@ -17,8 +15,6 @@ EXPECTED=(
   dot_zshrc.tmpl dot_bashrc
   dot_claude/CLAUDE.md.tmpl
   dot_claude/rules/context7.md dot_claude/settings.json.tmpl
-  dot_claude/skills/ship-pr/SKILL.md
-  dot_claude/skills/plan-issue/private_SKILL.md
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/config.yml dot_omp/agent/mcp.json.tmpl
@@ -38,12 +34,9 @@ fi
 chezmoi "${TMP_SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TMP/st.err" \
   && pass 'dry-run status (temp dest)' || err "dry-run status failed: $(tr '\n' ' ' <"$TMP/st.err")"
 
-mkdir -p "$DEST/.grok" \
+mkdir -p "$DEST/.grok" "$DEST/.codex" \
   "$DEST/.local/bin" \
-  "$DEST/.claude/rules" \
-  "$DEST/.claude/skills/ship-pr" \
-  "$DEST/.claude/skills/plan-issue" \
-  "$DEST/.codex/skills/ship-pr" \
+  "$DEST/.claude/rules" "$DEST/.claude/skills" \
   "$DEST/.grok/skills" \
   "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
   "$DEST/.agents/skills"
@@ -165,6 +158,28 @@ if managed_regular_file_unchanged "$PENDING_FILE"; then
   err 'managed pending drift accepted divergent target'
 else
   pass 'managed pending drift rejects divergent target'
+fi
+
+PENDING_DIR="$TMP/managed-pending-directory"
+mkdir -p "$PENDING_DIR"
+printf '%s\n' managed >"$PENDING_DIR/SKILL.md"
+if managed_directory_unchanged "$PENDING_DIR"; then
+  pass 'managed pending directory accepts unchanged prior target'
+else
+  err 'managed pending directory rejected unchanged prior target'
+fi
+printf '%s\n' divergent >>"$PENDING_DIR/SKILL.md"
+if managed_directory_unchanged "$PENDING_DIR"; then
+  err 'managed pending directory accepted divergent target'
+else
+  pass 'managed pending directory rejects divergent target'
+fi
+printf '%s\n' managed >"$PENDING_DIR/SKILL.md"
+ln -s "$PENDING_FILE" "$PENDING_DIR/unmanaged-link"
+if managed_directory_unchanged "$PENDING_DIR"; then
+  err 'managed pending directory accepted unmanaged symlink'
+else
+  pass 'managed pending directory rejects unmanaged symlink'
 fi
 unset -f chezmoi
 

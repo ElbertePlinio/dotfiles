@@ -35,6 +35,56 @@ check_doctor_sources() {
 
 check_manifest_and_sources() {
   need "$MANIFEST"
+  local portable_policy="$ROOT/scripts/check/portable-skill-policy.py"
+  need "$portable_policy"
+  if python3 "$portable_policy" "$ROOT" "$MANIFEST" >/dev/null; then
+    pass 'portable skill source policy valid'
+  else
+    err 'portable skill source policy invalid'
+  fi
+
+  local mutation_root="$TMP/portable-policy-mutation"
+  rm -rf "$mutation_root"
+  mkdir -p "$mutation_root/.chezmoitemplates" "$mutation_root/dot_agents"
+  cp -R "$ROOT/dot_agents/skills" "$mutation_root/dot_agents/skills"
+  cp "$ROOT/.chezmoitemplates/agents-shared.md" "$mutation_root/.chezmoitemplates/agents-shared.md"
+  cp "$MANIFEST" "$mutation_root/dot_agents/skill-targets.json"
+  jq 'del(.skills["plan-issue"])' "$MANIFEST" >"$mutation_root/missing.json"
+  if ! python3 "$portable_policy" "$mutation_root" "$mutation_root/missing.json" >/dev/null 2>&1; then
+    pass 'portable skill policy rejects missing plan-issue registry entry'
+  else
+    err 'portable skill policy accepted missing plan-issue registry entry'
+  fi
+  jq 'del(.skills["ship-pr"])' "$MANIFEST" >"$mutation_root/missing.json"
+  if ! python3 "$portable_policy" "$mutation_root" "$mutation_root/missing.json" >/dev/null 2>&1; then
+    pass 'portable skill policy rejects missing ship-pr registry entry'
+  else
+    err 'portable skill policy accepted missing ship-pr registry entry'
+  fi
+  local protected_skill
+  for protected_skill in diagnosing-bugs flutter-bloc flutter-widget; do
+    jq --arg skill "$protected_skill" 'del(.skills[$skill])' "$MANIFEST" >"$mutation_root/missing.json"
+    if ! python3 "$portable_policy" "$mutation_root" "$mutation_root/missing.json" >/dev/null 2>&1; then
+      pass "portable skill policy rejects missing $protected_skill registry entry"
+    else
+      err "portable skill policy accepted missing $protected_skill registry entry"
+    fi
+  done
+  printf '\nUse `%s` for this workflow.\n' 'missing-workflow' >>"$mutation_root/.chezmoitemplates/agents-shared.md"
+  if ! python3 "$portable_policy" "$mutation_root" "$MANIFEST" >/dev/null 2>&1; then
+    pass 'portable skill policy rejects shared-policy skill without canonical source'
+  else
+    err 'portable skill policy accepted shared-policy skill without canonical source'
+  fi
+  cp "$ROOT/.chezmoitemplates/agents-shared.md" "$mutation_root/.chezmoitemplates/agents-shared.md"
+  mkdir -p "$mutation_root/dot_codex/skills/duplicate"
+  cp "$ROOT/dot_agents/skills/ship-pr/SKILL.md" "$mutation_root/dot_codex/skills/duplicate/private_SKILL.md.tmpl"
+  if ! python3 "$portable_policy" "$mutation_root" "$MANIFEST" >/dev/null 2>&1; then
+    pass 'portable skill policy rejects attributed duplicate outside the registry source roots'
+  else
+    err 'portable skill policy accepted attributed duplicate outside the registry source roots'
+  fi
+
   if ! jq -e . "$MANIFEST" >/dev/null 2>&1; then
     err "manifest is not valid JSON: $MANIFEST"
     return

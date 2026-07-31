@@ -1,11 +1,11 @@
 ---
 name: plan-issue
-description: Use GitHub Issues as the planning and progress source of truth for Pickforge work. Create/read/update issues, maintain phone-friendly checklists, link PRs, and file follow-up issues for deferred findings.
+description: Use GitHub Issues as the planning and progress source of truth for Pickforge work, including repos whose AGENTS.md declares the Pickforge issue workflow. Create/read/update issues, maintain phone-friendly checklists, link PRs, and file follow-up issues for deferred findings.
 ---
 
 # Plan Issue
 
-Use this skill for substantial work in any repo under `~/Projects/Pickforge`, or whenever the user asks to plan/track work through GitHub Issues.
+Use this skill for substantial work in any repo under `~/Projects/Pickforge`, in any repo whose `AGENTS.md` declares the Pickforge issue workflow, or whenever the user asks to plan/track work through GitHub Issues.
 
 Goal: GitHub Issues are the canonical plan/progress tracker. Local todos are only a mirror for the current agent session.
 

@@ -47,7 +47,7 @@ Select model and effort per call from the harness's model table; no permanent ro
 - Pickforge or Personal means the repo path or GitHub remote makes that ownership clear, such as `~/Projects/Pickforge/...`, `~/Projects/Personal/...`, `github.com/pickforge/...`, or `github.com/ElbertePlinio/...`.
 - Commit messages must be English Conventional Commits.
 - Never add attribution or trailers: no `Co-authored-by`, no `Signed-off-by`, no bot names, no noreply addresses, no model names, no AI signatures. Never use the word "Claude" in commit messages.
-- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `ship-pr` when available. Run `local-review` after focused behavioral validation and before opening or merging the PR.
+- For "ship it", "open a PR", "usual PR flow", or requests to review and merge a branch, use `ship-pr`. Run `local-review` after focused behavioral validation and before opening or merging the PR.
 - In clearly identified Pickforge or Personal projects, treat ship/open-PR as automatic when it is the natural next step; outside those projects, ask first.
 - `local-review` is the review-policy source of truth; do not restate its profiles, model composition, findings, or round rules elsewhere.
 - Do not merge with failing required checks, unanswered valid findings, or an incomplete review required by the change's risk class. Promote generalizable review findings and repeated corrections into the repo's `AGENTS.md` or curated memory in the same PR.
@@ -70,7 +70,7 @@ Run the narrowest behavioral validation that proves the change. If blocked, say 
 
 ## Pickforge issue workflow
 
-Under `~/Projects/Pickforge`, follow workspace `AGENTS.md`. Use `plan-issue` when available so GitHub Issues stay the phone-friendly source of truth, with PR links and deferred-finding follow-ups.
+Under `~/Projects/Pickforge`, follow workspace `AGENTS.md`. Use `plan-issue` so GitHub Issues stay the phone-friendly source of truth, with PR links and deferred-finding follow-ups.
 
 ## Shared Agent Memory
 

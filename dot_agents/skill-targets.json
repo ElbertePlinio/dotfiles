@@ -96,6 +96,41 @@
       "grok",
       "pi",
       "omp"
+    ],
+    "plan-issue": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
+    ],
+    "ship-pr": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
+    ],
+    "diagnosing-bugs": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
+    ],
+    "flutter-bloc": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
+    ],
+    "flutter-widget": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
     ]
   }
 }

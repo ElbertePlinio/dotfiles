@@ -60,7 +60,6 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.codex/agents"
   "${HOME}/.codex/model.json"
   "${HOME}/.codex/ollama-launch.config.toml"
-  "${HOME}/.codex/skills/ship-pr"
   "${HOME}/.grok/AGENTS.md"
   "${HOME}/.grok/config.toml"
   "${HOME}/.pi/agent/AGENTS.md"
@@ -70,8 +69,6 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.pi/agent/extensions/btw.ts"
   "${HOME}/.pi/agent/extensions/decision-audit-gate.ts"
   "${HOME}/.pi/agent/extensions/delegation-gate.ts"
-  "${HOME}/.pi/agent/skills/flutter-bloc"
-  "${HOME}/.pi/agent/skills/flutter-widget"
   "${HOME}/.omp/agent/AGENTS.md"
   "${HOME}/.omp/agent/config.yml"
   "${HOME}/.omp/agent/mcp.json"
@@ -93,8 +90,6 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.claude/settings.json"
   "${HOME}/.claude/hooks/decision-audit-gate.sh"
   "${HOME}/.claude/hooks/delegation-gate.sh"
-  "${HOME}/.claude/skills/ship-pr"
-  "${HOME}/.claude/skills/plan-issue"
 )
 
 # Managed agent-config targets that apply must never push, each with the reason
