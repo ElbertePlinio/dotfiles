@@ -82,6 +82,17 @@ else
 fi
 unset fast_extension
 
+compaction_extension='dot_pi/agent/extensions/model-compaction-threshold.ts'
+if [[ -f "$compaction_extension" ]] \
+  && grep -Fq 'provider: "openai-codex"' "$compaction_extension" \
+  && grep -Fq 'id: "gpt-5.6-sol"' "$compaction_extension" \
+  && grep -Fq 'COMPACTION_THRESHOLD_TOKENS = 150_000' "$compaction_extension"; then
+  pass 'Pi model-specific compaction threshold targets GPT-5.6 Sol at 150k tokens'
+else
+  err 'Pi model-specific compaction threshold has the wrong model or token limit'
+fi
+unset compaction_extension
+
 pi_settings=''
 if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; then
   if jq -e . >/dev/null 2>&1 <<<"$pi_settings"; then

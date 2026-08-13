@@ -174,6 +174,7 @@ check_active_target_completeness() {
     'dot_pi/agent/settings.json|.pi/agent/settings.json'
     'dot_pi/agent/extensions/btw.ts|.pi/agent/extensions/btw.ts'
     'dot_pi/agent/extensions/fast-mode.ts|.pi/agent/extensions/fast-mode.ts'
+    'dot_pi/agent/extensions/model-compaction-threshold.ts|.pi/agent/extensions/model-compaction-threshold.ts'
   )
 
   need "$sync_command"

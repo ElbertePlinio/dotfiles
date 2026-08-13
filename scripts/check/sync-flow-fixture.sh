@@ -50,6 +50,7 @@ check_sync_command_flow() {
     dot_pi/agent/models.json
     dot_pi/agent/extensions/btw.ts
     dot_pi/agent/extensions/fast-mode.ts
+    dot_pi/agent/extensions/model-compaction-threshold.ts
     dot_pi/agent/extensions/decision-audit-gate.ts
     dot_pi/agent/extensions/delegation-gate.ts
     dot_pi/agent/skills/symlink_probe
@@ -159,6 +160,7 @@ EOF
       && grep -Fxq managed "$flow_home/.pi/agent/settings.json" \
       && grep -Fxq managed "$flow_home/.pi/agent/extensions/btw.ts" \
       && grep -Fxq managed "$flow_home/.pi/agent/extensions/fast-mode.ts" \
+      && grep -Fxq managed "$flow_home/.pi/agent/extensions/model-compaction-threshold.ts" \
       && [[ -L "$flow_home/.pi/agent/skills/probe" ]] \
       && [[ "$(readlink "$flow_home/.pi/agent/skills/probe")" == '../../../.agents/skills/probe' ]] \
       && [[ ! -e "$flow_home/.retired-agent-config-probe" \
