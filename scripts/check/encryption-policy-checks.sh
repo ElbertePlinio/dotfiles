@@ -16,6 +16,8 @@ ENCRYPTION_ALLOWED_SOURCES=(
   'dot_pi/agent/encrypted_private_auth.json.age|Pi provider credentials'
   'dot_pi/agent/private_mcp-oauth/*/encrypted_private_tokens.json.age|Pi MCP OAuth token state'
   'private_dot_context7/encrypted_private_credentials.json.age|Context7 API credentials'
+  'dot_agents/encrypted_private_deepseek.env.age|DeepSeek API credential'
+  'dot_agents/encrypted_private_stripe.env.age|Stripe API credentials'
 )
 
 # Rendered target basenames that must never be committed in plaintext.

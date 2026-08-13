@@ -1,8 +1,8 @@
 {
-  "lastChangelogVersion": "0.79.10",
+  "lastChangelogVersion": "0.84.1",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
-  "defaultThinkingLevel": "high",
+  "defaultThinkingLevel": "medium",
   "packages": [
     "npm:pi-mcp-adapter",
     "npm:pi-bar",
@@ -15,6 +15,7 @@
   "enabledModels": [
     "anthropic/claude-fable-5",
     "anthropic/claude-opus-5",
+    "deepseek-official/deepseek-v4-flash",
     "ollama/kimi-k3:cloud",
     "openai-codex/gpt-5.6-sol",
     "xai/grok-4.5"

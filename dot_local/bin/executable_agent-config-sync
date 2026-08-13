@@ -82,6 +82,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.agents/desktop-capture.md"
   "${HOME}/.agents/browser-use.md"
   "${HOME}/.agents/codex-lane-override.md"
+  "${HOME}/.agents/deepseek.env"
   "${HOME}/.agents/stripe.env"
   "${HOME}/.agents/skills"
   "${HOME}/.local/bin/pickforge-lanes-mcp"

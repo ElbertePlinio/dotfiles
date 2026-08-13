@@ -53,6 +53,39 @@
         }
       ]
     },
+    "deepseek-official": {
+      "name": "DeepSeek",
+      "baseUrl": "https://api.deepseek.com",
+      "api": "openai-completions",
+      "apiKey": "!sed -n 's/^DEEPSEEK_API_KEY=//p' \"$HOME/.agents/deepseek.env\"",
+      "models": [
+        {
+          "id": "deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 384000,
+          "cost": {
+            "input": 0.14,
+            "output": 0.28,
+            "cacheRead": 0.028,
+            "cacheWrite": 0
+          },
+          "compat": {
+            "thinkingFormat": "deepseek",
+            "requiresReasoningContentOnAssistantMessages": true
+          },
+          "thinkingLevelMap": {
+            "minimal": "high",
+            "low": "high",
+            "medium": "high",
+            "high": "high",
+            "xhigh": "max"
+          }
+        }
+      ]
+    },
     "ollama": {
       "name": "Ollama Cloud",
       "baseUrl": "https://ollama.com/v1",

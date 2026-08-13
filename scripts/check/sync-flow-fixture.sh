@@ -65,6 +65,7 @@ check_sync_command_flow() {
     dot_agents/desktop-capture.md
     dot_agents/browser-use.md
     dot_agents/codex-lane-override.md
+    dot_agents/private_deepseek.env
     dot_agents/private_stripe.env
     dot_agents/skills/probe/SKILL.md
     dot_local/bin/executable_sudo-askpass

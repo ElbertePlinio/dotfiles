@@ -106,8 +106,8 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
     jq -e '.enabledModels | any(. == "xai/grok-4.5")' >/dev/null <<<"$pi_settings" \
       && pass 'Pi enabled models include native Grok 4.5' \
       || err 'Pi enabled models missing native Grok 4.5'
-    jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-5.6-sol" and .defaultThinkingLevel == "high"' >/dev/null <<<"$pi_settings" \
-      && pass 'Pi canonical bootstrap defaults to GPT-5.6 Sol at high effort' \
+    jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-5.6-sol" and .defaultThinkingLevel == "medium"' >/dev/null <<<"$pi_settings" \
+      && pass 'Pi canonical bootstrap defaults to GPT-5.6 Sol at medium effort' \
       || err 'Pi canonical GPT-5.6 Sol bootstrap default is missing or misconfigured'
   else
     err 'Pi settings JSON invalid'
@@ -124,6 +124,11 @@ if pi_models="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/models.json")"; then
     jq -e '.providers.ollama.models | any(.id == "kimi-k3:cloud")' >/dev/null <<<"$pi_models" \
       && pass 'Pi models include Ollama Kimi K3 Cloud' \
       || err 'Pi models missing Ollama Kimi K3 Cloud'
+    jq -e '.providers["deepseek-official"]
+      | .apiKey == "!sed -n '\''s/^DEEPSEEK_API_KEY=//p'\'' \"$HOME/.agents/deepseek.env\""
+      and any(.models[]; .id == "deepseek-v4-flash")' >/dev/null <<<"$pi_models" \
+      && pass 'Pi models include DeepSeek V4 Flash with encrypted credential indirection' \
+      || err 'Pi models missing DeepSeek V4 Flash or safe credential indirection'
   else
     err 'Pi models JSON invalid'
   fi

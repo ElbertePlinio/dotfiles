@@ -170,6 +170,7 @@ check_active_target_completeness() {
     'dot_agents/dot_skill-lock.json|.agents/.skill-lock.json'
     'dot_agents/skill-targets.json|.agents/skill-targets.json'
     'dot_agents/mcp-targets.json|.agents/mcp-targets.json'
+    'dot_agents/encrypted_private_deepseek.env.age|.agents/deepseek.env'
     'dot_local/bin/executable_pickforge-lanes-mcp|.local/bin/pickforge-lanes-mcp'
     'dot_pi/agent/settings.json|.pi/agent/settings.json'
     'dot_pi/agent/extensions/btw.ts|.pi/agent/extensions/btw.ts'
