@@ -106,8 +106,15 @@ write_catalog() {
       "binary": "pi",
       "versionArgs": ["--version"],
       "configPaths": ["~/.pi/agent/settings.json"],
-      "providerAuth": {"path": "~/.pi/agent/auth.json", "modelsPath": "~/.pi/agent/models.json", "env": {"anthropic": ["ANTHROPIC_API_KEY"], "openai": ["OPENAI_API_KEY"]}},
+      "providerAuth": {"path": "~/.pi/agent/auth.json", "modelsPath": "~/.pi/agent/models.json", "env": {"anthropic": ["ANTHROPIC_API_KEY"], "openai": ["OPENAI_API_KEY"], "xai": ["XAI_API_KEY"]}},
       "mcp": {"path": "~/.pi/agent/mcp.json", "root": "mcpServers", "disabledKey": "disabledServers"}
+    },
+    "grok": {
+      "displayName": "Grok",
+      "binary": "grok",
+      "versionArgs": ["--version"],
+      "configPaths": ["~/.grok/config.toml"],
+      "authFile": "~/.grok/auth.json"
     },
     "online": {
       "displayName": "Online",
@@ -128,6 +135,7 @@ write_catalog() {
       "binary": "omp",
       "versionArgs": ["--version"],
       "configPaths": ["~/.omp/agent/config.json"],
+      "onlineProbe": ["usage", "--provider", "xai-oauth", "--json", "--redact"],
       "mcp": {"path": "~/.omp/agent/mcp.json", "root": "mcpServers", "disabledKey": "disabledServers"}
     }
   }
@@ -333,6 +341,23 @@ assert_rc 1 'explicit logged-out authentication status is required failure'
 next_test; setup_case; make_harness online online '.online/config.json'; write_mock online 'if [ "${1:-}" = "--version" ]; then echo "online 1"; exit 0; fi; echo "CHILD_SECRET_SENTINEL"; sleep 20'; run_doctor --online --json
 assert_json 'any(.checks[]; .id == "online.online.auth" and .status == "unknown" and .required and (.message | contains("timed out")))' 'online timeout is normalized to required unknown'
 next_test; assert_not_contains 'CHILD_SECRET_SENTINEL' 'timed-out online probe never leaks child secret'
+
+next_test; setup_case; make_harness pi pi '.pi/agent/settings.json'; mkdir -p "$HOME_DIR/.pi/agent"; printf '{"xai":{}}\n' >"$HOME_DIR/.pi/agent/auth.json"; write_mock pi 'if [ "${1:-}" = "--version" ]; then echo "pi 1"; exit 0; fi; printf "{\"status\":\"ready\",\"credential\":\"CHILD_SECRET_SENTINEL\"}\n"'; write_requirements '["pi"]' '{"pi":["xai"]}'; run_doctor --online --json
+assert_json 'any(.checks[]; .id == "online.pi.provider.xai" and .status == "pass")' 'Pi provider auth readiness is checked online'
+next_test; assert_not_contains 'CHILD_SECRET_SENTINEL' 'successful Pi auth probe never leaks child credentials'
+next_test; setup_case; make_harness pi pi '.pi/agent/settings.json'; mkdir -p "$HOME_DIR/.pi/agent"; printf '{"xai":{}}\n' >"$HOME_DIR/.pi/agent/auth.json"; write_mock pi 'if [ "${1:-}" = "--version" ]; then echo "pi 1"; exit 0; fi; echo CHILD_SECRET_SENTINEL; exit 9'; write_requirements '["pi"]' '{"pi":["xai"]}'; run_doctor --online --json
+assert_json 'any(.checks[]; .id == "online.pi.provider.xai" and .status == "fail")' 'failed Pi provider auth readiness is required failure'
+next_test; assert_not_contains 'CHILD_SECRET_SENTINEL' 'failed Pi auth probe never leaks child credentials'
+
+next_test; setup_case; make_harness grok grok '.grok/config.toml'; mkdir -p "$HOME_DIR/.grok"; printf '{"account":{"key":"CHILD_SECRET_SENTINEL","refresh_token":"CHILD_REFRESH_SENTINEL"}}\n' >"$HOME_DIR/.grok/auth.json"; run_doctor --online --json
+assert_json 'any(.checks[]; .id == "online.grok.auth" and .status == "pass")' 'Grok refreshable credential file is recognized'
+next_test; assert_not_contains 'CHILD_SECRET_SENTINEL' 'Grok credential contents never leak'
+next_test; setup_case; make_harness grok grok '.grok/config.toml'; mkdir -p "$HOME_DIR/.grok"; printf '{}\n' >"$HOME_DIR/.grok/auth.json"; run_doctor --online --json
+assert_json 'any(.checks[]; .id == "online.grok.auth" and .status == "fail")' 'Grok missing refreshable account fails readiness'
+
+next_test; setup_case; make_harness omp omp '.omp/agent/config.json'; write_mock omp 'if [ "${1:-}" = "--version" ]; then echo "omp 1"; exit 0; fi; printf "{\"reports\":[],\"accountsWithoutUsage\":[{\"provider\":\"xai-oauth\",\"type\":\"oauth\",\"id\":\"CHILD_SECRET_SENTINEL\"}]}\n"'; run_doctor --online --json
+assert_json 'any(.checks[]; .id == "online.omp.auth" and .status == "pass")' 'OMP xai-oauth account is recognized'
+next_test; assert_not_contains 'CHILD_SECRET_SENTINEL' 'OMP account details never leak'
 
 next_test; setup_case; make_harness deep deep '.deep/config.json'; cat >"$HOME_DIR/.deep/mcp.json" <<'JSON'
 {"mcpServers":{"remote":{"type":"http","url":"https://fixture.invalid/mcp"}}}
@@ -597,7 +622,7 @@ write_pi_settings_packages "[\"$lane_root\"]"
 write_requirements '["pi"]' '{}' '{}' '{"pi":["xai/grok-4.6"]}'
 run_doctor --json
 assert_rc 1 'required Pi lane provider omitted from providers.pi fails'
-next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.xai.grok.4.5.provider" and .status == "fail" and (.message | contains("missing from providers.pi")))' 'provider omission names the missing provider'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.xai.grok.4.6.provider" and .status == "fail" and (.message | contains("missing from providers.pi")))' 'provider omission names the missing provider'
 
 next_test; setup_case; link_tool bun; link_tool head
 make_claude_harness '2.1.216 (Claude Code)'

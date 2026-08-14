@@ -16,7 +16,7 @@ CLI path below is for harnesses without one.
 ## Grok CLI
 
 ```sh
-grok --prompt-file <scratchpad>/x-<topic>.md --reasoning-effort high \
+grok --prompt-file <scratchpad>/x-<topic>.md --model grok-4.6 --reasoning-effort high \
   --deny "Write(*)" --deny "Edit(*)" > <scratchpad>/x-<topic>-out.md 2>&1
 ```
 

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+usage() {
+  echo 'Usage: agent-harness-preflight <claude|codex|grok|pi|omp>' >&2
+  exit 64
+}
+
+[[ $# -eq 1 ]] || usage
+requested="$1"
+case "$requested" in
+  claude|codex|grok|omp) targets=("$requested") ;;
+  pi) targets=(pi claude) ;;
+  *) usage ;;
+esac
+
+sync="${HOME}/.local/bin/agent-config-sync"
+if [[ ! -x "$sync" ]]; then
+  echo "agent preflight: missing executable $sync" >&2
+  exit 1
+fi
+
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/agent-harness-preflight.XXXXXX")" || {
+  echo 'agent preflight: cannot create private workspace' >&2
+  exit 1
+}
+trap 'rm -rf "$work_dir"' EXIT
+chmod 0700 "$work_dir"
+
+for harness in "${targets[@]}"; do
+  output="$work_dir/$harness.json"
+  if ! "$sync" doctor --only "$harness" --online --json >"$output" 2>/dev/null; then
+    echo "agent preflight: $harness is not ready" >&2
+    jq -r '
+      .checks[]
+      | select(.required and (.status == "fail" or .status == "unknown"))
+      | "  - " + .message
+    ' "$output" >&2 2>/dev/null || true
+    echo "Run: agent-config-sync doctor --only $harness --online" >&2
+    exit 1
+  fi
+done
+
+if [[ "$requested" == pi ]]; then
+  echo 'agent preflight: Pi routes and Claude lane authentication are ready' >&2
+else
+  echo "agent preflight: $requested is ready" >&2
+fi

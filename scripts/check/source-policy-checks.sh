@@ -5,6 +5,21 @@ if [[ -f dot_grok/AGENTS.md.tmpl ]]; then
     && err 'Grok adapter links to or reuses Codex' || pass 'Grok adapter not Codex-linked'
 fi
 
+if grep -Fxq '  - xai-oauth/grok-4.6' dot_omp/agent/config.yml \
+  && ! grep -Fq 'grok-4.5' dot_omp/agent/config.yml; then
+  pass 'OMP source selects Grok 4.6 and retires Grok 4.5'
+else
+  err 'OMP source does not cleanly replace Grok 4.5 with Grok 4.6'
+fi
+
+if grep -Fxq 'default = "grok-4.6"' dot_grok/config.toml \
+  && grep -Fxq 'default_reasoning_effort = "high"' dot_grok/config.toml \
+  && ! grep -Fq 'grok-4.5' dot_grok/config.toml; then
+  pass 'Grok source defaults to Grok 4.6 at high effort'
+else
+  err 'Grok source default or effort is stale'
+fi
+
 if grep -Fq 'template "codex-behavior-override.md"' dot_codex/AGENTS.md.tmpl \
   && grep -Fq 'template "codex-behavior-override.md"' dot_agents/codex-lane-override.md.tmpl; then
   pass 'Codex adapters consume the canonical behavior override'

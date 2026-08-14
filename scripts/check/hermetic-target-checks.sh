@@ -6,7 +6,9 @@ TARGETS=(
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json"
   "$DEST/.local/bin/agent-config-sync"
+  "$DEST/.local/bin/agent-harness-preflight"
   "$DEST/.local/bin/pickforge-lanes-mcp"
+  "$DEST/.config/agent-config-sync/doctor.json"
   "$DEST/.agents/.skill-lock.json"
   "$DEST/.agents/skill-targets.json"
   "$DEST/.agents/mcp-targets.json"
@@ -19,7 +21,9 @@ EXPECTED=(
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/config.yml dot_omp/agent/mcp.json.tmpl
   dot_local/bin/executable_agent-config-sync
+  dot_local/bin/executable_agent-harness-preflight
   dot_local/bin/executable_pickforge-lanes-mcp
+  dot_config/agent-config-sync/doctor.json
   dot_agents/dot_skill-lock.json
   dot_agents/skill-targets.json
   dot_agents/mcp-targets.json
@@ -35,7 +39,7 @@ chezmoi "${TMP_SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TM
   && pass 'dry-run status (temp dest)' || err "dry-run status failed: $(tr '\n' ' ' <"$TMP/st.err")"
 
 mkdir -p "$DEST/.grok" "$DEST/.codex" \
-  "$DEST/.local/bin" \
+  "$DEST/.local/bin" "$DEST/.config/agent-config-sync" \
   "$DEST/.claude/rules" "$DEST/.claude/skills" \
   "$DEST/.grok/skills" \
   "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
