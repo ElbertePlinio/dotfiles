@@ -1,3 +1,41 @@
+pi_settings_have_expected_pending_migration() {
+  local settings="$1"
+  jq -s -e --slurpfile target "$ROOT/dot_pi/agent/settings.json" '
+    (length == 1) and ($target | length == 1) and
+    (.[0] as $live | $target[0] as $desired |
+      $live.defaultThinkingLevel == "high" and
+      $live.enabledModels == [
+        "anthropic/claude-fable-5",
+        "anthropic/claude-opus-4-8",
+        "anthropic/claude-sonnet-5",
+        "ollama/glm-5.2:cloud",
+        "openai-codex/gpt-5.6-sol",
+        "xai/grok-4.5"
+      ] and
+      (($live
+        | .defaultThinkingLevel = $desired.defaultThinkingLevel
+        | .enabledModels = $desired.enabledModels) == $desired))
+  ' "$settings" >/dev/null 2>&1
+}
+
+check_live_pi_enabled_models() {
+  local settings="$HOME/.pi/agent/settings.json"
+  if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
+    if cmp -s "$settings" "$ROOT/dot_pi/agent/settings.json"; then
+      pass 'live Pi settings match canonical source'
+    elif managed_regular_file_unchanged "$settings" || pi_settings_have_expected_pending_migration "$settings"; then
+      pass 'live Pi settings have managed model migration drift pending the authorized cutover'
+    else
+      err 'live Pi settings contain unmanaged drift'
+    fi
+  elif jq -e '(.enabledModels | any(. == "xai/grok-4.6"))
+    and (.enabledModels | all(. != "xai/grok-4.5"))' "$settings" >/dev/null 2>&1; then
+    pass 'live Pi enabled models select Grok 4.6 and retire Grok 4.5'
+  else
+    err 'live Pi enabled models do not cleanly replace Grok 4.5 with Grok 4.6'
+  fi
+}
+
 if [[ "$MODE" == live ]]; then
   if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
     echo "== agent-config-sync strict live preflight (read-only) =="
@@ -88,12 +126,7 @@ if [[ "$MODE" == live ]]; then
     err "manifest missing for live portable checks: $MANIFEST"
   fi
 
-  if jq -e '(.enabledModels | any(. == "xai/grok-4.6"))
-    and (.enabledModels | all(. != "xai/grok-4.5"))' "$HOME/.pi/agent/settings.json" >/dev/null 2>&1; then
-    pass 'live Pi enabled models select Grok 4.6 and retire Grok 4.5'
-  else
-    err 'live Pi enabled models do not cleanly replace Grok 4.5 with Grok 4.6'
-  fi
+  check_live_pi_enabled_models
 
   echo
   [[ "$fail" -eq 0 ]] && { echo "PASSED: live migration checks"; exit 0; }
