@@ -183,17 +183,17 @@ unset zsh_claude_wrapper zsh_codex_wrapper bash_claude_wrapper
 
 launch_preflight_ok=1
 for shell_source in .chezmoitemplates/zshrc-common dot_bashrc; do
-  grep -Fq '"$HOME/.local/bin/agent-harness-preflight" "$1"' "$shell_source" \
+  grep -Fq '"$HOME/.local/bin/agent-harness-preflight" "$harness"' "$shell_source" \
     || launch_preflight_ok=0
   for harness in claude codex grok pi omp; do
-    grep -Fq "_agent_harness_preflight $harness || return" "$shell_source" \
+    grep -Fq "_agent_harness_preflight $harness \"\${1:-}\" || return" "$shell_source" \
       || launch_preflight_ok=0
   done
 done
 if [[ "$launch_preflight_ok" -eq 1 ]]; then
-  pass 'zsh and bash launch wrappers gate every managed harness on preflight'
+  pass 'zsh and bash agent-session wrappers gate every managed harness on preflight'
 else
-  err 'a managed harness launch wrapper bypasses preflight'
+  err 'a managed harness agent-session wrapper bypasses preflight'
 fi
 unset launch_preflight_ok shell_source harness
 

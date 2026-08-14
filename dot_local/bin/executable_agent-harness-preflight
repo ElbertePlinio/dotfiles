@@ -29,7 +29,12 @@ chmod 0700 "$work_dir"
 
 for harness in "${targets[@]}"; do
   output="$work_dir/$harness.json"
-  if ! "$sync" doctor --only "$harness" --online --json >"$output" 2>/dev/null; then
+  doctor_rc=0
+  "$sync" doctor --only "$harness" --online --json >"$output" 2>/dev/null || doctor_rc=$?
+  if [[ "$doctor_rc" -ne 0 ]] || ! jq -e '
+    (.checks | type == "array") and
+    ([.checks[] | select(.required and (.status == "fail" or .status == "unknown"))] | length == 0)
+  ' "$output" >/dev/null 2>&1; then
     echo "agent preflight: $harness is not ready" >&2
     jq -r '
       .checks[]
