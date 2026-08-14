@@ -51,7 +51,8 @@
       "configPaths": [
         "~/.grok/AGENTS.md",
         "~/.grok/config.toml"
-      ]
+      ],
+      "authFile": "~/.grok/auth.json"
     },
     "pi": {
       "displayName": "Pi",
@@ -178,6 +179,13 @@
       "configPaths": [
         "~/.omp/agent/AGENTS.md",
         "~/.omp/agent/config.yml"
+      ],
+      "onlineProbe": [
+        "usage",
+        "--provider",
+        "xai-oauth",
+        "--json",
+        "--redact"
       ],
       "mcp": {
         "path": "~/.omp/agent/mcp.json",

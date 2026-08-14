@@ -5,6 +5,7 @@ if [[ "$MODE" == live ]]; then
     echo "== agent-config-sync live migration (read-only) =="
   fi
   GROK_LIVE="${HOME}/.grok/AGENTS.md"
+  GROK_CONFIG_LIVE="${HOME}/.grok/config.toml"
   OMP_AGENTS_LIVE="${HOME}/.omp/agent/AGENTS.md"
   OMP_CONFIG_LIVE="${HOME}/.omp/agent/config.yml"
   OMP_MCP_LIVE="${HOME}/.omp/agent/mcp.json"
@@ -23,6 +24,18 @@ if [[ "$MODE" == live ]]; then
     pass 'live Grok AGENTS already rendered (Personal Grok Notes)'
   else
     err 'live Grok AGENTS is neither Codex symlink nor rendered Grok adapter'
+  fi
+
+  if [[ ! -e "$GROK_CONFIG_LIVE" ]]; then
+    err "live Grok config missing: $GROK_CONFIG_LIVE"
+  elif grep -Fxq 'default = "grok-4.6"' "$GROK_CONFIG_LIVE" \
+    && grep -Fxq 'default_reasoning_effort = "high"' "$GROK_CONFIG_LIVE" \
+    && ! grep -Fq 'grok-4.5' "$GROK_CONFIG_LIVE"; then
+    pass 'live Grok config defaults to Grok 4.6 at high effort'
+  elif [[ "$STRICT_PREFLIGHT" -eq 1 ]] && managed_regular_file_unchanged "$GROK_CONFIG_LIVE"; then
+    pass 'live Grok config has managed pending drift'
+  else
+    err 'live Grok config default or effort is stale'
   fi
 
   if [[ ! -e "$OMP_AGENTS_LIVE" ]]; then
@@ -75,10 +88,11 @@ if [[ "$MODE" == live ]]; then
     err "manifest missing for live portable checks: $MANIFEST"
   fi
 
-  if jq -e '.enabledModels | any(. == "xai/grok-4.5")' "$HOME/.pi/agent/settings.json" >/dev/null 2>&1; then
-    pass 'live Pi enabled models include native Grok 4.5'
+  if jq -e '(.enabledModels | any(. == "xai/grok-4.6"))
+    and (.enabledModels | all(. != "xai/grok-4.5"))' "$HOME/.pi/agent/settings.json" >/dev/null 2>&1; then
+    pass 'live Pi enabled models select Grok 4.6 and retire Grok 4.5'
   else
-    err 'live Pi enabled models missing native Grok 4.5'
+    err 'live Pi enabled models do not cleanly replace Grok 4.5 with Grok 4.6'
   fi
 
   echo

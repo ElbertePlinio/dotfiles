@@ -62,6 +62,7 @@ check_sync_command_flow() {
     dot_agents/mcp-targets.json
     dot_agents/skill-targets.json
     dot_agents/doctor-targets.json
+    dot_config/agent-config-sync/doctor.json
     dot_agents/desktop-capture.md
     dot_agents/browser-use.md
     dot_agents/codex-lane-override.md
@@ -69,6 +70,7 @@ check_sync_command_flow() {
     dot_agents/private_stripe.env
     dot_agents/skills/probe/SKILL.md
     dot_local/bin/executable_sudo-askpass
+    dot_local/bin/executable_agent-harness-preflight
     dot_local/bin/executable_pickforge-lanes-mcp
     dot_config/environment.d/50-sudo-askpass.conf.tmpl
     dot_config/environment.d/60-omp.conf
@@ -315,9 +317,11 @@ EOF
     err 'temporary scoped sync unmanaged-target preflight was not atomic'
   fi
 
-  for malformed in '' '/absolute-retirement'; do
-    printf '%s\n' "$malformed" >"$flow_source/.chezmoiremove"
+  for malformed in '' '/absolute-retirement' '.retired-agent-config-probe'; do
+    printf '%s\n%s\n' .retired-agent-config-probe "$malformed" >"$flow_source/.chezmoiremove"
     rm -f "$malformed_log" "$malformed_error" "$script_marker"
+    mkdir -p "$malformed_home/.retired-agent-config-probe"
+    printf '%s\n' retired >"$malformed_home/.retired-agent-config-probe/sentinel"
     : >"$configure_log"
     if HOME="$malformed_home" CHEZMOI_SOURCE_DIR="$flow_source" \
       SYNC_FLOW_LOG="$malformed_log" SYNC_SCRIPT_MARKER="$script_marker" \
@@ -327,9 +331,10 @@ EOF
       err "temporary scoped sync accepted malformed retirement entry: ${malformed:-empty}"
     elif [[ ! -e "$script_marker" ]] \
       && [[ ! -s "$configure_log" ]] \
-      && [[ "$(tr '\n' ' ' <"$malformed_log")" == 'source strict ' ]] \
+      && [[ ! -e "$malformed_log" ]] \
+      && [[ -e "$malformed_home/.retired-agent-config-probe/sentinel" ]] \
       && grep -Fq 'retirement list' "$malformed_error"; then
-      pass "temporary scoped sync rejects malformed retirement entry: ${malformed:-empty}"
+      pass "temporary scoped sync rejects malformed retirement entry before self-update: ${malformed:-empty}"
     else
       err "temporary scoped sync did not fail closed on malformed retirement entry: ${malformed:-empty}"
     fi

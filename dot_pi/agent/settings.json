@@ -18,7 +18,7 @@
     "deepseek-official/deepseek-v4-flash",
     "ollama/kimi-k3:cloud",
     "openai-codex/gpt-5.6-sol",
-    "xai/grok-4.5"
+    "xai/grok-4.6"
   ],
   "hideThinkingBlock": false,
   "theme": "pickforge-ember"

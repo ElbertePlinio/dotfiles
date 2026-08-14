@@ -18,7 +18,7 @@ required.
 - In Pi, use Pi native lanes through pi-kit with an explicit full selector and effort
   per call.
 - In OMP, use the native `agent()` bridge with an explicit selector
-  (`openai-codex/gpt-5.6-sol:<effort>`, `xai-oauth/grok-4.5:high`).
+  (`openai-codex/gpt-5.6-sol:<effort>`, `xai-oauth/grok-4.6:high`).
 - In Grok sessions: `spawn_subagent` from the main session;
   `capability_mode: read-only` for scouts, reviewers, and dissenters;
   `isolation: worktree` for parallel writers; `resume_from` for correction passes.
@@ -97,7 +97,9 @@ Continue a session: capture `thread_id` from the `thread.started` JSONL event, t
 "<findings>" </dev/null`. Persist thread IDs in the session scratchpad when a later
 fix round depends on them.
 
-## Grok CLI (Grok 4.5)
+## Grok CLI (Grok 4.6)
+
+Pi lanes use the authenticated `xai/grok-4.6` route first. After a reported Pi route failure, the Grok CLI is the explicit fallback; always pass `--model grok-4.6` so the fallback cannot drift to a retired default.
 
 Headless single-turn: `-p "<inline prompt>"` OR `--prompt-file <path>` — never both —
 runs a headless agentic loop in the target working directory and prints the final
@@ -105,6 +107,7 @@ response to stdout.
 
 ```bash
 grok -p "<self-contained prompt>" \
+  --model grok-4.6 \
   --reasoning-effort high \
   --cwd <repo> \
   > <scratchpad>/grok-<task>-last.md 2>&1
@@ -118,5 +121,5 @@ grok -p "<self-contained prompt>" \
   builder — `grok -p "<task spec>" -s "$SID" --permission-mode acceptEdits ...`,
   later `grok -p "<accepted findings>" -r "$SID" ...`.
 - Never use `bypassPermissions`. A `--sandbox` name is safe only when that profile
-  exists in `~/.grok/sandbox.toml`; unknown names can run unsandboxed. Grok 4.5 can
+  exists in `~/.grok/sandbox.toml`; unknown names can run unsandboxed. Grok 4.6 can
   inspect screenshots directly.

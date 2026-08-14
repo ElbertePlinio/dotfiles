@@ -5,6 +5,21 @@ if [[ -f dot_grok/AGENTS.md.tmpl ]]; then
     && err 'Grok adapter links to or reuses Codex' || pass 'Grok adapter not Codex-linked'
 fi
 
+if grep -Fxq '  - xai-oauth/grok-4.6' dot_omp/agent/config.yml \
+  && ! grep -Fq 'grok-4.5' dot_omp/agent/config.yml; then
+  pass 'OMP source selects Grok 4.6 and retires Grok 4.5'
+else
+  err 'OMP source does not cleanly replace Grok 4.5 with Grok 4.6'
+fi
+
+if grep -Fxq 'default = "grok-4.6"' dot_grok/config.toml \
+  && grep -Fxq 'default_reasoning_effort = "high"' dot_grok/config.toml \
+  && ! grep -Fq 'grok-4.5' dot_grok/config.toml; then
+  pass 'Grok source defaults to Grok 4.6 at high effort'
+else
+  err 'Grok source default or effort is stale'
+fi
+
 if grep -Fq 'template "codex-behavior-override.md"' dot_codex/AGENTS.md.tmpl \
   && grep -Fq 'template "codex-behavior-override.md"' dot_agents/codex-lane-override.md.tmpl; then
   pass 'Codex adapters consume the canonical behavior override'
@@ -25,7 +40,7 @@ for path in dot_claude/CLAUDE.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/
     || err "orchestrating adapter missing shared model table include: $path"
 done
 
-TABLE_ROW_GROK='^\| Grok 4\.5 \| .*grok-4\.5.* \| high \|.*\| yes \|$'
+TABLE_ROW_GROK='^\| Grok 4\.6 \| .*grok-4\.6.* \| high \|.*\| yes \|$'
 TABLE_ROW_KIMI='^\| Kimi K3 \| `ollama/kimi-k3:cloud` \| provider default \|.*\| yes \|$'
 TABLE_ROW_OPUS='^\| Opus 5 \| `anthropic/claude-opus-5` \| medium \|.*\| yes \|$'
 OPUS_EFFORT_RULE='Opus 5 defaults to `medium` and may use only `low` or `medium`; `high` and above are prohibited.'
@@ -103,9 +118,10 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
     jq -e 'any(.. | strings; ascii_downcase | contains("haiku"))' >/dev/null <<<"$pi_settings" \
       && err 'Pi settings contain a forbidden Haiku selector' \
       || pass 'Pi settings contain no Haiku selector'
-    jq -e '.enabledModels | any(. == "xai/grok-4.5")' >/dev/null <<<"$pi_settings" \
-      && pass 'Pi enabled models include native Grok 4.5' \
-      || err 'Pi enabled models missing native Grok 4.5'
+    jq -e '(.enabledModels | any(. == "xai/grok-4.6"))
+      and (.enabledModels | all(. != "xai/grok-4.5"))' >/dev/null <<<"$pi_settings" \
+      && pass 'Pi enabled models select Grok 4.6 and retire Grok 4.5' \
+      || err 'Pi enabled models do not cleanly replace Grok 4.5 with Grok 4.6'
     jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-5.6-sol" and .defaultThinkingLevel == "medium"' >/dev/null <<<"$pi_settings" \
       && pass 'Pi canonical bootstrap defaults to GPT-5.6 Sol at medium effort' \
       || err 'Pi canonical GPT-5.6 Sol bootstrap default is missing or misconfigured'
@@ -163,7 +179,7 @@ fi
 if command -v node >/dev/null 2>&1; then
   if node --input-type=module -e "
     import { assertModelPermitted } from '$ROOT/dot_agents/skills/model-orchestration/scripts/lane-policy.mjs';
-    for (const bad of ['gpt-5.6-terra', 'gpt-5.6-luna', 'claude-haiku-4-5']) {
+    for (const bad of ['gpt-5.6-terra', 'gpt-5.6-luna', 'claude-haiku-4-5', 'grok-4.5']) {
       let threw = false;
       try { assertModelPermitted(bad); } catch { threw = true; }
       if (!threw) { console.error('allowed banned model: ' + bad); process.exit(1); }
@@ -171,6 +187,7 @@ if command -v node >/dev/null 2>&1; then
     assertModelPermitted('gpt-5.6-sol');
     assertModelPermitted('claude-fable-5');
     assertModelPermitted('kimi-k3:cloud');
+    assertModelPermitted('grok-4.6');
   " 2>/dev/null; then
     pass 'lane-policy bans Haiku/Luna/Terra and admits the managed pool'
   else

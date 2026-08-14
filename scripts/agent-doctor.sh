@@ -149,6 +149,9 @@ validate_catalog() {
         (.value.binary | type == "string" and length > 0) and
         (.value.versionArgs | type == "array" and all(.[]; type == "string")) and
         (.value.configPaths | type == "array" and all(.[]; type == "string" and length > 0)) and
+        ((.value.onlineProbe? // null) as $p | $p == null or
+          ($p | type == "array" and length > 0 and all(.[]; type == "string" and length > 0))) and
+        ((.value.authFile? // null) as $a | $a == null or ($a | type == "string" and length > 0)) and
         ((.value.mcp? // null) as $m | $m == null or
           ($m | type == "object" and (.path | type == "string" and length > 0) and
             (.root | type == "string" and length > 0) and
@@ -865,10 +868,67 @@ JS
   [[ "$run_claude" -eq 1 ]] && check_lane_claude_executable
 }
 
+check_pi_online() {
+  local resolved provider output rc count=0
+  resolved="$(command -v pi 2>/dev/null || true)"
+  if [[ -z "$resolved" ]]; then
+    add_check online.pi.auth unknown true pi 'Pi authentication probes are unavailable because the executable is missing'
+    return
+  fi
+  while IFS= read -r provider; do
+    [[ -n "$provider" ]] || continue
+    count=$((count + 1))
+    output="$TMP/online-pi-$count"
+    if run_capture 7 "$output" "$resolved" auth check --provider "$provider" --json --no-refresh; then
+      if jq -e '.status == "ready"' "$output" >/dev/null 2>&1; then
+        add_check "online.pi.provider.$provider" pass true pi "Pi reports $provider authentication ready"
+      else
+        add_check "online.pi.provider.$provider" fail true pi "Pi reports $provider authentication is not ready"
+      fi
+    else
+      rc=$?
+      if [[ "$rc" -eq 124 ]]; then
+        add_check "online.pi.provider.$provider" unknown true pi "Pi $provider authentication probe timed out"
+      else
+        add_check "online.pi.provider.$provider" fail true pi "Pi $provider authentication probe failed"
+      fi
+    fi
+  done < <(jq -r '(.providers.pi // [])[]' "$CONFIG")
+  if [[ "$count" -eq 0 ]]; then
+    add_check online.pi.auth unknown true pi 'no required Pi providers are declared for online authentication checks'
+  fi
+}
+
+check_auth_file_online() {
+  local harness="$1" auth_path
+  auth_path="$(expand_home "$(jq -r --arg h "$harness" '.harnesses[$h].authFile' "$CATALOG")")"
+  if [[ ! -f "$auth_path" ]]; then
+    add_check "online.$harness.auth" fail true "$harness" 'authentication credential file is missing'
+  elif jq -e '
+    type == "object" and any(to_entries[];
+      (.value | type == "object") and
+      (((.value.key? // "") | type == "string" and length > 0) or
+       ((.value.access_token? // "") | type == "string" and length > 0)) and
+      ((.value.refresh_token? // "") | type == "string" and length > 0))
+  ' "$auth_path" >/dev/null 2>&1; then
+    add_check "online.$harness.auth" pass true "$harness" 'refreshable authentication credential is present; remote refresh was not exercised'
+  else
+    add_check "online.$harness.auth" fail true "$harness" 'authentication credential file has no refreshable account'
+  fi
+}
+
 check_online() {
   local harness binary resolved output rc text
   [[ "$ONLINE" -eq 1 ]] || return
   while IFS= read -r harness; do
+    if [[ "$harness" == pi ]]; then
+      check_pi_online
+      continue
+    fi
+    if jq -e --arg h "$harness" '.harnesses[$h].authFile | type == "string" and length > 0' "$CATALOG" >/dev/null 2>&1; then
+      check_auth_file_online "$harness"
+      continue
+    fi
     if ! jq -e --arg h "$harness" '.harnesses[$h].onlineProbe | type == "array" and length > 0' "$CATALOG" >/dev/null 2>&1; then
       add_check "online.$harness.auth" unknown true "$harness" 'no documented noninteractive authentication probe is supported'
       continue
@@ -883,7 +943,12 @@ check_online() {
     while IFS= read -r text; do PROBE_ARGS+=("$text"); done < <(jq -r --arg h "$harness" '.harnesses[$h].onlineProbe[]' "$CATALOG")
     output="$TMP/online-$harness"
     if run_capture 7 "$output" "$resolved" "${PROBE_ARGS[@]}"; then
-      if grep -Eqi 'could not determine if authenticated' "$output"; then
+      if [[ "$harness" == omp ]] && jq -e '
+        any((.reports // [])[]; .provider == "xai-oauth") or
+        any((.accountsWithoutUsage // [])[]; .provider == "xai-oauth")
+      ' "$output" >/dev/null 2>&1; then
+        add_check online.omp.auth pass true omp 'OMP reports an authenticated xai-oauth account'
+      elif grep -Eqi 'could not determine if authenticated' "$output"; then
         add_check "online.$harness.auth" unknown true "$harness" 'authentication status response could not be normalized'
       elif grep -Eqi 'not[ -]?(logged|authenticated)|loggedIn[^[:alnum:]]*false|authenticated[^[:alnum:]]*false|0 credentials|no credentials' "$output"; then
         add_check "online.$harness.auth" fail true "$harness" 'authentication probe reports no active credential'

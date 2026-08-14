@@ -1,10 +1,14 @@
 check_doctor_sources() {
   local doctor="$ROOT/scripts/agent-doctor.sh"
   local doctor_tests="$ROOT/scripts/check-agent-doctor.sh"
+  local preflight="$ROOT/dot_local/bin/executable_agent-harness-preflight"
+  local preflight_tests="$ROOT/scripts/check-agent-harness-preflight.sh"
   local catalog="$ROOT/dot_agents/doctor-targets.json"
 
   need "$doctor"
   need "$doctor_tests"
+  need "$preflight"
+  need "$preflight_tests"
   need "$catalog"
   if [[ -f "$catalog" ]] && jq -e '
     .version == 1
@@ -21,10 +25,17 @@ check_doctor_sources() {
     err 'doctor catalog JSON or source invariants invalid'
   fi
   if [[ -f "$doctor" ]] && bash -n "$doctor" \
-    && [[ -f "$doctor_tests" ]] && bash -n "$doctor_tests"; then
-    pass 'doctor scripts have valid Bash syntax'
+    && [[ -f "$doctor_tests" ]] && bash -n "$doctor_tests" \
+    && [[ -f "$preflight" ]] && bash -n "$preflight" \
+    && [[ -f "$preflight_tests" ]] && bash -n "$preflight_tests"; then
+    pass 'doctor and launch preflight scripts have valid Bash syntax'
   else
-    err 'doctor script Bash syntax invalid'
+    err 'doctor or launch preflight script Bash syntax invalid'
+  fi
+  if [[ -f "$preflight_tests" ]] && bash "$preflight_tests" >/dev/null; then
+    pass 'launch preflight behavioral tests pass'
+  else
+    err 'launch preflight behavioral tests failed'
   fi
   if [[ -f "$doctor" ]] && bash "$doctor" --help >/dev/null; then
     pass 'doctor help smoke test passes'

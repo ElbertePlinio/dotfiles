@@ -15,6 +15,38 @@ export NVM_DIR="$HOME/.nvm"
 
 alias ccu='bunx ccusage --compact'
 
+_agent_harness_preflight() {
+  local harness="$1" subcommand="${2:-}"
+  case "$subcommand" in
+    -h|--help|-v|-V|--version|help|version) return 0 ;;
+  esac
+  case "$harness:$subcommand" in
+    claude:auth|claude:/login|codex:login|codex:logout|grok:login|grok:logout|pi:auth|omp:auth-broker) return 0 ;;
+  esac
+  "$HOME/.local/bin/agent-harness-preflight" "$harness"
+}
+
 claude() {
+  _agent_harness_preflight claude "${1:-}" || return
   command claude --dangerously-skip-permissions "$@"
+}
+
+codex() {
+  _agent_harness_preflight codex "${1:-}" || return
+  command codex --yolo "$@"
+}
+
+grok() {
+  _agent_harness_preflight grok "${1:-}" || return
+  command grok "$@"
+}
+
+pi() {
+  _agent_harness_preflight pi "${1:-}" || return
+  command pi "$@"
+}
+
+omp() {
+  _agent_harness_preflight omp "${1:-}" || return
+  command omp "$@"
 }
