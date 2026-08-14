@@ -185,6 +185,76 @@ if managed_directory_unchanged "$PENDING_DIR"; then
 else
   pass 'managed pending directory rejects unmanaged symlink'
 fi
+
+PENDING_PI_HOME="$TMP/managed-pending-pi-home"
+mkdir -p "$PENDING_PI_HOME/.pi/agent"
+printf '%s\n' '{"enabledModels":["xai/grok-4.5"]}' >"$PENDING_PI_HOME/.pi/agent/settings.json"
+read -r PENDING_HASH _ < <(sha256sum "$PENDING_PI_HOME/.pi/agent/settings.json")
+if (HOME="$PENDING_PI_HOME"; STRICT_PREFLIGHT=1; fail=0; \
+  check_live_pi_enabled_models >/dev/null 2>&1; [[ "$fail" -eq 0 ]]); then
+  pass 'strict live preflight accepts unchanged managed Pi model migration drift'
+else
+  err 'strict live preflight rejected unchanged managed Pi model migration drift'
+fi
+if (HOME="$PENDING_PI_HOME"; STRICT_PREFLIGHT=0; fail=0; \
+  check_live_pi_enabled_models >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
+  pass 'normal live check rejects stale Pi model routing'
+else
+  err 'normal live check accepted stale Pi model routing'
+fi
+printf '%s\n' divergent >>"$PENDING_PI_HOME/.pi/agent/settings.json"
+if (HOME="$PENDING_PI_HOME"; STRICT_PREFLIGHT=1; fail=0; \
+  check_live_pi_enabled_models >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
+  pass 'strict live preflight rejects unmanaged Pi model drift'
+else
+  err 'strict live preflight accepted unmanaged Pi model drift'
+fi
+
+jq '.defaultThinkingLevel = "high"
+  | .enabledModels = [
+      "anthropic/claude-fable-5",
+      "anthropic/claude-opus-4-8",
+      "anthropic/claude-sonnet-5",
+      "ollama/glm-5.2:cloud",
+      "openai-codex/gpt-5.6-sol",
+      "xai/grok-4.5"
+    ]' "$ROOT/dot_pi/agent/settings.json" >"$PENDING_PI_HOME/.pi/agent/settings.json"
+cp "$PENDING_PI_HOME/.pi/agent/settings.json" "$PENDING_PI_HOME/settings-exact-migration.json"
+PENDING_HASH='0000000000000000000000000000000000000000000000000000000000000000'
+if (HOME="$PENDING_PI_HOME"; STRICT_PREFLIGHT=1; fail=0; \
+  check_live_pi_enabled_models >/dev/null 2>&1; [[ "$fail" -eq 0 ]]); then
+  pass 'strict live preflight accepts the exact legacy Pi settings cutover'
+else
+  err 'strict live preflight rejected the exact legacy Pi settings cutover'
+fi
+jq '.enabledModels += ["unexpected/provider-model"]' \
+  "$PENDING_PI_HOME/.pi/agent/settings.json" >"$PENDING_PI_HOME/settings-divergent.json"
+mv "$PENDING_PI_HOME/settings-divergent.json" "$PENDING_PI_HOME/.pi/agent/settings.json"
+if (HOME="$PENDING_PI_HOME"; STRICT_PREFLIGHT=1; fail=0; \
+  check_live_pi_enabled_models >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
+  pass 'strict live preflight rejects extra Pi model drift during cutover'
+else
+  err 'strict live preflight accepted extra Pi model drift during cutover'
+fi
+
+jq '.theme = "unexpected"' "$ROOT/dot_pi/agent/settings.json" \
+  >"$PENDING_PI_HOME/.pi/agent/settings.json"
+if (HOME="$PENDING_PI_HOME"; STRICT_PREFLIGHT=1; fail=0; \
+  check_live_pi_enabled_models >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
+  pass 'strict live preflight rejects unrelated drift after Grok 4.6 is selected'
+else
+  err 'strict live preflight accepted unrelated drift after Grok 4.6 was selected'
+fi
+
+cat "$PENDING_PI_HOME/settings-exact-migration.json" \
+  "$PENDING_PI_HOME/settings-exact-migration.json" \
+  >"$PENDING_PI_HOME/.pi/agent/settings.json"
+if (HOME="$PENDING_PI_HOME"; STRICT_PREFLIGHT=1; fail=0; \
+  check_live_pi_enabled_models >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
+  pass 'strict live preflight rejects concatenated Pi settings documents'
+else
+  err 'strict live preflight accepted concatenated Pi settings documents'
+fi
 unset -f chezmoi
 
 bash -n "$ROOT/scripts/check-agent-config-sync.sh" "$ROOT"/scripts/check/*.sh \
