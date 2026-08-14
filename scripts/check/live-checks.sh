@@ -75,10 +75,11 @@ if [[ "$MODE" == live ]]; then
     err "manifest missing for live portable checks: $MANIFEST"
   fi
 
-  if jq -e '.enabledModels | any(. == "xai/grok-4.5")' "$HOME/.pi/agent/settings.json" >/dev/null 2>&1; then
-    pass 'live Pi enabled models include native Grok 4.5'
+  if jq -e '(.enabledModels | any(. == "xai/grok-4.6"))
+    and (.enabledModels | all(. != "xai/grok-4.5"))' "$HOME/.pi/agent/settings.json" >/dev/null 2>&1; then
+    pass 'live Pi enabled models select Grok 4.6 and retire Grok 4.5'
   else
-    err 'live Pi enabled models missing native Grok 4.5'
+    err 'live Pi enabled models do not cleanly replace Grok 4.5 with Grok 4.6'
   fi
 
   echo

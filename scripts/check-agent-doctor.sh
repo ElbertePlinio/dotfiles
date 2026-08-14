@@ -170,7 +170,7 @@ write_lane_runtime() {
 const ALL_ORIGINS = ["pi", "mcp"];
 export const MODEL_TABLE = [
   { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: [...ALL_ORIGINS] },
-  { selector: "xai/grok-4.5", route: "pi", origins: [...ALL_ORIGINS] },
+  { selector: "xai/grok-4.6", route: "pi", origins: [...ALL_ORIGINS] },
   { selector: "anthropic/claude-fable-5", route: "claude-code", origins: ["pi"] },
 ];
 TS
@@ -594,7 +594,7 @@ next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-provider-omission"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
 write_pi_settings_packages "[\"$lane_root\"]"
-write_requirements '["pi"]' '{}' '{}' '{"pi":["xai/grok-4.5"]}'
+write_requirements '["pi"]' '{}' '{}' '{"pi":["xai/grok-4.6"]}'
 run_doctor --json
 assert_rc 1 'required Pi lane provider omitted from providers.pi fails'
 next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.xai.grok.4.5.provider" and .status == "fail" and (.message | contains("missing from providers.pi")))' 'provider omission names the missing provider'

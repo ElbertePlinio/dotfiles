@@ -22,9 +22,9 @@ const PERSONAL_REMOTES = [
 // even though it is dispatched through the Ollama delegate.
 const RESTRICTED_MODEL = /^(?:grok-|kimi-)|:cloud$/i;
 
-// Models banned everywhere regardless of repository: Anthropic Haiku and the
-// GPT-5.6 Luna/Terra lanes. Sol is the only GPT-5.6 lane.
-const BANNED_MODEL = /haiku|luna|terra/i;
+// Models banned everywhere regardless of repository: Anthropic Haiku, the
+// GPT-5.6 Luna/Terra lanes, and retired Grok 4.5. Sol is the only GPT-5.6 lane.
+const BANNED_MODEL = /haiku|luna|terra|grok-4\.5/i;
 
 // Throws when `model` is a banned lane. Repository-independent.
 export function assertModelPermitted(model) {
@@ -32,8 +32,8 @@ export function assertModelPermitted(model) {
   throw new Error(
     [
       `lane-policy: ${model} is a banned lane.`,
-      "  Anthropic Haiku and GPT-5.6 Luna/Terra are never selectable;",
-      "  Sol is the only GPT-5.6 lane — shift its effort instead.",
+      "  Anthropic Haiku, GPT-5.6 Luna/Terra, and Grok 4.5 are never selectable;",
+      "  use Sol for GPT-5.6 work and Grok 4.6 for xAI work.",
     ].join("\n"),
   );
 }
