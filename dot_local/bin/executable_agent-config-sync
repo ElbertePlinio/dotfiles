@@ -175,8 +175,8 @@ portable_link_targets() {
   ' "$MANIFEST"
 }
 
-load_retired_targets() {
-  local path live seen='|'
+validate_retirement_list() {
+  local path seen='|'
   [[ -s "$RETIREMENT_LIST" ]] || {
     echo "agent-config-sync: retirement list is missing or empty: $RETIREMENT_LIST" >&2
     return 1
@@ -194,6 +194,14 @@ load_retired_targets() {
       return 1
     fi
     seen="${seen}${path}|"
+  done <"$RETIREMENT_LIST"
+}
+
+load_retired_targets() {
+  local path live
+  validate_retirement_list || return 1
+
+  while IFS= read -r path || [[ -n "$path" ]]; do
     live="$HOME/$path"
     if [[ -e "$live" || -L "$live" ]]; then
       apply_targets+=("$live")
@@ -375,6 +383,8 @@ cmd_apply() {
   local link portable_output work_dir self_before check_output apply_output self_target
   local -a active_targets=("${AGENT_ACTIVE_TARGETS[@]}")
   local -a apply_targets=()
+
+  validate_retirement_list || return 1
 
   if ! work_dir="$(mktemp -d "${TMPDIR:-/tmp}/agent-config-sync-apply.XXXXXX")"; then
     echo "agent-config-sync: cannot create private apply workspace" >&2

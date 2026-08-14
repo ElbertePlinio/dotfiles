@@ -327,9 +327,9 @@ EOF
       err "temporary scoped sync accepted malformed retirement entry: ${malformed:-empty}"
     elif [[ ! -e "$script_marker" ]] \
       && [[ ! -s "$configure_log" ]] \
-      && [[ "$(tr '\n' ' ' <"$malformed_log")" == 'source strict ' ]] \
+      && [[ ! -e "$malformed_log" ]] \
       && grep -Fq 'retirement list' "$malformed_error"; then
-      pass "temporary scoped sync rejects malformed retirement entry: ${malformed:-empty}"
+      pass "temporary scoped sync rejects malformed retirement entry before self-update: ${malformed:-empty}"
     else
       err "temporary scoped sync did not fail closed on malformed retirement entry: ${malformed:-empty}"
     fi
