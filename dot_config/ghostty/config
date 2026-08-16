@@ -1,99 +1,41 @@
-# --- Theme & Appearance ---
-# Loads theme from the same directory as this config file
-# config-file = ?theme.conf
-theme = dracula 
+# Dynamic theme colors
+config-file = ?"~/.local/state/omarchy/current/theme/ghostty.conf"
 
-font-family = "SF Mono"
-font-size = 11
+# Font
+font-family = "JetBrainsMono Nerd Font"
+font-style = Regular
+font-size = 14
 
+# Window
 window-theme = ghostty
 window-padding-x = 14
 window-padding-y = 14
-confirm-close-surface = false
+confirm-close-surface=false
 resize-overlay = never
 gtk-toolbar-style = flat
 
-# --- Cursor & Shell ---
+# Cursor styling
 cursor-style = "block"
 cursor-style-blink = false
+
+# Cursor styling + SSH session terminfo
+# (all shell integration options must be passed together)
 shell-integration-features = no-cursor,ssh-env
-mouse-scroll-multiplier = 0.95
 
-# --- MacOS Specifics ---
-# Ensures "Option" key works as "Alt" for Neovim/Linux bindings
-macos-option-as-alt = true
-
-# =======================================================
-#                      KEYBINDINGS
-# =======================================================
-
-# --- 1. Copy & Paste ---
-# Linux Standard
+# Keyboard bindings
 keybind = shift+insert=paste_from_clipboard
 keybind = control+insert=copy_to_clipboard
-# MacOS Native (Cmd+C / Cmd+V)
-keybind = super+c=copy_to_clipboard
-keybind = super+v=paste_from_clipboard
+# Send Shift+Enter as CSI-u so TUIs can distinguish it from Enter.
+keybind = shift+enter=csi:13;2u
+# Legacy encoding sends Alt+Shift+Enter the same as Alt+Enter; send CSI-u so tmux can match M-S-Enter.
+keybind = alt+shift+enter=csi:13;4u
+keybind = super+control+shift+alt+arrow_down=resize_split:down,100
+keybind = super+control+shift+alt+arrow_up=resize_split:up,100
+keybind = super+control+shift+alt+arrow_left=resize_split:left,100
+keybind = super+control+shift+alt+arrow_right=resize_split:right,100
 
-# --- 2. Create Splits ---
-# Linux (Ctrl+Shift+E/O)
-keybind = ctrl+shift+e=new_split:down
-keybind = ctrl+shift+o=new_split:right
-# MacOS Native (Cmd+Shift+E/O)
-keybind = super+shift+e=new_split:down
-keybind = super+shift+o=new_split:right
+# Slowdown mouse scrolling
+mouse-scroll-multiplier = 0.95
 
-# --- 3. Navigate Splits (Focus) ---
-# Linux (Ctrl+Alt+Arrows)
-keybind = ctrl+alt+left=goto_split:left
-keybind = ctrl+alt+right=goto_split:right
-keybind = ctrl+alt+up=goto_split:top
-keybind = ctrl+alt+down=goto_split:bottom
-# MacOS Native (Cmd+Opt+Arrows)
-keybind = super+alt+left=goto_split:left
-keybind = super+alt+right=goto_split:right
-keybind = super+alt+up=goto_split:top
-keybind = super+alt+down=goto_split:bottom
-
-# --- 4. Resize Splits (Fine - 10px) ---
-# Image: Super+Ctrl+Shift+Arrows (Works on both)
-keybind = super+ctrl+shift+down=resize_split:down,10
-keybind = super+ctrl+shift+up=resize_split:up,10
-keybind = super+ctrl+shift+left=resize_split:left,10
-keybind = super+ctrl+shift+right=resize_split:right,10
-
-# --- 5. Resize Splits (Fast - 100px) ---
-# Your Custom Bind (Works on both)
-keybind = super+ctrl+shift+alt+down=resize_split:down,100
-keybind = super+ctrl+shift+alt+up=resize_split:up,100
-keybind = super+ctrl+shift+alt+left=resize_split:left,100
-keybind = super+ctrl+shift+alt+right=resize_split:right,100
-
-# --- 6. Tab Management ---
-# Linux (Ctrl+Shift+T)
-keybind = ctrl+shift+t=new_tab
-# MacOS (Cmd+Shift+T)
-keybind = super+shift+t=new_tab
-
-# Move between tabs
-# Linux (Ctrl+Shift+Arrows)
-keybind = ctrl+shift+left=previous_tab
-keybind = ctrl+shift+right=next_tab
-# MacOS (Cmd+Shift+Arrows)
-keybind = super+shift+left=previous_tab
-keybind = super+shift+right=next_tab
-
-# Go to specific tab (Alt+Number)
-# Works on both (Ghostty maps Alt to Option on Mac)
-keybind = alt+one=goto_tab:1
-keybind = alt+two=goto_tab:2
-keybind = alt+three=goto_tab:3
-keybind = alt+four=goto_tab:4
-keybind = alt+five=goto_tab:5
-keybind = alt+six=goto_tab:6
-keybind = alt+seven=goto_tab:7
-keybind = alt+eight=goto_tab:8
-keybind = alt+nine=goto_tab:9
-
-# --- 7. Misc ---
-keybind = shift+enter=text:\n
+# Fix general slowness on hyprland (https://github.com/ghostty-org/ghostty/discussions/3224)
+async-backend = epoll

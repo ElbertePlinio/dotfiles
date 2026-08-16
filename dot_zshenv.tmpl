@@ -9,6 +9,19 @@ export VISUAL=nvim
 export PI_CODEX_WEB_SEARCH_MODEL=gpt-5.6-sol
 export PLANNOTATOR_PORT=19432
 
+export PATH="$HOME/fvm/bin:$PATH"
 export PATH="$HOME/ProgramsDev/flutter/bin:$PATH"
-export PATH="{{ .chezmoi.homeDir }}/fvm/bin:$PATH"
+export PATH="$HOME/.cargo/bin:$PATH"
+export PATH="$HOME/.pub-cache/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/share/mise/shims:$PATH"
+
+export PNPM_HOME="$HOME/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+export PATH="$HOME/.grok/bin:$PATH"

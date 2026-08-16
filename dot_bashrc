@@ -2,12 +2,52 @@
 # ~/.bashrc
 #
 
-# If not running interactively, don't do anything
+# Omarchy environment (OMARCHY_PATH + PATH), needed even for non-interactive shells
+[[ -r /usr/share/omarchy/default/bash/env-bootstrap ]] && source /usr/share/omarchy/default/bash/env-bootstrap
+
+# User development tool paths. Keep this before the non-interactive return so
+# explicit `source ~/.bashrc` preflight probes can find Bun/Flutter/Cargo/FVM.
+export PATH="$HOME/fvm/bin:$PATH"
+export PATH="$HOME/ProgramsDev/flutter/bin:$PATH"
+export PATH="$HOME/.cargo/bin:$PATH"
+export PATH="$HOME/.pub-cache/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/share/mise/shims:$PATH"
+
+# pnpm
+export PNPM_HOME="$HOME/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+export CHROME_EXECUTABLE=/usr/bin/google-chrome-stable
+
+# Grok CLI installed path, when present.
+export PATH="$HOME/.grok/bin:$PATH"
+
+# If not running interactively, don't do anything else
 [[ $- != *i* ]] && return
+
+# Omarchy interactive aliases/functions when available.
+# Skip inside agent-config-sync's hermetic wrapper tests so stock Omarchy aliases/functions
+# cannot bypass the fake harness commands used by the test fixture.
+if [[ -z "${PREFLIGHT_TEST_LOG:-}" && -n "${OMARCHY_PATH:-}" && -r "$OMARCHY_PATH/default/bash/rc" ]]; then
+  source "$OMARCHY_PATH/default/bash/rc"
+fi
 
 alias ls='ls --color=auto'
 alias grep='grep --color=auto'
 PS1='[\u@\h \W]\$ '
+
+# pi-caffeinate: idle-only inhibit (sleep inhibit triggers polkit TTY auth and steals Pi input)
+if [[ -z "${PI_CAFFEINATE_COMMAND:-}" ]]; then
+  export PI_CAFFEINATE_COMMAND='systemd-inhibit --what=idle --who=pi-caffeinate --why="Pi agent is running" --mode=block sleep infinity'
+fi
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
