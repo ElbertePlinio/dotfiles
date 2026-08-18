@@ -50,8 +50,13 @@ if [[ -z "${PI_CAFFEINATE_COMMAND:-}" ]]; then
 fi
 
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+# nvm runs `hash -r`; Omarchy already disabled hashing for mise.
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  set -h
+  . "$NVM_DIR/nvm.sh"
+  set +h
+fi
+[ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
 
 alias ccu='bunx ccusage --compact'
 

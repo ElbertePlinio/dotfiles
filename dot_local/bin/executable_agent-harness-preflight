@@ -9,8 +9,7 @@ usage() {
 [[ $# -eq 1 ]] || usage
 requested="$1"
 case "$requested" in
-  claude|codex|grok|omp) targets=("$requested") ;;
-  pi) targets=(pi claude) ;;
+  claude|codex|grok|pi|omp) ;;
   *) usage ;;
 esac
 
@@ -27,27 +26,59 @@ work_dir="$(mktemp -d "${TMPDIR:-/tmp}/agent-harness-preflight.XXXXXX")" || {
 trap 'rm -rf "$work_dir"' EXIT
 chmod 0700 "$work_dir"
 
-for harness in "${targets[@]}"; do
-  output="$work_dir/$harness.json"
-  doctor_rc=0
-  "$sync" doctor --only "$harness" --online --json >"$output" 2>/dev/null || doctor_rc=$?
-  if [[ "$doctor_rc" -ne 0 ]] || ! jq -e '
-    (.checks | type == "array") and
-    ([.checks[] | select(.required and (.status == "fail" or .status == "unknown"))] | length == 0)
-  ' "$output" >/dev/null 2>&1; then
-    echo "agent preflight: $harness is not ready" >&2
-    jq -r '
-      .checks[]
-      | select(.required and (.status == "fail" or .status == "unknown"))
-      | "  - " + .message
-    ' "$output" >&2 2>/dev/null || true
-    echo "Run: agent-config-sync doctor --only $harness --online" >&2
-    exit 1
-  fi
-done
+output="$work_dir/$requested.json"
+doctor_rc=0
+"$sync" doctor --only "$requested" --online --json >"$output" 2>/dev/null || doctor_rc=$?
 
-if [[ "$requested" == pi ]]; then
-  echo 'agent preflight: Pi routes and Claude lane authentication are ready' >&2
+if ! jq -e '(.checks | type == "array")' "$output" >/dev/null 2>&1; then
+  echo "agent preflight: $requested readiness check did not return valid diagnostics" >&2
+  echo "Run: agent-config-sync doctor --only $requested --online" >&2
+  exit 1
+fi
+
+is_blocked="$(jq -r --arg harness "$requested" '
+  def recoverable_auth:
+    .id == ("online." + $harness + ".auth") or
+    ($harness == "pi" and (.id | startswith("online.pi.provider.")));
+  [.checks[]
+    | select(.required and (.status == "fail" or .status == "unknown"))
+    | select(recoverable_auth | not)]
+  | length > 0
+' "$output")"
+
+if [[ "$is_blocked" == true ]]; then
+  echo "agent preflight: $requested is not ready" >&2
+  jq -r --arg harness "$requested" '
+    def recoverable_auth:
+      .id == ("online." + $harness + ".auth") or
+      ($harness == "pi" and (.id | startswith("online.pi.provider.")));
+    .checks[]
+    | select(.required and (.status == "fail" or .status == "unknown"))
+    | select(recoverable_auth | not)
+    | "  - " + .message
+  ' "$output" >&2
+  echo "Run: agent-config-sync doctor --only $requested --online" >&2
+  exit 1
+fi
+
+has_auth_problem="$(jq -r --arg harness "$requested" '
+  [.checks[]
+    | select(.required and (.status == "fail" or .status == "unknown"))
+    | select(
+        .id == ("online." + $harness + ".auth") or
+        ($harness == "pi" and (.id | startswith("online.pi.provider.")))
+      )]
+  | length > 0
+' "$output")"
+
+if [[ "$doctor_rc" -ne 0 && "$has_auth_problem" != true ]]; then
+  echo "agent preflight: $requested readiness check failed without actionable diagnostics" >&2
+  echo "Run: agent-config-sync doctor --only $requested --online" >&2
+  exit 1
+fi
+
+if [[ "$has_auth_problem" == true ]]; then
+  echo "agent preflight: $requested authentication is not ready; launching for in-harness recovery" >&2
 else
   echo "agent preflight: $requested is ready" >&2
 fi
