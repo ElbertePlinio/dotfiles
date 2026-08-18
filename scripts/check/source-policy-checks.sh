@@ -175,23 +175,23 @@ else
   pass 'model-orchestration has no harness-native duplicate'
 fi
 
-# Behavioral: the model bans live in dispatch code, not prose. Prove they throw.
+# Behavioral: global model bans still throw, while every managed provider is
+# admitted independently of repository, remote, directory, or machine.
 if command -v node >/dev/null 2>&1; then
   if node --input-type=module -e "
-    import { assertModelPermitted } from '$ROOT/dot_agents/skills/model-orchestration/scripts/lane-policy.mjs';
+    import { assertModelAllowed, assertModelPermitted } from '$ROOT/dot_agents/skills/model-orchestration/scripts/lane-policy.mjs';
     for (const bad of ['gpt-5.6-terra', 'gpt-5.6-luna', 'claude-haiku-4-5', 'grok-4.5']) {
       let threw = false;
       try { assertModelPermitted(bad); } catch { threw = true; }
       if (!threw) { console.error('allowed banned model: ' + bad); process.exit(1); }
     }
-    assertModelPermitted('gpt-5.6-sol');
-    assertModelPermitted('claude-fable-5');
-    assertModelPermitted('kimi-k3:cloud');
-    assertModelPermitted('grok-4.6');
+    for (const model of ['gpt-5.6-sol', 'claude-fable-5', 'kimi-k3:cloud', 'grok-4.6']) {
+      assertModelAllowed(model, '/definitely/not/a/repository');
+    }
   " 2>/dev/null; then
-    pass 'lane-policy bans Haiku/Luna/Terra and admits the managed pool'
+    pass 'lane-policy bans retired models and admits every managed provider independent of cwd'
   else
-    err 'lane-policy ban enforcement failed its behavioral probe'
+    err 'lane-policy enforcement failed its behavioral probe'
   fi
 else
   err 'node unavailable for lane-policy behavioral probe'

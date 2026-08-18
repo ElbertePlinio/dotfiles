@@ -22,7 +22,7 @@ grok --prompt-file <scratchpad>/x-<topic>.md --model grok-4.6 --reasoning-effort
 
 - `--prompt-file <path>` takes the prompt; `-p` is `--single <PROMPT>` and requires
   an inline value, so `-p --prompt-file …` fails.
-- Grok 4.6 runs at `high` effort.
+- Start at the table prior (`high`) unless a different effort is chosen.
 - Run it in the background and read the output file — a research loop takes minutes.
 - Deny `Write`/`Edit` for research; add `--json-schema` when a caller needs structure.
 

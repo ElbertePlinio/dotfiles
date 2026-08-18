@@ -18,7 +18,7 @@ required.
 - In Pi, use Pi native lanes through pi-kit with an explicit full selector and effort
   per call.
 - In OMP, use the native `agent()` bridge with an explicit selector
-  (`openai-codex/gpt-5.6-sol:<effort>`, `xai-oauth/grok-4.6:high`).
+  (`openai-codex/gpt-5.6-sol:<effort>`, `xai-oauth/grok-4.6:<effort>`).
 - In Grok sessions: `spawn_subagent` from the main session;
   `capability_mode: read-only` for scouts, reviewers, and dissenters;
   `isolation: worktree` for parallel writers; `resume_from` for correction passes.
@@ -108,7 +108,7 @@ response to stdout.
 ```bash
 grok -p "<self-contained prompt>" \
   --model grok-4.6 \
-  --reasoning-effort high \
+  --reasoning-effort <effort> \
   --cwd <repo> \
   > <scratchpad>/grok-<task>-last.md 2>&1
 ```

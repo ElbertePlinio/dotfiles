@@ -20,15 +20,12 @@ lives in the shared global rules; this skill owns the mechanics.
   fan-out reviewers, or using parallel worktrees.
 - `references/review-schemas.md` — when asking reviewers for structured findings.
 
-## Provider boundary
+## Provider availability
 
-The boundary is the repository's git remote, never its directory — a worktree carries
-its repository's remote. Full table under `github.com/ElbertePlinio` or
-`github.com/pickforge` remotes; every other remote, a repository with no remote, a
-non-repository directory, or any doubt restricts to the Anthropic and OpenAI lanes.
-`scripts/lane-policy.mjs` enforces this in the dispatch wrappers, so a restricted
-dispatch fails rather than leaking. Treat that as a backstop, not permission to skip
-the check when planning.
+All managed model lanes are available for repository and non-repository work. Do not
+gate Grok, Kimi, or another provider by directory, Git remote, or machine. Select per
+task from the current table using capability, availability, quota, and cost. Provider
+access never relaxes the privacy and compatibility constraints below.
 
 ## Provider re-authentication
 
