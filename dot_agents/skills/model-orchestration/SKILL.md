@@ -31,20 +31,11 @@ access never relaxes the privacy and compatibility constraints below.
 
 Use each provider's normal interactive login: Google `elberte.dev@gmail.com` for Claude, ChatGPT, and Ollama; Microsoft `eoberte@outlook.com` for Grok. Never handle passwords, recovery codes, 2FA codes, cookies, or tokens. If login cannot complete without the user, stop and prompt them.
 
-## Quota headroom
+## Provider availability checks
 
-Before a multi-task dispatch wave, check pool headroom once (not before every call):
-
-```sh
-pickgauge usage --json || ~/.local/bin/pickgauge usage --json
-```
-
-Read `services`: `remainingPercent` and `windows.fiveHour`/`windows.week` are the
-gauges; `source`, `confidence`, and `staleSeconds` say how much to trust a reading.
-Route by available headroom, not sticker price — a cheap lane near its cap loses to a
-pricier lane with room. `remainingPercent: null` means no gauge: treat the pool as
-unknown, never as empty. If the binary is missing on this machine, note it and
-continue rather than blocking.
+Do not run quota or usage-meter commands before dispatch. Select by task fit and known
+provider availability. If a provider rejects a request because it is unavailable or
+out of quota, report the substitution and retry with the closest compatible model.
 
 ## Bounds
 
