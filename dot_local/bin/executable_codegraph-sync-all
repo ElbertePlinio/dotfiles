@@ -1,0 +1,124 @@
+#!/bin/sh
+# Incrementally sync every local Codegraph index, and optionally install
+# per-repo git hooks so commits/checkouts refresh the graph without MCP.
+set -eu
+
+PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:$PATH"
+export PATH
+
+usage() {
+  printf '%s\n' "Usage: codegraph-sync-all [--hooks] [--status] [--help]"
+}
+
+if ! command -v codegraph >/dev/null 2>&1; then
+  printf 'error: codegraph is not on PATH\n' >&2
+  exit 1
+fi
+
+do_sync=1
+do_hooks=0
+do_status=0
+for arg in "$@"; do
+  case "$arg" in
+    --hooks) do_hooks=1 ;;
+    --status) do_status=1; do_sync=0 ;;
+    -h|--help) usage; exit 0 ;;
+    *)
+      printf 'error: unknown argument: %s\n' "$arg" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+is_skipped_path() {
+  case "$1" in
+    */.worktrees/*|*/node_modules/*|*/.git/*|*/target/*|*/.dart_tool/*)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+discover_indexes() {
+  roots="$HOME/Projects $HOME/AgentMemory"
+  for root in $roots; do
+    [ -d "$root" ] || continue
+    find "$root" \
+      \( -name node_modules -o -name .git -o -name .worktrees \
+         -o -name target -o -name dist -o -name build -o -name .dart_tool \) -prune -o \
+      -type d -name .codegraph -print
+  done
+}
+
+install_hooks() {
+  project=$1
+  git_dir=$(git -C "$project" rev-parse --path-format=absolute --git-path hooks 2>/dev/null) || return 0
+  [ -d "$git_dir" ] || return 0
+
+  hook_body='#!/bin/sh
+# managed-by: codegraph-sync-all
+PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:$PATH"
+export PATH
+command -v codegraph >/dev/null 2>&1 || exit 0
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -d "$root/.codegraph" ] || exit 0
+codegraph sync -q "$root" >/dev/null 2>&1 || true
+'
+
+  for hook in post-commit post-merge post-checkout post-rewrite; do
+    path="$git_dir/$hook"
+    if [ -e "$path" ] && ! grep -q 'managed-by: codegraph-sync-all' "$path" 2>/dev/null; then
+      printf 'skip existing hook %s\n' "$path"
+      continue
+    fi
+    printf '%s\n' "$hook_body" > "$path"
+    chmod +x "$path"
+    printf 'hook %s\n' "$path"
+  done
+}
+
+found=0
+synced=0
+failed=0
+while IFS= read -r index_dir; do
+  [ -n "$index_dir" ] || continue
+  is_skipped_path "$index_dir" && continue
+  project=$(dirname "$index_dir")
+  found=$((found + 1))
+
+  if [ "$do_hooks" -eq 1 ]; then
+    install_hooks "$project"
+  fi
+
+  if [ "$do_status" -eq 1 ]; then
+    printf '\n===== %s =====\n' "$project"
+    codegraph status "$project" || true
+    continue
+  fi
+
+  if [ "$do_sync" -eq 1 ]; then
+    printf 'sync %s\n' "$project"
+    if codegraph sync -q "$project"; then
+      synced=$((synced + 1))
+    else
+      printf 'warn: sync failed: %s\n' "$project" >&2
+      failed=$((failed + 1))
+    fi
+  fi
+done <<EOF
+$(discover_indexes)
+EOF
+
+if [ "$found" -eq 0 ]; then
+  printf 'no Codegraph indexes found under ~/Projects or ~/AgentMemory\n' >&2
+  exit 1
+fi
+
+if [ "$do_status" -eq 1 ]; then
+  printf '\n%d indexes\n' "$found"
+  exit 0
+fi
+
+printf 'codegraph-sync-all: %d indexes, %d synced, %d failed\n' "$found" "$synced" "$failed"
+[ "$failed" -eq 0 ]
