@@ -156,7 +156,7 @@ function buildReviewerCommand(model, cwd, promptFile) {
         "--mode",
         "review",
         "--model",
-        model === "kimi-k3" ? "kimi-k3:cloud" : model,
+        model === "kimi-k3" ? "opencode-go/kimi-k3" : model,
         "--cwd",
         cwd,
         "--prompt-file",

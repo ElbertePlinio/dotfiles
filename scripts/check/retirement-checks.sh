@@ -154,7 +154,7 @@ check_active_retired_references() {
     --glob '!.chezmoiremove' \
     --glob '!scripts/check-agent-config-sync.sh' \
     --glob '!scripts/check/**' \
-    'claude-personal|claude-default|claude-profile|agentProfile|agent-profiles|Projects/Personal/\.codex|\.agent-safety|superpowers|\brtk\b|RTK\.md|\bfrun\b|caveman|cavecrew|\bfactory\b|\bdroid\b|\bopencode\b' \
+    'claude-personal|claude-default|claude-profile|agentProfile|agent-profiles|Projects/Personal/\.codex|\.agent-safety|superpowers|\brtk\b|RTK\.md|\bfrun\b|caveman|cavecrew|\bfactory\b|\bdroid\b|(?<![\w-])opencode(?!-[Gg]o)(?![\w-])' \
     .)"; then
     err 'active source contains retired harness/profile/tooling references'
     printf '%s\n' "$matches" >&2

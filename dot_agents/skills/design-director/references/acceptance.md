@@ -12,6 +12,7 @@ Use the narrowest set that can expose a real failure.
 - Motion explains change or confirms action, remains responsive, and has a reduced-motion path.
 - Keyboard order, focus visibility, contrast, labels, and touch targets fit the platform.
 - The result belongs to the product rather than looking like a generic template.
+- Subtraction: no element could be removed without breaking a job, and no state has more than one indicator.
 
 ## Evidence
 

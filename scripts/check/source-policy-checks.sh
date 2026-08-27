@@ -41,7 +41,9 @@ for path in dot_claude/CLAUDE.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/
 done
 
 TABLE_ROW_GROK='^\| Grok 4\.6 \| .*grok-4\.6.* \| high \|.*\| yes \|$'
-TABLE_ROW_KIMI='^\| Kimi K3 \| `ollama/kimi-k3:cloud` \| provider default \|.*\| yes \|$'
+TABLE_ROW_KIMI='^\| Kimi K3 \| `opencode-go/kimi-k3` \| medium \|.*\| yes \|$'
+TABLE_ROW_GLM='^\| GLM-5\.3 \| `opencode-go/glm-5\.3` \| medium \|.*\| no \|$'
+TABLE_ROW_OX='^\| Ox Alpha \| `opencode-go/ox-alpha-free` \| medium \|.*\| yes \|$'
 TABLE_ROW_OPUS='^\| Opus 5 \| `anthropic/claude-opus-5` \| medium \|.*\| yes \|$'
 OPUS_EFFORT_RULE='Opus 5 defaults to `medium` and may use only `low` or `medium`; `high` and above are prohibited.'
 for entry in \
@@ -53,6 +55,8 @@ for entry in \
   if render "$path" "$out" \
     && grep -Eq "$TABLE_ROW_GROK" "$out" \
     && grep -Eq "$TABLE_ROW_KIMI" "$out" \
+    && grep -Eq "$TABLE_ROW_GLM" "$out" \
+    && grep -Eq "$TABLE_ROW_OX" "$out" \
     && grep -Eq "$TABLE_ROW_OPUS" "$out" \
     && grep -Fq "$OPUS_EFFORT_RULE" "$out"; then
     pass "rendered $harness routing table and Opus effort policy are current"
@@ -101,8 +105,8 @@ compaction_extension='dot_pi/agent/extensions/model-compaction-threshold.ts'
 if [[ -f "$compaction_extension" ]] \
   && grep -Fq 'provider: "openai-codex"' "$compaction_extension" \
   && grep -Fq 'id: "gpt-5.6-sol"' "$compaction_extension" \
-  && grep -Fq 'COMPACTION_THRESHOLD_TOKENS = 150_000' "$compaction_extension"; then
-  pass 'Pi model-specific compaction threshold targets GPT-5.6 Sol at 150k tokens'
+  && grep -Fq 'COMPACTION_THRESHOLD_TOKENS = 240_000' "$compaction_extension"; then
+  pass 'Pi model-specific compaction threshold targets GPT-5.6 Sol at 240k tokens'
 else
   err 'Pi model-specific compaction threshold has the wrong model or token limit'
 fi
@@ -119,9 +123,13 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
       && err 'Pi settings contain a forbidden Haiku selector' \
       || pass 'Pi settings contain no Haiku selector'
     jq -e '(.enabledModels | any(. == "xai/grok-4.6"))
-      and (.enabledModels | all(. != "xai/grok-4.5"))' >/dev/null <<<"$pi_settings" \
-      && pass 'Pi enabled models select Grok 4.6 and retire Grok 4.5' \
-      || err 'Pi enabled models do not cleanly replace Grok 4.5 with Grok 4.6'
+      and (.enabledModels | all(. != "xai/grok-4.5"))
+      and (.enabledModels | any(. == "opencode-go/kimi-k3"))
+      and (.enabledModels | any(. == "opencode-go/glm-5.3"))
+      and (.enabledModels | any(. == "opencode-go/ox-alpha-free"))
+      and (.enabledModels | all(. != "ollama/kimi-k3:cloud"))' >/dev/null <<<"$pi_settings" \
+      && pass 'Pi enabled models select Grok 4.6 and OpenCode Go Kimi/GLM/Ox' \
+      || err 'Pi enabled models missing OpenCode Go pool or still pin Ollama Kimi'
     jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-5.6-sol" and .defaultThinkingLevel == "medium"' >/dev/null <<<"$pi_settings" \
       && pass 'Pi canonical bootstrap defaults to GPT-5.6 Sol at medium effort' \
       || err 'Pi canonical GPT-5.6 Sol bootstrap default is missing or misconfigured'
@@ -137,9 +145,13 @@ pi_models=''
 if pi_models="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/models.json")"; then
   if jq -e . >/dev/null 2>&1 <<<"$pi_models"; then
     pass 'Pi models JSON valid'
-    jq -e '.providers.ollama.models | any(.id == "kimi-k3:cloud")' >/dev/null <<<"$pi_models" \
-      && pass 'Pi models include Ollama Kimi K3 Cloud' \
-      || err 'Pi models missing Ollama Kimi K3 Cloud'
+    jq -e '.providers["openai-codex"].models
+      | any(.id == "gpt-5.6-sol" and .contextWindow == 272000)' >/dev/null <<<"$pi_models" \
+      && pass 'Pi GPT-5.6 Sol uses a 272k context window' \
+      || err 'Pi GPT-5.6 Sol context window is not 272k'
+    jq -e '(.providers.ollama.models // []) | any(.id == "kimi-k3:cloud")' >/dev/null <<<"$pi_models" \
+      && err 'Pi models still pin Ollama Kimi K3 Cloud; use OpenCode Go' \
+      || pass 'Pi models no longer pin Ollama Kimi K3'
     jq -e '.providers["deepseek-official"]
       | .apiKey == "!sed -n '\''s/^DEEPSEEK_API_KEY=//p'\'' \"$HOME/.agents/deepseek.env\""
       and any(.models[]; .id == "deepseek-v4-flash")' >/dev/null <<<"$pi_models" \
@@ -185,7 +197,7 @@ if command -v node >/dev/null 2>&1; then
       try { assertModelPermitted(bad); } catch { threw = true; }
       if (!threw) { console.error('allowed banned model: ' + bad); process.exit(1); }
     }
-    for (const model of ['gpt-5.6-sol', 'claude-fable-5', 'kimi-k3:cloud', 'grok-4.6']) {
+    for (const model of ['gpt-5.6-sol', 'claude-fable-5', 'kimi-k3', 'glm-5.3', 'ox-alpha-free', 'grok-4.6']) {
       assertModelAllowed(model, '/definitely/not/a/repository');
     }
   " 2>/dev/null; then

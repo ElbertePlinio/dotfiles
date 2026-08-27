@@ -80,7 +80,7 @@ Use [acceptance.md](references/acceptance.md) proportionally. Functional tests d
 
 ### 7. Return to the same design lead
 
-The design lead compares the implementation with the locked contract and references, identifies the few highest-impact gaps, and returns one of:
+The design lead compares the implementation with the locked contract and references, identifies the few highest-impact gaps, answers "could this be less?" explicitly (`accepted` requires "no" or a named reason), and returns one of:
 
 - `accepted`;
 - `accepted with named follow-up`;
@@ -95,4 +95,5 @@ Iterate until accepted or a real blocker is documented. A different reviewer may
 - Motion must explain change, preserve orientation, confirm action, or establish intentional pacing.
 - Include empty, loading, error, disabled, focus, hover, and destructive states when applicable.
 - Prefer a few strong decisions over many ornamental effects.
+- Minimal by default: one element per job; run a subtraction pass; nothing empty on screen; silent transitions.
 - Never claim visual acceptance without viewing representative rendered output.

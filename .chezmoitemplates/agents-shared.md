@@ -25,7 +25,7 @@ Select model and effort per call from the harness table; no permanent roles or f
 - Fable 5 and Opus 5 draw on separate quotas — spend outward. A Fable session prefers Opus lanes for long-horizon execution, large-context sweeps, and correctness review; an Opus session prefers Fable lanes for design authority, visual judgment, and taste review. Neither dispatches lanes of its own model for spec implementation or mechanical work.
 - Implementation from a precise spec routes to cheap lanes, Sol first, at low effort, under a written contract: files in scope, interfaces, acceptance criteria, what must not change, smallest diff, edge cases enumerated. If the contract cannot be written, the design is not ready — resolve it first with the highest-taste compatible candidate.
 - When dispatching a swarm or any multi-subagent wave, explicitly choose and state each task's model and effort from the current table. A default agent type is not a model selection.
-- Never use Anthropic Haiku or GPT-5.6 Luna/Terra; Sol is the only GPT-5.6 lane — shift its effort instead. Opus 5 defaults to `medium` and may use only `low` or `medium`; `high` and above are prohibited. These constraints are enforced in dispatch code; if a route violates one, stop and report.
+- Never use Anthropic Haiku, Anthropic Sonnet, or GPT-5.6 Luna/Terra; Sol is the only GPT-5.6 lane — shift its effort instead. Opus 5 defaults to `medium` and may use only `low` or `medium`; `high` and above are prohibited. These constraints are enforced in dispatch code; if a route violates one, stop and report.
 - `xhigh` is the absolute effort ceiling. Never use `ultra`, `max`, or any effort above xhigh; raise effort only on failed validation or unresolved evidence, and return to the table prior when the trigger resolves.
 - All managed model lanes may be selected for repository and non-repository work; never gate Grok, Kimi, or another provider by directory, Git remote, or machine. Choose by task fit, availability, and quota while preserving privacy and compatibility constraints.
 - Visual browser driving and long interactive UI sessions go to a vision-capable subagent that reports in Markdown; visual verdicts go to the highest-taste vision-capable candidate. Read `~/.agents/browser-use.md` and `~/.agents/desktop-capture.md` before browser or desktop-UI work and tell subagents to read them. `~/.agents/codex-lane-override.md` applies to any `openai-codex/*` lane.
@@ -40,6 +40,7 @@ Select model and effort per call from the harness table; no permanent roles or f
 ## UI and UX
 
 - For work that creates or materially changes user-facing UI or UX, use the `design-director` skill before implementation. A repo-specific design skill overlays the general workflow; tiny fixes already determined by existing tokens or components use the skill's light path.
+- Designs are minimal by default (one element per job, subtraction pass, nothing empty, silent transitions); a contract with more than one indicator for the same state is rejected.
 
 ## Git and pull requests
 

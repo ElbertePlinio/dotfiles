@@ -246,6 +246,43 @@ stopllama() {
   pkill -f llama-server
 }
 
+# Qwen3.8 27B Uncensored i1-Q3_K_M - RX 9070 XT - 32K + MTP
+qwen38-unc() {
+  cd "$HOME/src/llama.cpp" || return 1
+
+  local MODEL="$HOME/models/qwen3.8-unc/Qwen3.8-27B-Uncensored.i1-Q3_K_M.gguf"
+  local MMPROJ="$HOME/models/qwen3.8-unc/Qwen3.8-27B-Uncensored.mmproj-f16.gguf"
+
+  HIP_VISIBLE_DEVICES=0 ./build/bin/llama-server \
+    -m "$MODEL" \
+    --mmproj "$MMPROJ" \
+    --no-mmproj-offload \
+    --alias qwen3.8-unc \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --jinja \
+    --reasoning off \
+    -ngl 999 \
+    --ctx-size 32768 \
+    -fa on \
+    --cache-type-k q8_0 \
+    --cache-type-v q8_0 \
+    --spec-type draft-mtp \
+    --spec-draft-n-max 3 \
+    --threads 8 \
+    --threads-batch 12 \
+    --batch-size 1024 \
+    --ubatch-size 512 \
+    --parallel 1 \
+    --metrics \
+    --temp 0.7 \
+    --top-p 0.8 \
+    --top-k 20 \
+    --min-p 0.0 \
+    --presence-penalty 1.5 \
+    --repeat-penalty 1.0
+}
+
 export CLIPROXY_API_BASE_URL="http://127.0.0.1:8317/v1"
 
 # Claude Code apontado pro Qwen local (I-Mini via cli-proxy-api)

@@ -26,6 +26,7 @@ Mode: greenfield | unfamiliar audit | preserve | targeted | overhaul
 - Density, rhythm, and composition:
 - Type, color, shape, and imagery:
 - Motion character and purpose:
+- Elements added and why each is necessary:
 - References — take:
 - References — reject:
 - Explicit anti-goals:
@@ -47,6 +48,7 @@ Mode: greenfield | unfamiliar audit | preserve | targeted | overhaul
 - Screens/states to capture:
 - Interaction or motion to inspect:
 - Automated checks:
+- Subtraction check (what was removed, what could still go):
 ```
 
 Locking means the design lead has resolved the meaningful aesthetic choices. Acceptance means the rendered result was inspected against this contract.

@@ -4,7 +4,7 @@ export const TARGET_MODEL = {
   provider: "openai-codex",
   id: "gpt-5.6-sol",
 } as const;
-export const COMPACTION_THRESHOLD_TOKENS = 150_000;
+export const COMPACTION_THRESHOLD_TOKENS = 240_000;
 
 type ModelRef = { provider: string; id: string } | undefined;
 

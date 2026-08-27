@@ -97,7 +97,7 @@ agent-config-sync sync        # fast-forward dotfiles and AgentMemory, then run 
 Each computer declares only the harnesses, Pi providers, MCP servers, and
 standalone pi-kit lane routes it requires in the deliberately unmanaged
 `~/.config/agent-config-sync/doctor.json`. The example below reflects the
-current pi-kit setup: `openai-codex`, `xai`, and `ollama` selectors dispatch
+current pi-kit setup: `openai-codex`, `xai`, and `opencode-go` selectors dispatch
 through Pi's native route, while the Anthropic Fable/Opus selectors
 dispatch through genuine Claude Code child processes — Anthropic is the
 Claude Code route, never a Pi provider. Core Pi has no MCP of its own, so only
@@ -107,10 +107,10 @@ Claude Code route, never a Pi provider. Core Pi has no MCP of its own, so only
 {
   "version": 1,
   "harnesses": ["claude", "codex", "pi", "ollama"],
-  "providers": {"pi": ["openai-codex", "xai", "ollama"]},
+  "providers": {"pi": ["openai-codex", "xai", "opencode-go"]},
   "mcp": {"claude": ["pickforge-lanes"]},
   "lanes": {
-    "pi": ["openai-codex/gpt-5.6-sol", "xai/grok-4.6", "ollama/kimi-k3:cloud"],
+    "pi": ["openai-codex/gpt-5.6-sol", "xai/grok-4.6", "opencode-go/kimi-k3", "opencode-go/glm-5.3", "opencode-go/ox-alpha-free"],
     "claude-code": ["anthropic/claude-fable-5", "anthropic/claude-opus-5"]
   }
 }
