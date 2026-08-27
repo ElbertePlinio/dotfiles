@@ -152,6 +152,13 @@
       "grok",
       "pi",
       "omp"
+    ],
+    "complexity-gate": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
     ]
   }
 }
