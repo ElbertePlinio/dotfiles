@@ -42,8 +42,8 @@ done
 
 TABLE_ROW_GROK='^\| Grok 4\.6 \| .*grok-4\.6.* \| high \|.*\| yes \|$'
 TABLE_ROW_KIMI='^\| Kimi K3 \| `opencode-go/kimi-k3` \| medium \|.*\| yes \|$'
-TABLE_ROW_GLM='^\| GLM-5\.3 \| `opencode-go/glm-5\.3` \| medium \|.*\| no \|$'
-TABLE_ROW_OX='^\| Ox Alpha \| `opencode-go/ox-alpha-free` \| medium \|.*\| yes \|$'
+TABLE_ROW_GLM='^\| GLM-5\.3 Flash \| `opencode-go/glm-5\.3-flash` \| medium \|.*\| no \|$'
+RETIRED_OX='ox-alpha-free'
 TABLE_ROW_OPUS='^\| Opus 5 \| `anthropic/claude-opus-5` \| medium \|.*\| yes \|$'
 OPUS_EFFORT_RULE='Opus 5 defaults to `medium` and may use only `low` or `medium`; `high` and above are prohibited.'
 for entry in \
@@ -56,7 +56,7 @@ for entry in \
     && grep -Eq "$TABLE_ROW_GROK" "$out" \
     && grep -Eq "$TABLE_ROW_KIMI" "$out" \
     && grep -Eq "$TABLE_ROW_GLM" "$out" \
-    && grep -Eq "$TABLE_ROW_OX" "$out" \
+    && ! grep -Fq "$RETIRED_OX" "$out" \
     && grep -Eq "$TABLE_ROW_OPUS" "$out" \
     && grep -Fq "$OPUS_EFFORT_RULE" "$out"; then
     pass "rendered $harness routing table and Opus effort policy are current"
@@ -125,11 +125,11 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
     jq -e '(.enabledModels | any(. == "xai/grok-4.6"))
       and (.enabledModels | all(. != "xai/grok-4.5"))
       and (.enabledModels | any(. == "opencode-go/kimi-k3"))
-      and (.enabledModels | any(. == "opencode-go/glm-5.3"))
-      and (.enabledModels | any(. == "opencode-go/ox-alpha-free"))
+      and (.enabledModels | any(. == "opencode-go/glm-5.3-flash"))
+      and (.enabledModels | all(. != "opencode-go/ox-alpha-free"))
       and (.enabledModels | all(. != "ollama/kimi-k3:cloud"))' >/dev/null <<<"$pi_settings" \
-      && pass 'Pi enabled models select Grok 4.6 and OpenCode Go Kimi/GLM/Ox' \
-      || err 'Pi enabled models missing OpenCode Go pool or still pin Ollama Kimi'
+      && pass 'Pi enabled models select Grok 4.6 and OpenCode Go Kimi/GLM Flash, and retire Ox Alpha' \
+      || err 'Pi enabled models missing OpenCode Go pool, still list retired Ox Alpha, or still pin Ollama Kimi'
     jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-5.6-sol" and .defaultThinkingLevel == "medium"' >/dev/null <<<"$pi_settings" \
       && pass 'Pi canonical bootstrap defaults to GPT-5.6 Sol at medium effort' \
       || err 'Pi canonical GPT-5.6 Sol bootstrap default is missing or misconfigured'
@@ -197,7 +197,7 @@ if command -v node >/dev/null 2>&1; then
       try { assertModelPermitted(bad); } catch { threw = true; }
       if (!threw) { console.error('allowed banned model: ' + bad); process.exit(1); }
     }
-    for (const model of ['gpt-5.6-sol', 'claude-fable-5', 'kimi-k3', 'glm-5.3', 'ox-alpha-free', 'grok-4.6']) {
+    for (const model of ['gpt-5.6-sol', 'claude-fable-5', 'kimi-k3', 'glm-5.3-flash', 'grok-4.6']) {
       assertModelAllowed(model, '/definitely/not/a/repository');
     }
   " 2>/dev/null; then

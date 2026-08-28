@@ -13,8 +13,7 @@ table.
 | Opus 5 | `anthropic/claude-opus-5` | medium | 5 | 9 | 8 | 9 | yes | only low or medium effort; high and above are prohibited |
 | Grok 4.6 | `xai/grok-4.6` (Pi, pickforge-lanes MCP) / `xai-oauth/grok-4.6` (OMP) | high | 3 | 9 | 7 | 6 | yes | provider prefix is harness-scoped |
 | Kimi K3 | `opencode-go/kimi-k3` | medium | 5 | 8 | 8 | 4 | yes | OpenCode Go; burns the $60 cap fast (~110 req / 5h) |
-| GLM-5.3 | `opencode-go/glm-5.3` | medium | 3 | 8 | 7 | 6 | no | OpenCode Go; text-only; daily agent/terminal lane |
-| Ox Alpha | `opencode-go/ox-alpha-free` | medium | 1 | 7 | 7 | 3 | yes | OpenCode Go promo, stealth lab; never adjudicate |
+| GLM-5.3 Flash | `opencode-go/glm-5.3-flash` | medium | 3 | 8 | 7 | 6 | no | OpenCode Go; text-only; fast daily agent/terminal lane |
 
 GPT-5.6 Luna/Terra and Anthropic Haiku are prohibited; `scripts/lane-policy.mjs`
 enforces the bans in the dispatch wrappers. Do not use Codex `ultra`; its internal
@@ -27,16 +26,16 @@ AA-Omniscience hallucination 51% (up from 39% on K2.6) — high-recall finder,
 never an adjudicator. Cost 5 is Go quota burn ($3/$15 per 1M, ~490 req/month),
 not Ollama list price.
 
-GLM-5.3 matches K3 on Artificial Analysis Intelligence Index 60 (Unite.AI,
-2026-08-18) and leads open-weight Terminal-Bench / long-horizon agent numbers
-on Z.ai's table. Taste is agent/terminal, not UI. Vision is not in this launch.
-Calibration 6 is a gap, not praise: no Semgrep-class honesty study; treat cyber
-claims as vendor-reported.
+GLM-5.3 Flash is the fast, lower-latency sibling of GLM-5.3. Taste is
+agent/terminal, not UI, and vision is not in this launch. The published figures
+— Artificial Analysis Intelligence Index 60 (Unite.AI, 2026-08-18) and the
+open-weight Terminal-Bench / long-horizon lead on Z.ai's table — were measured
+on full GLM-5.3, not Flash, so the intelligence and taste scores here are
+inherited and provisional until this lane is exercised. Calibration 6 is a gap,
+not praise: no Semgrep-class honesty study; treat cyber claims as
+vendor-reported.
 
-Ox Alpha is a stealth OpenRouter/Go model (image+video, 1M context, $0 while
-the promo lasts). Public “80% DeepSWE” figures are tiny unofficial slices, not
-the 113-task set. Intelligence/taste 7 are provisional practitioner reads;
-calibration 3 means it cannot close a verdict.
+
 
 ## Compatibility and fallback
 

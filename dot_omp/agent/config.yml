@@ -12,8 +12,7 @@ enabledModels:
   - anthropic/claude-opus-5
   - xai-oauth/grok-4.6
   - opencode-go/kimi-k3
-  - opencode-go/glm-5.3
-  - opencode-go/ox-alpha-free
+  - opencode-go/glm-5.3-flash
 modelRoles:
   default: openai-codex/gpt-5.6-sol:medium
   smol: openai-codex/gpt-5.6-sol:low

@@ -17,9 +17,8 @@
     "anthropic/claude-fable-5",
     "anthropic/claude-opus-5",
     "deepseek-official/deepseek-v4-flash",
-    "opencode-go/glm-5.3",
+    "opencode-go/glm-5.3-flash",
     "opencode-go/kimi-k3",
-    "opencode-go/ox-alpha-free",
     "openai-codex/gpt-5.6-sol",
     "xai/grok-4.6"
   ],
