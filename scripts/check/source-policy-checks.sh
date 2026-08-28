@@ -42,7 +42,7 @@ done
 
 TABLE_ROW_GROK='^\| Grok 4\.6 \| .*grok-4\.6.* \| high \|.*\| yes \|$'
 TABLE_ROW_KIMI='^\| Kimi K3 \| `opencode-go/kimi-k3` \| medium \|.*\| yes \|$'
-TABLE_ROW_GLM='^\| GLM-5\.3 Flash \| `opencode-go/glm-5\.3-flash` \| medium \|.*\| no \|$'
+TABLE_ROW_GLM='^\| GLM-5\.3 Flash \| `opencode-go/glm-5\.3-flash` \| medium \|.*\| yes \|$'
 RETIRED_OX='ox-alpha-free'
 TABLE_ROW_OPUS='^\| Opus 5 \| `anthropic/claude-opus-5` \| medium \|.*\| yes \|$'
 OPUS_EFFORT_RULE='Opus 5 defaults to `medium` and may use only `low` or `medium`; `high` and above are prohibited.'
