@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# Report (and optionally fix) first-party tools on this machine that are older
+# than what their repository or release channel offers.
+#
+#   dev-freshness            check and report; exit 1 if anything is stale
+#   dev-freshness --update   apply the update for every stale target
+#   dev-freshness --quiet    report only stale targets (used by the timer)
+set -uo pipefail
+
+WORKSPACE="${PICKFORGE_WORKSPACE:-$HOME/Projects/Pickforge}"
+PERSONAL="${PERSONAL_WORKSPACE:-$HOME/Projects/Personal}"
+
+# name | kind | repo path | update command
+# kind: repo     — local checkout behind its remote
+#       release  — installed app older than the newest GitHub release
+#       npm      — global npm package older than the registry
+#       cargo    — installed binary older than the repo's HEAD commit
+TARGETS=(
+  "pickforge|repo|$WORKSPACE/pickforge|git -C $WORKSPACE/pickforge pull --ff-only"
+  "pickgauge|repo|$WORKSPACE/pickgauge|git -C $WORKSPACE/pickgauge pull --ff-only"
+  "pickscribe|repo|$WORKSPACE/pickscribe|git -C $WORKSPACE/pickscribe pull --ff-only"
+  "picklab|repo|$WORKSPACE/picklab|git -C $WORKSPACE/picklab pull --ff-only"
+  "complexity-gate|repo|$WORKSPACE/complexity-gate|git -C $WORKSPACE/complexity-gate pull --ff-only"
+  "pi-kit|repo|$PERSONAL/pi-kit|git -C $PERSONAL/pi-kit pull --ff-only"
+  "prova-clara|repo|$PERSONAL/prova-clara|git -C $PERSONAL/prova-clara pull --ff-only"
+  "PickForge.AppImage|release|$WORKSPACE/pickforge|sh $WORKSPACE/pickforge/scripts/install.sh"
+  "PickGauge.AppImage|release|$WORKSPACE/pickgauge|sh $WORKSPACE/pickgauge/scripts/install.sh"
+  "PickScribe.AppImage|release|$WORKSPACE/pickscribe|sh $WORKSPACE/pickscribe/scripts/install.sh"
+  "@pickforge/picklab|npm|$WORKSPACE/picklab|npm install -g @pickforge/picklab@latest"
+  "complexity-gate|cargo|$WORKSPACE/complexity-gate|cargo install --path $WORKSPACE/complexity-gate/crates/cli --locked --force"
+)
+
+update=0
+quiet=0
+for arg in "$@"; do
+  case "$arg" in
+    --update) update=1 ;;
+    --quiet) quiet=1 ;;
+    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+    *) printf 'unknown option: %s\n' "$arg" >&2; exit 2 ;;
+  esac
+done
+
+stale_count=0
+unknown_count=0
+report() { # name status detail
+  case "$2" in
+    stale)   printf '  STALE   %-22s %s\n' "$1" "$3" ;;
+    unknown) printf '  UNKNOWN %-22s %s\n' "$1" "$3" ;;
+    *)       [ "$quiet" -eq 0 ] && printf '  ok      %-22s %s\n' "$1" "$3" ;;
+  esac
+}
+
+# A repo is stale when its checkout is behind the remote it tracks.
+check_repo() {
+  local path="$1"
+  [ -d "$path/.git" ] || { echo "missing"; return; }
+  git -C "$path" fetch --quiet --all 2>/dev/null
+  local behind
+  behind=$(git -C "$path" rev-list --count HEAD..@{u} 2>/dev/null) || { echo "no-upstream"; return; }
+  [ "$behind" -gt 0 ] && echo "behind $behind" || echo ""
+}
+
+# An installed AppImage is stale when a newer release tag exists upstream.
+check_release() {
+  local path="$1" name="$2" app
+  app="$HOME/.local/bin/$name"
+  [ -f "$app" ] || { echo "not installed"; return; }
+  local slug latest installed
+  slug=$(git -C "$path" remote get-url origin 2>/dev/null | sed -e 's#\.git$##' -e 's#^.*github\.com[:/]##')
+  latest=$(gh release view --repo "$slug" --json tagName -q .tagName 2>/dev/null) || { echo "unknown"; return; }
+  installed=$(git -C "$path" tag --points-at HEAD 2>/dev/null | head -1)
+  # Compare against the manifest version, which is what the installer ships.
+  installed=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$path/package.json" 2>/dev/null | head -1)
+  [ "v$installed" = "$latest" ] || echo "release $latest, repo v$installed"
+}
+
+check_npm() {
+  local pkg="$1" installed published
+  installed=$(npm ls -g --depth=0 --json 2>/dev/null | python3 -c "
+import json,sys
+try: print(json.load(sys.stdin).get('dependencies',{}).get('$pkg',{}).get('version',''))
+except Exception: print('')
+")
+  published=$(npm view "$pkg" version 2>/dev/null)
+  [ -z "$published" ] && { echo "unknown"; return; }
+  [ "$installed" = "$published" ] || echo "installed ${installed:-none}, published $published"
+}
+
+# A cargo-installed binary is stale when it predates the repo's newest commit.
+check_cargo() {
+  local path="$1" bin="$2" bin_path commit_epoch bin_epoch
+  bin_path=$(command -v "$bin" 2>/dev/null) || { echo "not installed"; return; }
+  bin_path=$(readlink -f "$bin_path")
+  commit_epoch=$(git -C "$path" log -1 --format=%ct 2>/dev/null) || { echo "unknown"; return; }
+  bin_epoch=$(stat -c %Y "$bin_path" 2>/dev/null) || { echo "unknown"; return; }
+  [ "$bin_epoch" -ge "$commit_epoch" ] || echo "binary predates $(git -C "$path" log -1 --format=%h)"
+}
+
+[ "$quiet" -eq 0 ] && printf 'dev-freshness — first-party tools on this machine\n\n'
+
+for entry in "${TARGETS[@]}"; do
+  IFS='|' read -r name kind path cmd <<<"$entry"
+  case "$kind" in
+    repo)    detail=$(check_repo "$path") ;;
+    release) detail=$(check_release "$path" "$name") ;;
+    npm)     detail=$(check_npm "$name") ;;
+    cargo)   detail=$(check_cargo "$path" "$name") ;;
+  esac
+
+  if [ "$detail" = "unknown" ] || [ "$detail" = "no-upstream" ] || [ "$detail" = "missing" ]; then
+    unknown_count=$((unknown_count + 1))
+    report "$name" unknown "could not determine ($detail)"
+  elif [ -n "$detail" ]; then
+    stale_count=$((stale_count + 1))
+    report "$name" stale "$detail"
+    if [ "$update" -eq 1 ]; then
+      printf '          -> %s\n' "$cmd"
+      eval "$cmd" >/dev/null 2>&1 && printf '          updated\n' || printf '          FAILED (run it manually)\n'
+    fi
+  else
+    report "$name" ok "${detail:-current}"
+  fi
+done
+
+if [ "$unknown_count" -gt 0 ]; then
+  printf '\n%d target(s) could not be checked — see UNKNOWN above.\n' "$unknown_count"
+fi
+
+if [ "$stale_count" -eq 0 ]; then
+  [ "$quiet" -eq 0 ] && [ "$unknown_count" -eq 0 ] && printf '\nEverything is current.\n'
+  [ "$unknown_count" -gt 0 ] && exit 1
+  exit 0
+fi
+
+[ "$update" -eq 0 ] && printf '\n%d stale. Run `dev-freshness --update` to fix.\n' "$stale_count"
+exit 1
