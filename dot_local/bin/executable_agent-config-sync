@@ -94,6 +94,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.config/environment.d/70-pi-caffeinate.conf"
   "${HOME}/.claude/rules"
   "${HOME}/.claude/settings.json"
+  "${HOME}/.claude/hooks/ai-attribution-gate.sh"
   "${HOME}/.claude/hooks/decision-audit-gate.sh"
   "${HOME}/.claude/hooks/delegation-gate.sh"
   "${HOME}/.claude/hooks/orchestration-reminder.sh"

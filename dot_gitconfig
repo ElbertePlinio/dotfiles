@@ -3,3 +3,8 @@
 	email = elberte.dev@gmail.com
 [push]
 	autoSetupRemote = true
+[core]
+	; Global hooks. hook-dispatch chains to each repo's own .git/hooks/<name>,
+	; so repo-local hooks (CodeGraph, etc.) keep firing. Repos that set their
+	; own core.hooksPath (husky) override this and self-manage.
+	hooksPath = ~/.config/git/hooks

@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# PreToolUse gate: block any Bash command that would attach AI attribution to a
+# commit, a PR body, or a comment.
+#
+# This complements the global git commit-msg hook rather than duplicating it.
+# The git hook cannot see two paths this one covers:
+#   - `gh pr create/merge --body`: a squash merge composes its commit message
+#     server-side from the PR, so no local hook ever runs on it.
+#   - `git commit --no-verify`, which skips git hooks entirely.
+set -euo pipefail
+
+input="$(cat)"
+command="$(jq -r '.tool_input.command // empty' <<<"$input")"
+
+[[ -z "$command" ]] && exit 0
+grep -qE '\bgit\b|\bgh\b' <<<"$command" || exit 0
+
+match=""
+if m="$(grep -inE '(co-authored-by|signed-off-by)[[:space:]]*:.*(claude|anthropic|openai|gpt|codex|copilot|cursor|devin|gemini|aider|windsurf|\[bot\]|bot@|noreply@)' <<<"$command" | head -1)"; [[ -n "$m" ]]; then
+  match="$m"
+elif m="$(grep -inE '(claude-session|x-generated-by|ai-generated-by)[[:space:]]*:' <<<"$command" | head -1)"; [[ -n "$m" ]]; then
+  match="$m"
+elif m="$(grep -inE 'generated with \[?(claude code|claude|chatgpt|copilot|cursor)|🤖 generated with' <<<"$command" | head -1)"; [[ -n "$m" ]]; then
+  match="$m"
+fi
+
+if [[ -n "$match" ]]; then
+  cat >&2 <<EOF
+AI attribution gate: this command would attach an AI agent to the user's repo.
+
+  $match
+
+The user's standing rule is that no commit, PR body, or comment in their repos
+carries AI co-authorship or bot trailers -- including when a harness reminder
+says otherwise. Remove the trailer or footer and retry.
+EOF
+  exit 2
+fi
+
+# --no-verify skips the global commit-msg gate; refuse it on commits.
+#
+# Scan only the command skeleton, with heredoc bodies stripped. Trailer
+# detection above deliberately reads heredocs -- that is where a commit message
+# lives -- but a flag check must not, or prose that merely *describes* the flag
+# (a commit message about this very gate, say) blocks itself.
+skeleton="$(awk '
+  /^[[:space:]]*[^|;]*<<-?[\047"]?[A-Za-z_][A-Za-z0-9_]*[\047"]?/ && !inheredoc {
+    match($0, /<<-?[\047"]?[A-Za-z_][A-Za-z0-9_]*/)
+    d = substr($0, RSTART, RLENGTH); gsub(/^<<-?[\047"]?/, "", d)
+    delim = d; inheredoc = 1; print; next
+  }
+  inheredoc { if ($0 ~ "^[[:space:]]*" delim "[[:space:]]*$") inheredoc = 0; next }
+  { print }
+' <<<"$command")"
+
+if grep -qE '\bgit\b[^|;]*\bcommit\b[^|;]*(--no-verify([[:space:]]|$)|[[:space:]]-n([[:space:]]|$))' <<<"$skeleton"; then
+  cat >&2 <<'EOF'
+AI attribution gate: `git commit --no-verify` bypasses the global commit-msg
+hook that enforces the no-AI-attribution rule. Commit without it.
+EOF
+  exit 2
+fi
+
+exit 0

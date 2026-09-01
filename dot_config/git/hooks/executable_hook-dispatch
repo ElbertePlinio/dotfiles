@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Global git hook dispatcher, installed via core.hooksPath.
+#
+# Two jobs:
+#   1. commit-msg: reject AI-agent attribution trailers. The user's standing rule
+#      is that no commit in their repos carries AI co-authorship or bot trailers.
+#      Instructions alone proved unreliable -- a harness-injected reminder once
+#      contradicted the rule mid-session -- so this is the machine-checkable gate.
+#   2. Every hook: chain to the repository's own .git/hooks/<name>. core.hooksPath
+#      SHADOWS per-repo hooks, and several repos rely on CodeGraph's post-commit /
+#      post-merge / post-rewrite / post-checkout hooks. Without this delegation
+#      they would silently stop firing.
+set -uo pipefail
+
+hook="$(basename "$0")"
+[[ "$hook" == "hook-dispatch" ]] && hook="${1:-}" && shift
+
+reject() {
+  cat >&2 <<EOF
+
+  Commit blocked: AI attribution trailer found in the commit message.
+
+    $1
+
+  This repository's owner does not attach AI agents to their commits.
+  Remove the trailer and commit again.
+
+  (No Co-Authored-By for AI agents, no Signed-off-by bot identities,
+   no Claude-Session, no "Generated with" footers.)
+
+EOF
+  exit 1
+}
+
+if [[ "$hook" == "commit-msg" && -n "${1:-}" && -f "$1" ]]; then
+  # Strip comment lines; git ignores them and they must not trip the gate.
+  body="$(grep -v '^#' "$1" || true)"
+
+  if line="$(grep -inE '^[[:space:]]*(co-authored-by|signed-off-by)[[:space:]]*:.*(claude|anthropic|openai|gpt|codex|copilot|cursor|devin|gemini|aider|windsurf|\[bot\]|bot@|noreply@)' <<<"$body" | head -1)"; [[ -n "$line" ]]; then
+    reject "$line"
+  fi
+  if line="$(grep -inE '^[[:space:]]*(claude-session|x-generated-by|ai-generated-by)[[:space:]]*:' <<<"$body" | head -1)"; [[ -n "$line" ]]; then
+    reject "$line"
+  fi
+  if line="$(grep -inE 'generated with \[?(claude code|claude|chatgpt|copilot|cursor)|🤖 generated with' <<<"$body" | head -1)"; [[ -n "$line" ]]; then
+    reject "$line"
+  fi
+fi
+
+# Chain to the repo's own hook so local tooling (CodeGraph, etc.) still runs.
+git_dir="${GIT_DIR:-$(git rev-parse --git-dir 2>/dev/null || true)}"
+local_hook="${git_dir:+$git_dir/hooks/$hook}"
+if [[ -n "$local_hook" && -x "$local_hook" ]]; then
+  exec "$local_hook" "$@"
+fi
+exit 0
