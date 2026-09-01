@@ -1,0 +1,8 @@
+[Unit]
+Description=Check first-party developer tools for stale installs
+After=default.target
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:%h/.cargo/bin:%h/.nvm/versions/node/v24.14.1/bin:/usr/local/bin:/usr/bin
+ExecStart=/bin/sh -c '%h/.local/bin/dev-freshness --quiet > %t/dev-freshness.out 2>&1; if [ -s %t/dev-freshness.out ]; then notify-send -u normal "Dev tools are stale" "$(cat %t/dev-freshness.out)"; fi'
