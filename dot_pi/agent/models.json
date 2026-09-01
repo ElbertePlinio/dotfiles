@@ -5,8 +5,8 @@
       "api": "anthropic-messages",
       "apiKey": "$CLIPROXY_API_KEY",
       "modelOverrides": {
-        "claude-fable-5": {
-          "name": "Claude Fable 5"
+        "claude-fable-5-1": {
+          "name": "Claude Fable 5.1"
         }
       },
       "models": [

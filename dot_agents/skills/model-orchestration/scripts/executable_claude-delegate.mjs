@@ -43,13 +43,13 @@ function usage(stream) {
       "claude-delegate - run Claude Code for model-orchestration lanes",
       "",
       "Usage:",
-      "  claude-delegate.mjs --model <fable-5|opus-5> --mode <mode> --prompt <text>",
+      "  claude-delegate.mjs --model <fable-5.1|opus-5> --mode <mode> --prompt <text>",
       "  claude-delegate.mjs --model <model> --mode <mode> --prompt-file <path>",
       "",
       "Modes: plan, implement, review, design-review",
       "",
       "Options:",
-      "  --model <model>       fable-5, opus-5, fable, opus, or full model id",
+      "  --model <model>       fable-5.1, opus-5, fable, opus, or full model id",
       "  --mode <mode>         one of: " + MODES.join(", "),
       "  --effort <level>      low, medium, high, xhigh, max (default by model)",
       "  --prompt <text>       prompt text",
@@ -149,7 +149,7 @@ function normalizeModel(model) {
       "model " + JSON.stringify(model) + " is retired from the routing pool; pick a current model from the model table",
     );
   }
-  if (key === "fable-5" || key === "fable5") return "fable";
+  if (["fable", "fable-5.1", "fable-5-1", "fable5.1", "fable-5", "fable5"].includes(key)) return "claude-fable-5-1";
   if (key === "opus-5" || key === "opus5") return "opus";
   return model;
 }

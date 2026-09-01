@@ -197,7 +197,7 @@ if command -v node >/dev/null 2>&1; then
       try { assertModelPermitted(bad); } catch { threw = true; }
       if (!threw) { console.error('allowed banned model: ' + bad); process.exit(1); }
     }
-    for (const model of ['gpt-5.6-sol', 'claude-fable-5', 'kimi-k3', 'glm-5.3-flash', 'grok-4.6']) {
+    for (const model of ['gpt-5.6-sol', 'claude-fable-5-1', 'kimi-k3', 'glm-5.3-flash', 'grok-4.6']) {
       assertModelAllowed(model, '/definitely/not/a/repository');
     }
   " 2>/dev/null; then

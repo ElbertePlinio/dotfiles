@@ -14,7 +14,7 @@
     "../../Projects/Pickforge/pickforge-platform/packages/complexity-gate"
   ],
   "enabledModels": [
-    "anthropic/claude-fable-5",
+    "anthropic/claude-fable-5-1",
     "anthropic/claude-opus-5",
     "deepseek-official/deepseek-v4-flash",
     "opencode-go/glm-5.3-flash",

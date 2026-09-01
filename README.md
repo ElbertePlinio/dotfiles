@@ -111,7 +111,7 @@ Claude Code route, never a Pi provider. Core Pi has no MCP of its own, so only
   "mcp": {"claude": ["pickforge-lanes"]},
   "lanes": {
     "pi": ["openai-codex/gpt-5.6-sol", "xai/grok-4.6", "opencode-go/kimi-k3", "opencode-go/glm-5.3-flash"],
-    "claude-code": ["anthropic/claude-fable-5", "anthropic/claude-opus-5"]
+    "claude-code": ["anthropic/claude-fable-5-1", "anthropic/claude-opus-5"]
   }
 }
 ```
