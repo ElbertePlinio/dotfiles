@@ -106,6 +106,18 @@
         ]
       }
     ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '{{ .chezmoi.homeDir }}/.claude/hooks/herdr-agent-state.sh' session",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
@@ -142,7 +154,9 @@
     "codex@openai-codex": false,
     "stripe@claude-plugins-official": false,
     "pyright-lsp@claude-plugins-official": true,
-    "rust-analyzer-lsp@claude-plugins-official": true
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "review-tutor@pickforge": true
   },
   "extraKnownMarketplaces": {
     "very-good-claude-code-marketplace": {
@@ -162,9 +176,23 @@
         "source": "github",
         "repo": "openai/codex-plugin-cc"
       }
+    },
+    "pickforge": {
+      "source": {
+        "source": "github",
+        "repo": "pickforge/pickforge-platform"
+      }
     }
   },
   "effortLevel": "medium",
+  "modelSettings": {
+    "claude-opus-5": {
+      "effortLevel": "medium"
+    },
+    "claude-fable-5-1": {
+      "effortLevel": "high"
+    }
+  },
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
