@@ -1,13 +1,6 @@
-# Personal Codex Notes
-
-## Behavior override
+# Codex
 
 {{ template "codex-behavior-override.md" . }}
 When a task specifies an OUTPUT CONTRACT, follow it exactly.
 
 {{ template "agents-shared.md" . }}
-
-## Model orchestration
-
-- Use the `model-orchestration` skill's native wrappers and selectors for dispatch.
-- When running non-interactively through `codex exec` under another orchestrator, implement the assigned task directly and do not re-delegate; the parent owns planning and review.

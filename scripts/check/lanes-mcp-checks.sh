@@ -11,7 +11,6 @@ check_pickforge_lanes_deployment() {
 
   need "$PICKFORGE_LANES_WRAPPER"
   need "$PICKFORGE_LANES_CONFIGURE"
-  need "$PICKFORGE_LANES_SKILL"
   need "$CLAUDE_SETTINGS"
 
   if [[ -f "$PICKFORGE_LANES_WRAPPER" ]] \
@@ -235,36 +234,6 @@ EOF
     esac
   done
 
-  if jq -e '.skills["model-orchestration"] | index("claude") and index("pi")' "$MANIFEST" >/dev/null 2>&1 \
-    && [[ "$(tr -d '\n' <"$ROOT/dot_claude/skills/symlink_model-orchestration" 2>/dev/null)" == '../../.agents/skills/model-orchestration' ]] \
-    && [[ "$(tr -d '\n' <"$ROOT/dot_pi/agent/skills/symlink_model-orchestration" 2>/dev/null)" == '../../../.agents/skills/model-orchestration' ]] \
-    && [[ -f "$PICKFORGE_LANES_SKILL" ]] \
-    && [[ ! -e "$ROOT/dot_agents/skills/model-orchestration/references/encrypted_dispatch.md.age" ]]; then
-    pass 'lanes dispatch reference is readable with Claude/Pi relative symlinks only'
-  else
-    err 'lanes dispatch manifest, source form, or symlink matrix invalid'
-  fi
-
-  if skill="$(cat "$PICKFORGE_LANES_SKILL" 2>/dev/null)"; then
-    if grep -Fq 'global model policy' <<<"$skill" \
-      && grep -Fq 'Pi native lanes' <<<"$skill" \
-      && grep -Fq 'Claude-to-Claude' <<<"$skill" \
-      && grep -Fq 'MCP' <<<"$skill" \
-      && grep -Fq 'model, effort, mode, cwd, and rationale' <<<"$skill" \
-      && grep -Fq 'mcp__pickforge-lanes__lanes_spawn' <<<"$skill" \
-      && grep -Fq 'mcp__pickforge-lanes__lanes_status' <<<"$skill" \
-      && grep -Fq 'mcp__pickforge-lanes__lanes_wait' <<<"$skill" \
-      && grep -Fq 'mcp__pickforge-lanes__lanes_abandon' <<<"$skill" \
-      && grep -Fq 'Do not poll' <<<"$skill" \
-      && grep -Fq 'Never use a foreground or synchronous provider CLI as fallback' <<<"$skill"; then
-      pass 'lanes dispatch reference enforces native/background routing and lifecycle invariants'
-    else
-      err 'lanes dispatch reference missing required routing or background-only invariants'
-    fi
-  else
-    err 'lanes dispatch reference is unreadable'
-  fi
-  unset skill
 
   settings_file="$(mktemp "$TMP/claude-settings.XXXXXX")"
   chmod 0600 "$settings_file"
@@ -310,13 +279,10 @@ def strings(value):
             yield from strings(item)
 
 all_strings = list(strings(settings))
-assert not any(("/home/" + "dev/.claude/hooks/decision-audit-gate.sh") in value for value in all_strings)
-assert any("$HOME/.claude/hooks/decision-audit-gate.sh" in value for value in all_strings)
 assert not any("rtk hook claude" in value for value in all_strings)
 PY
   then
     pass 'Claude settings retain Bash/Git shape and exact pickforge-lanes permissions'
-    pass 'Claude settings use portable decision hook and exclude retired RTK hook'
   else
     err 'Claude settings structural invariants failed'
   fi

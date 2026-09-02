@@ -1,4 +1,0 @@
-interface:
-  display_name: "Ship PR"
-  short_description: "Open, review, and merge PRs"
-  default_prompt: "Use $ship-pr to validate and locally review this branch, open it as a PR, watch CI, and merge when clean."

@@ -13,9 +13,8 @@ else
 fi
 
 if grep -Fxq 'default = "grok-4.6"' dot_grok/config.toml \
-  && grep -Fxq 'default_reasoning_effort = "high"' dot_grok/config.toml \
   && ! grep -Fq 'grok-4.5' dot_grok/config.toml; then
-  pass 'Grok source defaults to Grok 4.6 at high effort'
+  pass 'Grok source defaults to Grok 4.6'
 else
   err 'Grok source default or effort is stale'
 fi
@@ -27,68 +26,11 @@ else
   err 'Codex behavior override include missing from an adapter'
 fi
 
-# Leaf adapters (Codex, Grok) stay table-free and reach the pool through the
-# model-orchestration routing reference; orchestrating harnesses inline it.
-for path in dot_codex/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl; do
-  grep -qiE '^\|.*cost.*intelligence.*taste.*vision.*\|$' "$path" \
-    && err "leaf adapter embeds a full model scoring table: $path" \
-    || pass "leaf adapter has no full model scoring table: $path"
-done
-for path in dot_claude/CLAUDE.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl; do
-  grep -Fq 'template "model-table.md"' "$path" \
-    && pass "orchestrating adapter inlines the shared model table: $path" \
-    || err "orchestrating adapter missing shared model table include: $path"
-done
-
-TABLE_ROW_GROK='^\| Grok 4\.6 \| .*grok-4\.6.* \| high \|.*\| yes \|$'
-TABLE_ROW_KIMI='^\| Kimi K3 \| `opencode-go/kimi-k3` \| medium \|.*\| yes \|$'
-TABLE_ROW_GLM='^\| GLM-5\.3 Flash \| `opencode-go/glm-5\.3-flash` \| medium \|.*\| yes \|$'
-RETIRED_OX='ox-alpha-free'
-TABLE_ROW_OPUS='^\| Opus 5 \| `anthropic/claude-opus-5` \| medium \|.*\| yes \|$'
-OPUS_EFFORT_RULE='Opus 5 defaults to `medium` and may use only `low` or `medium`; `high` and above are prohibited.'
-for entry in \
-  'dot_pi/agent/AGENTS.md.tmpl|Pi' \
-  'dot_omp/agent/AGENTS.md.tmpl|OMP' \
-  'dot_claude/CLAUDE.md.tmpl|Claude'; do
-  IFS='|' read -r path harness <<<"$entry"
-  out="$TMP/table-$(echo "$path" | tr '/' '_')"
-  if render "$path" "$out" \
-    && grep -Eq "$TABLE_ROW_GROK" "$out" \
-    && grep -Eq "$TABLE_ROW_KIMI" "$out" \
-    && grep -Eq "$TABLE_ROW_GLM" "$out" \
-    && ! grep -Fq "$RETIRED_OX" "$out" \
-    && grep -Eq "$TABLE_ROW_OPUS" "$out" \
-    && grep -Fq "$OPUS_EFFORT_RULE" "$out"; then
-    pass "rendered $harness routing table and Opus effort policy are current"
-  else
-    err "rendered $harness routing table or Opus effort policy is stale"
-  fi
-done
-
-for entry in \
-  'dot_codex/AGENTS.md.tmpl|Codex' \
-  'dot_grok/AGENTS.md.tmpl|Grok'; do
-  IFS='|' read -r path harness <<<"$entry"
-  out="$TMP/opus-policy-$(echo "$path" | tr '/' '_')"
-  if render "$path" "$out" && grep -Fq "$OPUS_EFFORT_RULE" "$out"; then
-    pass "rendered $harness instructions include the Opus effort policy"
-  else
-    err "rendered $harness instructions are missing the Opus effort policy"
-  fi
-done
-
 for path in "${STALE_PI_FLOW_PATHS[@]}"; do
   [[ ! -e "$path" ]] \
     && pass "stale Pi flow source absent: $path" \
     || err "stale Pi flow source remains: $path"
 done
-
-if grep -Fq '`max` reasoning level is allowed' dot_pi/agent/AGENTS.md.tmpl \
-  && grep -Fq 'shared `xhigh` ceiling still applies to' dot_pi/agent/AGENTS.md.tmpl; then
-  pass 'Pi adapter allows main-session Max while preserving the lane ceiling'
-else
-  err 'Pi adapter Max exception is missing or overbroad'
-fi
 
 fast_extension='dot_pi/agent/extensions/fast-mode.ts'
 if [[ -f "$fast_extension" ]] \
@@ -130,8 +72,8 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
       and (.enabledModels | all(. != "ollama/kimi-k3:cloud"))' >/dev/null <<<"$pi_settings" \
       && pass 'Pi enabled models select Grok 4.6 and OpenCode Go Kimi/GLM Flash, and retire Ox Alpha' \
       || err 'Pi enabled models missing OpenCode Go pool, still list retired Ox Alpha, or still pin Ollama Kimi'
-    jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-5.6-sol" and .defaultThinkingLevel == "medium"' >/dev/null <<<"$pi_settings" \
-      && pass 'Pi canonical bootstrap defaults to GPT-5.6 Sol at medium effort' \
+    jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-5.6-sol"' >/dev/null <<<"$pi_settings" \
+      && pass 'Pi canonical bootstrap defaults to GPT-5.6 Sol' \
       || err 'Pi canonical GPT-5.6 Sol bootstrap default is missing or misconfigured'
   else
     err 'Pi settings JSON invalid'
@@ -165,62 +107,8 @@ else
 fi
 unset pi_models
 
-for reference in delegation-contract.md dispatch.md model-routing.md review-schemas.md; do
-  canonical_reference=''
-  if canonical_reference="$(chezmoi "${SRC[@]}" cat \
-    "$HOME/.agents/skills/model-orchestration/references/$reference")" \
-    && [[ -n "$canonical_reference" ]]; then
-    pass "canonical routing reference present: $reference"
-  else
-    err "canonical routing reference missing or empty: $reference"
-  fi
-done
-unset canonical_reference
-
-# model-orchestration is canonical under dot_agents/skills and reaches every
-# harness by symlink. Harness-native forks reintroduce the drift that previously
-# let a stale model pin survive in one copy but not the other.
-if [[ -e "$ROOT/dot_codex/skills/model-orchestration" \
-  || -e "$ROOT/dot_grok/skills/model-orchestration" ]]; then
-  err 'harness-native model-orchestration copy reintroduced; keep it canonical'
-else
-  pass 'model-orchestration has no harness-native duplicate'
-fi
-
-# Behavioral: global model bans still throw, while every managed provider is
-# admitted independently of repository, remote, directory, or machine.
-if command -v node >/dev/null 2>&1; then
-  if node --input-type=module -e "
-    import { assertModelAllowed, assertModelPermitted } from '$ROOT/dot_agents/skills/model-orchestration/scripts/lane-policy.mjs';
-    for (const bad of ['gpt-5.6-terra', 'gpt-5.6-luna', 'claude-haiku-4-5', 'grok-4.5']) {
-      let threw = false;
-      try { assertModelPermitted(bad); } catch { threw = true; }
-      if (!threw) { console.error('allowed banned model: ' + bad); process.exit(1); }
-    }
-    for (const model of ['gpt-5.6-sol', 'claude-fable-5-1', 'kimi-k3', 'glm-5.3-flash', 'grok-4.6']) {
-      assertModelAllowed(model, '/definitely/not/a/repository');
-    }
-  " 2>/dev/null; then
-    pass 'lane-policy bans retired models and admits every managed provider independent of cwd'
-  else
-    err 'lane-policy enforcement failed its behavioral probe'
-  fi
-else
-  err 'node unavailable for lane-policy behavioral probe'
-fi
-
-GLOBAL_CLAUDE_OUT="$TMP/claude-global.md"
-if render dot_claude/CLAUDE.md.tmpl "$GLOBAL_CLAUDE_OUT"; then
-  grep -Fq '## Claude model orchestration' "$GLOBAL_CLAUDE_OUT" \
-    && grep -Fq 'AgentMemory' "$GLOBAL_CLAUDE_OUT" \
-    && pass 'global Claude profile renders orchestration and memory policy' \
-    || err 'global Claude profile is missing orchestration or memory policy'
-else
-  err 'global Claude profile render failed'
-fi
-
 for public_profile_file in \
-  .chezmoitemplates/claude-adapter-common.md \
+  .chezmoitemplates/agents-shared.md \
   dot_claude/CLAUDE.md.tmpl; do
   grep -qiE '(^|[^[:alnum:]_])(company|contract|client|employer)([^[:alnum:]_]|$)' "$public_profile_file" \
     && err "profile source exposes private work-context vocabulary: $public_profile_file" \

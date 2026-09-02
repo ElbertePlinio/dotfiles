@@ -41,41 +41,6 @@
       "pi",
       "omp"
     ],
-    "design-director": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "improve": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "local-review": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "gate-installer": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "codebase-design": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
     "bro": [
       "claude",
       "codex",
@@ -84,69 +49,6 @@
       "omp"
     ],
     "x-search": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "model-orchestration": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "plan-issue": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "ship-pr": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "diagnosing-bugs": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "flutter-bloc": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "flutter-widget": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "stripe-docs": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "stripe-best-practices": [
-      "claude",
-      "codex",
-      "grok",
-      "pi",
-      "omp"
-    ],
-    "upgrade-stripe": [
       "claude",
       "codex",
       "grok",

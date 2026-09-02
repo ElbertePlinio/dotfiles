@@ -1,28 +1,9 @@
-# Personal Pi Notes
+# Pi
 
 {{ template "agents-shared.md" . }}
 
-## Pi model modes
+## Pi
 
-For the interactive main `openai-codex/gpt-5.6-sol` session, a user-selected
-`max` reasoning level is allowed. The shared `xhigh` ceiling still applies to
-dispatched lanes. Keep `ultra` disabled; Pi uses explicit native lanes for
-multi-agent work.
-
-Include `plannotator-url` output when opening Plannotator or grill review so another Tailscale device can open it.
-
-## Native model orchestration
-
-Choose the agent prompt, model, and reasoning effort independently. Do not map
-models permanently to roles such as scout, architect, or coder.
-
-`pi-kit` lanes require an explicit full model selector and effort per call.
-
-Available managed pool:
-
-{{ template "model-table.md" }}
-
-Prefer Pi-native subagents over launching `claude`, `codex`, `grok`, or
-`ollama` CLIs from inside Pi. Keep the CLIs for provider-native features or
-when operating from another harness.
-
+- Prefer Pi-native subagents over launching other CLIs from inside Pi.
+- `pi-kit` lanes need a full model selector and an effort per call. The selectors are in `models.json`.
+- When opening Plannotator or a grill review, include the `plannotator-url` output so another device can open it.

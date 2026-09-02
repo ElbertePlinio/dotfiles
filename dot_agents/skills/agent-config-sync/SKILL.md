@@ -52,6 +52,7 @@ Apply when creating or materially rewriting any skill:
 
 ## Boundaries
 
+- Never run whole-tree `chezmoi diff`, `status`, or `verify`. Always scope to explicit paths; full-tree runs can hang on encrypted files.
 - Do not sync sessions, histories, caches, usage counters, locks, generated state, cron output, or background-process state.
 - Keep credentials encrypted and never print secret values.
 - Do not replace a divergent live skill directory; strict preflight must block it for review.

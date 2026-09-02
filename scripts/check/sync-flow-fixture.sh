@@ -32,13 +32,8 @@ check_sync_command_flow() {
     dot_zshrc
     dot_bashrc
     dot_claude/CLAUDE.md
-    dot_claude/rules/context7.md
     dot_claude/settings.json
     dot_claude/hooks/executable_ai-attribution-gate.sh
-    dot_claude/hooks/executable_decision-audit-gate.sh
-    dot_claude/hooks/executable_delegation-gate.sh
-    dot_claude/hooks/executable_orchestration-reminder.sh
-    dot_agents/skills/model-orchestration/SKILL.md
     dot_codex/AGENTS.md
     dot_codex/agents/architecture-reviewer.toml
     dot_codex/model.json
@@ -52,13 +47,10 @@ check_sync_command_flow() {
     dot_pi/agent/extensions/btw.ts
     dot_pi/agent/extensions/fast-mode.ts
     dot_pi/agent/extensions/model-compaction-threshold.ts
-    dot_pi/agent/extensions/decision-audit-gate.ts
-    dot_pi/agent/extensions/delegation-gate.ts
     dot_pi/agent/skills/symlink_probe
     dot_omp/agent/AGENTS.md
     dot_omp/agent/config.yml
     dot_omp/agent/mcp.json.tmpl
-    dot_omp/agent/extensions/decision-audit-gate.ts
     dot_agents/dot_skill-lock.json
     dot_agents/mcp-targets.json
     dot_agents/skill-targets.json
@@ -459,7 +451,6 @@ check_primary_global_live_regressions() {
   local -a drift_targets=(
     "$DEST/.claude/CLAUDE.md"
     "$DEST/.claude/settings.json"
-    "$DEST/.claude/rules/context7.md"
     "$DEST/.zshrc"
     "$DEST/.bashrc"
   )

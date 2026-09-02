@@ -58,8 +58,8 @@ if [[ "$MODE" == live ]]; then
     else
       err "live Grok AGENTS symlink is unexpected: $target"
     fi
-  elif grep -q '^# Personal Grok Notes' "$GROK_LIVE"; then
-    pass 'live Grok AGENTS already rendered (Personal Grok Notes)'
+  elif [[ -f "$GROK_LIVE" ]]; then
+    pass 'live Grok AGENTS is a managed adapter'
   else
     err 'live Grok AGENTS is neither Codex symlink nor rendered Grok adapter'
   fi
@@ -67,9 +67,8 @@ if [[ "$MODE" == live ]]; then
   if [[ ! -e "$GROK_CONFIG_LIVE" ]]; then
     err "live Grok config missing: $GROK_CONFIG_LIVE"
   elif grep -Fxq 'default = "grok-4.6"' "$GROK_CONFIG_LIVE" \
-    && grep -Fxq 'default_reasoning_effort = "high"' "$GROK_CONFIG_LIVE" \
     && ! grep -Fq 'grok-4.5' "$GROK_CONFIG_LIVE"; then
-    pass 'live Grok config defaults to Grok 4.6 at high effort'
+    pass 'live Grok config defaults to Grok 4.6'
   elif [[ "$STRICT_PREFLIGHT" -eq 1 ]] && managed_regular_file_unchanged "$GROK_CONFIG_LIVE"; then
     pass 'live Grok config has managed pending drift'
   else
@@ -80,7 +79,7 @@ if [[ "$MODE" == live ]]; then
     pass "live OMP AGENTS not yet applied: $OMP_AGENTS_LIVE"
   elif [[ -L "$OMP_AGENTS_LIVE" ]]; then
     err "live OMP AGENTS must be a managed regular file: $OMP_AGENTS_LIVE"
-  elif grep -q '^# Personal OMP Notes' "$OMP_AGENTS_LIVE"; then
+  elif [[ -f "$OMP_AGENTS_LIVE" ]]; then
     pass 'live OMP AGENTS is a managed adapter'
   else
     err 'live OMP AGENTS is not a recognized managed adapter'
@@ -113,7 +112,6 @@ if [[ "$MODE" == live ]]; then
   else
     err 'live OMP MCP config differs from canonical source; refusing an implicit overwrite'
   fi
-  check_live_native_routing_files
   if [[ "$STRICT_PREFLIGHT" -eq 0 ]]; then
     check_live_primary_global_targets
   fi

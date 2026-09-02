@@ -69,12 +69,9 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.pi/agent/extensions/btw.ts"
   "${HOME}/.pi/agent/extensions/fast-mode.ts"
   "${HOME}/.pi/agent/extensions/model-compaction-threshold.ts"
-  "${HOME}/.pi/agent/extensions/decision-audit-gate.ts"
-  "${HOME}/.pi/agent/extensions/delegation-gate.ts"
   "${HOME}/.omp/agent/AGENTS.md"
   "${HOME}/.omp/agent/config.yml"
   "${HOME}/.omp/agent/mcp.json"
-  "${HOME}/.omp/agent/extensions/decision-audit-gate.ts"
   "${HOME}/.agents/.skill-lock.json"
   "${HOME}/.agents/mcp-targets.json"
   "${HOME}/.agents/skill-targets.json"
@@ -92,12 +89,8 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.config/environment.d/50-sudo-askpass.conf"
   "${HOME}/.config/environment.d/60-omp.conf"
   "${HOME}/.config/environment.d/70-pi-caffeinate.conf"
-  "${HOME}/.claude/rules"
   "${HOME}/.claude/settings.json"
   "${HOME}/.claude/hooks/ai-attribution-gate.sh"
-  "${HOME}/.claude/hooks/decision-audit-gate.sh"
-  "${HOME}/.claude/hooks/delegation-gate.sh"
-  "${HOME}/.claude/hooks/orchestration-reminder.sh"
 )
 
 # Managed agent-config targets that apply must never push, each with the reason
@@ -431,7 +424,6 @@ cmd_apply() {
     return 1
   fi
   mkdir -p \
-    "${HOME}/.claude/rules" \
     "${HOME}/.claude/hooks" \
     "${HOME}/.claude/skills" \
     "${HOME}/.codex/skills" \

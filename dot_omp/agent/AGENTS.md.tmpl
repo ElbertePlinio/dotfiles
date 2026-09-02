@@ -1,43 +1,8 @@
-# Personal OMP Notes
+# OMP
 
 {{ template "agents-shared.md" . }}
 
-## Response style
+## OMP
 
-- Be concise, direct, and practical. Lead with the answer.
-- Default to a few short paragraphs or bullets; keep normal replies under about
-  200 words.
-- Do not restate the request, narrate routine work, or dump exhaustive
-  inventories unless asked.
-- For coding reports, use only: Changed, Validated, Risks, and Next action when
-  needed. Keep each section to the smallest useful evidence.
-- Expand only when the user asks for detail or when a real safety, architecture,
-  or blocking issue requires explanation.
-
-## Native model orchestration
-
-Choose the agent prompt, model, and reasoning effort independently per call.
-
-For dynamic model selection, prefer the eval bridge:
-
-```js
-await agent(prompt, {
-  agent: "task",
-  model: "openai-codex/gpt-5.6-sol:medium",
-});
-```
-
-Use `parallel()` around independent `agent()` calls. The `model` override accepts
-a full selector with an effort suffix, so the orchestrator can change both for
-each call without creating model-specific agent definitions.
-Give every subagent a task that requires at least one tool call; trivial
-reply-only prompts can fail the yield protocol on `openai-codex` lanes and
-report a false lane failure.
-
-Available managed pool:
-
-{{ template "model-table.md" }}
-
-Prefer OMP-native subagents over launching `claude`, `codex`, `grok`, or
-`ollama` CLIs from inside OMP. Keep the CLIs for provider-native features or
-when operating from another harness.
+- Prefer OMP-native subagents over launching other CLIs from inside OMP. `agent()` takes a full selector with an effort suffix, like `openai-codex/gpt-5.6-sol:medium`.
+- Give every subagent a task that needs at least one tool call. Reply-only prompts can fail on `openai-codex` lanes and look like a lane failure.

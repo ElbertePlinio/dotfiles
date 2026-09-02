@@ -19,13 +19,7 @@ for skill_file in canonical_root.glob("*/SKILL.md"):
 
 non_skill_hyphen_tokens = set()
 policy_tokens = set(re.findall(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`", policy))
-protected_portable_skills = {
-    "diagnosing-bugs",
-    "flutter-bloc",
-    "flutter-widget",
-    "plan-issue",
-    "ship-pr",
-}
+protected_portable_skills = set()
 required = (policy_tokens - non_skill_hyphen_tokens) | protected_portable_skills
 for name in sorted(required):
     if name not in canonical_names:

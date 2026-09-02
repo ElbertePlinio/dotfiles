@@ -1,7 +1,0 @@
-interface:
-  display_name: "Model Orchestration"
-  short_description: "Adaptively route work across model pools"
-  default_prompt: "Use $model-orchestration to choose the lightest sufficient model path, delegate only when it adds value, and validate the result."
-
-policy:
-  allow_implicit_invocation: true

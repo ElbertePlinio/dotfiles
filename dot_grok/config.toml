@@ -1,5 +1,6 @@
 [cli]
 installer = "internal"
+auto_update = true
 
 [ui]
 max_thoughts_width = 120
@@ -10,13 +11,17 @@ permission_mode = "always-approve"
 
 [models]
 default = "grok-4.6"
-default_reasoning_effort = "high"
+default_reasoning_effort = "low"
 
 [skills]
 disabled = ["grok"]
+paths = []
+ignore = []
+server_skill_dirs = []
+bundled_skill_dirs = []
 
 [harness]
-disable_codebase_upload = true
+disable_workspace_teleport = true
 
 [compat.claude]
 agents = false

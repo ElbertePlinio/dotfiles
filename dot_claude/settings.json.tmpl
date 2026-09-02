@@ -79,19 +79,6 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/ai-attribution-gate.sh"
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/decision-audit-gate.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/delegation-gate.sh"
           }
         ]
       }
@@ -102,10 +89,6 @@
           {
             "type": "command",
             "command": "codegraph prompt-hook"
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/orchestration-reminder.sh"
           }
         ]
       }
@@ -150,43 +133,10 @@
     "refreshInterval": 5000
   },
   "enabledPlugins": {
-    "frontend-design@claude-plugins-official": false,
     "context7@claude-plugins-official": true,
-    "vgv-ai-flutter-plugin@very-good-claude-code-marketplace": false,
-    "andrej-karpathy-skills@karpathy-skills": false,
-    "vercel@claude-plugins-official": false,
-    "codex@openai-codex": false,
-    "stripe@claude-plugins-official": false,
     "pyright-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "review-tutor@pickforge": true
-  },
-  "extraKnownMarketplaces": {
-    "very-good-claude-code-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "VeryGoodOpenSource/very_good_claude_marketplace"
-      }
-    },
-    "karpathy-skills": {
-      "source": {
-        "source": "github",
-        "repo": "forrestchang/andrej-karpathy-skills"
-      }
-    },
-    "openai-codex": {
-      "source": {
-        "source": "github",
-        "repo": "openai/codex-plugin-cc"
-      }
-    },
-    "pickforge": {
-      "source": {
-        "source": "github",
-        "repo": "pickforge/pickforge-platform"
-      }
-    }
+    "typescript-lsp@claude-plugins-official": true
   },
   "effortLevel": "medium",
   "modelSettings": {

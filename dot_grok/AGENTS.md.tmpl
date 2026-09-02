@@ -1,9 +1,3 @@
-# Personal Grok Notes
+# Grok
 
 {{ template "agents-shared.md" . }}
-
-## Model orchestration
-
-For substantial or risky multi-model work, use the `model-orchestration` skill when available. It owns the current catalog, capability differences, scoring, quota fallback, and explicit-required-model stop rules. Otherwise act directly in this session.
-
-When running as a leaf under another orchestrator, do the assigned work directly and do not re-delegate; the parent owns planning and review.

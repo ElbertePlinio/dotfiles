@@ -1,7 +1,7 @@
 TARGETS=(
   "$DEST/.zshrc" "$DEST/.bashrc"
   "$DEST/.claude/CLAUDE.md"
-  "$DEST/.claude/rules/context7.md" "$DEST/.claude/settings.json"
+  "$DEST/.claude/settings.json"
   "$DEST/.codex/AGENTS.md"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json"
@@ -16,7 +16,7 @@ TARGETS=(
 EXPECTED=(
   dot_zshrc.tmpl dot_bashrc
   dot_claude/CLAUDE.md.tmpl
-  dot_claude/rules/context7.md dot_claude/settings.json.tmpl
+  dot_claude/settings.json.tmpl
   dot_codex/AGENTS.md.tmpl
   dot_grok/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl
   dot_omp/agent/config.yml dot_omp/agent/mcp.json.tmpl
@@ -56,9 +56,9 @@ else
     && ! grep -Fq 'claude-personal' "$DEST/.zshrc" \
     && pass 'temp zsh profile uses unrestricted global claude wrapper' \
     || err 'temp zsh profile still routes through split-profile launchers'
-  grep -Fq '## Claude model orchestration' "$DEST/.claude/CLAUDE.md" \
+  grep -Fq '## Hard limits' "$DEST/.claude/CLAUDE.md" \
     && pass 'temp global Claude profile applied' \
-    || err 'temp global Claude profile missing full orchestration'
+    || err 'temp global Claude profile missing hard limits'
   [[ ! -e "$DEST/.claude-personal" ]] \
     && pass 'temp destination has no portable Claude profile tree' \
     || err 'temp destination still creates portable Claude profile tree'
@@ -72,9 +72,9 @@ else
     && bash -n "$DEST/.local/bin/agent-config-sync" \
     && pass 'temp agent-config-sync applied' \
     || err 'temp agent-config-sync invalid'
-  [[ ! -L "$DEST/.grok/AGENTS.md" ]] && grep -q '^# Personal Grok Notes' "$DEST/.grok/AGENTS.md" \
+  [[ ! -L "$DEST/.grok/AGENTS.md" ]] && grep -q '^# Grok' "$DEST/.grok/AGENTS.md" \
     && pass 'temp migration replaces Grok symlink safely' || err 'temp Grok symlink migration failed'
-  grep -q '^# Personal OMP Notes' "$DEST/.omp/agent/AGENTS.md" \
+  grep -q '^# OMP' "$DEST/.omp/agent/AGENTS.md" \
     && ! grep -Fq 'CODING_AGENT_RULES.md' "$DEST/.omp/agent/AGENTS.md" \
     && pass 'temp OMP adapter applied without global CODING_AGENT_RULES load' \
     || err 'temp OMP adapter apply mismatch'

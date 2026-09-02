@@ -1,15 +1,3 @@
-# Global Claude Rules
+# Claude
 
 {{ template "agents-shared.md" . }}
-
-{{ template "claude-adapter-common.md" . }}
-
-## Claude model orchestration
-
-Available managed pool:
-
-{{ template "model-table.md" }}
-
-- Claude subagents use the Agent or Workflow model parameter. Cross-provider lanes (Sol, Grok, Kimi) go through the `pickforge-lanes` MCP tools, which reject Anthropic selectors by design. The `model-orchestration` skill owns dispatch mechanics.
-- Workers and reviewers are leaves unless the main session explicitly authorizes fan-out.
-- When Claude is invoked non-interactively as a worker under another orchestrator, do the assigned work directly and do not re-delegate.

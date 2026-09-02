@@ -263,39 +263,11 @@ check_live_portable_links() {
   done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
 }
 
-check_live_native_routing_ancestors() {
-  local live="$1" relative ancestor component
-  local -a components
-
-  relative="${live#"${HOME}/"}"
-  if [[ "$relative" == "$live" ]]; then
-    err "live native routing file is not beneath HOME: $live"
-    return 1
-  fi
-
-  ancestor="$HOME"
-  IFS='/' read -r -a components <<<"${relative%/*}"
-  for component in "${components[@]}"; do
-    [[ -n "$component" ]] || continue
-    ancestor="${ancestor}/${component}"
-    if [[ -L "$ancestor" ]]; then
-      err "live native routing ancestor must not be a symlink: $ancestor"
-      return 1
-    elif [[ -e "$ancestor" && ! -d "$ancestor" ]]; then
-      err "live native routing ancestor is not a directory: $ancestor"
-      return 1
-    elif [[ ! -e "$ancestor" ]]; then
-      return 0
-    fi
-  done
-}
-
 check_live_primary_global_targets() {
   local target_root="${1:-$HOME}"
   local -a targets=(
     "${target_root}/.claude/CLAUDE.md"
     "${target_root}/.claude/settings.json"
-    "${target_root}/.claude/rules"
     "${target_root}/.claude/skills"
     "${target_root}/.zshrc"
     "${target_root}/.bashrc"
@@ -308,42 +280,6 @@ check_live_primary_global_targets() {
   fi
 }
 
-check_live_native_routing_files() {
-  local live rendered
-  local -a files=(
-    "${HOME}/.agents/skills/model-orchestration/SKILL.md"
-    "${HOME}/.agents/skills/model-orchestration/references/model-routing.md"
-  )
-
-  rendered="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-native-routing.XXXXXX")"
-  for live in "${files[@]}"; do
-    if ! check_live_native_routing_ancestors "$live"; then
-      continue
-    fi
-    if ! chezmoi "${SRC[@]}" cat "$live" >"$rendered"; then
-      err "native routing source cannot be rendered: $live"
-      continue
-    fi
-    if [[ -L "$live" ]]; then
-      err "live native routing file must be a managed regular file: $live"
-    elif [[ ! -e "$live" ]]; then
-      if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-        pass "live native routing file not yet applied: $live"
-      else
-        err "live native routing file missing: $live"
-      fi
-    elif [[ ! -f "$live" ]]; then
-      err "live native routing path is not a regular file: $live"
-    elif cmp -s "$rendered" "$live"; then
-      pass "live native routing file matches rendered source: $live"
-    elif [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-      pass "live native routing file has managed pending drift: $live"
-    else
-      err "live native routing file differs from rendered source: $live"
-    fi
-  done
-  rm -f "$rendered"
-}
 
 
 

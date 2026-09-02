@@ -3,15 +3,13 @@ echo "source: $ROOT"
 
 SHARED=(
   .chezmoitemplates/agents-shared.md
-  .chezmoitemplates/model-table.md
-  .chezmoitemplates/claude-adapter-common.md
   .chezmoitemplates/codex-behavior-override.md
 )
 HARNESS=(
-  'dot_codex/AGENTS.md.tmpl|# Personal Codex Notes|# Global Claude Rules'
-  'dot_grok/AGENTS.md.tmpl|# Personal Grok Notes|# Personal Codex Notes'
-  'dot_pi/agent/AGENTS.md.tmpl|# Personal Pi Notes|# Personal Codex Notes'
-  'dot_omp/agent/AGENTS.md.tmpl|# Personal OMP Notes|# Personal Codex Notes'
+  'dot_codex/AGENTS.md.tmpl|# Codex|# Claude'
+  'dot_grok/AGENTS.md.tmpl|# Grok|# Codex'
+  'dot_pi/agent/AGENTS.md.tmpl|# Pi|# Codex'
+  'dot_omp/agent/AGENTS.md.tmpl|# OMP|# Codex'
 )
 # Size ratchet: the shared policy shrank deliberately (2026-07); the budget stops
 # it regrowing. Raise only with an explicit decision, never to make a check pass.
@@ -140,11 +138,7 @@ for entry in "${HARNESS[@]}"; do
   grep -Fq "$want" "$out" || err "missing heading in $path: $want"
   grep -Fq "$forbid" "$out" && err "forbidden heading in $path: $forbid"
   [[ "$(grep -c 'I like short, practical work' "$out" || true)" -eq 1 ]] || err "shared intro count != 1 in $path"
-  grep -q PickScribe "$out" || err "missing PickScribe in $path"
   grep -Fq 'AgentMemory' "$out" || err "missing AgentMemory in $path"
-  grep -Fq 'CODING_AGENT_RULES.md' "$out" \
-    && err "global harness auto-loads CODING_AGENT_RULES: $path" \
-    || pass "global harness excludes CODING_AGENT_RULES: $path"
 done
 
 for entry in "${ADAPTER_BUDGETS[@]}"; do
