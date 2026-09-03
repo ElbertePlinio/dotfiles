@@ -61,6 +61,13 @@
       "grok",
       "pi",
       "omp"
+    ],
+    "review": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
     ]
   }
 }
