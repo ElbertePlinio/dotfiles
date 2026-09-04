@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.84.3",
+  "lastChangelogVersion": "0.84.4",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
   "defaultThinkingLevel": "high",
@@ -11,7 +11,7 @@
     "npm:@narumitw/pi-retry",
     "../../Projects/Personal/pi-kit",
     "npm:@plannotator/pi-extension",
-    "../../Projects/Pickforge/pickforge-platform/packages/complexity-gate"
+    "npm:@pickforge/complexity-gate"
   ],
   "enabledModels": [
     "anthropic/claude-fable-5-1",
