@@ -49,6 +49,8 @@ check_sync_command_flow() {
     dot_pi/agent/extensions/btw.ts
     dot_pi/agent/extensions/fast-mode.ts
     dot_pi/agent/extensions/model-compaction-threshold.ts
+    dot_pi/agent/extensions/delegation-gate.ts
+    dot_omp/agent/extensions/delegation-gate.ts
     dot_pi/agent/skills/symlink_probe
     dot_omp/agent/AGENTS.md
     dot_omp/agent/config.yml
@@ -66,6 +68,7 @@ check_sync_command_flow() {
     dot_agents/skills/probe/SKILL.md
     dot_local/bin/executable_sudo-askpass
     dot_local/bin/executable_agent-harness-preflight
+    dot_local/bin/executable_agent-delegation-gate
     dot_local/bin/executable_pickforge-lanes-mcp
     dot_config/environment.d/50-sudo-askpass.conf.tmpl
     dot_config/environment.d/60-omp.conf
@@ -159,6 +162,9 @@ EOF
       && grep -Fxq managed "$flow_home/.pi/agent/extensions/btw.ts" \
       && grep -Fxq managed "$flow_home/.pi/agent/extensions/fast-mode.ts" \
       && grep -Fxq managed "$flow_home/.pi/agent/extensions/model-compaction-threshold.ts" \
+      && grep -Fxq managed "$flow_home/.pi/agent/extensions/delegation-gate.ts" \
+      && grep -Fxq managed "$flow_home/.omp/agent/extensions/delegation-gate.ts" \
+      && grep -Fxq managed "$flow_home/.local/bin/agent-delegation-gate" \
       && [[ -L "$flow_home/.pi/agent/skills/probe" ]] \
       && [[ "$(readlink "$flow_home/.pi/agent/skills/probe")" == '../../../.agents/skills/probe' ]] \
       && [[ ! -e "$flow_home/.retired-agent-config-probe" \

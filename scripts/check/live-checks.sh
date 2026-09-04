@@ -114,6 +114,7 @@ if [[ "$MODE" == live ]]; then
   fi
   if [[ "$STRICT_PREFLIGHT" -eq 0 ]]; then
     check_live_primary_global_targets
+    check_live_delegation_gate
   fi
 
   check_mcp_registry_and_config
@@ -130,4 +131,3 @@ if [[ "$MODE" == live ]]; then
   [[ "$fail" -eq 0 ]] && { echo "PASSED: live migration checks"; exit 0; }
   echo "FAILED: live migration checks"; exit 1
 fi
-

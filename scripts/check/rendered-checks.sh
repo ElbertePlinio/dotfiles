@@ -96,6 +96,7 @@ check_active_retired_references
 check_active_target_completeness
 check_sync_command_flow
 check_pickforge_lanes_deployment
+check_delegation_gate
 check_doctor_sources
 check_os_gating
 check_portable_home_literals

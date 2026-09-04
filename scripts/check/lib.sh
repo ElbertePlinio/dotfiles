@@ -227,7 +227,6 @@ RETIRED_TARGET_PATHS=(
   .claude/hooks/delegation-gate.sh
   .claude/hooks/orchestration-reminder.sh
   .pi/agent/extensions/decision-audit-gate.ts
-  .pi/agent/extensions/delegation-gate.ts
   .omp/agent/extensions/decision-audit-gate.ts
 )
 

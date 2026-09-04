@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+input="$(cat)"
+if ! parsed="$(jq -r '[
+  (.tool_name // .toolName // ""),
+  (.session_id // .sessionId // ""),
+  (.agent_id // .agentId // "")
+] | @tsv' <<<"$input" 2>/dev/null)"; then
+  exit 0
+fi
+
+IFS=$'\t' read -r tool_name session_id agent_id <<<"$parsed"
+case "$tool_name" in
+  Edit|Write|MultiEdit|NotebookEdit|apply_patch|search_replace) ;;
+  *) exit 0 ;;
+esac
+[[ -z "$agent_id" && -n "$session_id" ]] || exit 0
+
+state_root="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/agent-delegation-gate-${UID}"
+mkdir -p "$state_root" || exit 0
+chmod 700 "$state_root" || exit 0
+marker="$state_root/$(printf '%s' "$session_id" | sha256sum | awk '{print $1}')"
+mkdir "$marker" 2>/dev/null || exit 0
+
+printf '%s\n' "Delegation gate: before the first file change in this session, decide whether delegation is useful. If yes, state each lane or subagent's model, effort, scope, and parallelism, plus what stays in this session. If delegation adds overhead, say why. Then retry the change." >&2
+exit 2

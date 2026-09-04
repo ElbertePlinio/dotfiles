@@ -7,7 +7,10 @@ TARGETS=(
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json"
   "$DEST/.local/bin/agent-config-sync"
   "$DEST/.local/bin/agent-harness-preflight"
+  "$DEST/.local/bin/agent-delegation-gate"
   "$DEST/.local/bin/pickforge-lanes-mcp"
+  "$DEST/.pi/agent/extensions/delegation-gate.ts"
+  "$DEST/.omp/agent/extensions/delegation-gate.ts"
   "$DEST/.config/agent-config-sync/doctor.json"
   "$DEST/.agents/.skill-lock.json"
   "$DEST/.agents/skill-targets.json"
@@ -22,7 +25,10 @@ EXPECTED=(
   dot_omp/agent/config.yml dot_omp/agent/mcp.json.tmpl
   dot_local/bin/executable_agent-config-sync
   dot_local/bin/executable_agent-harness-preflight
+  dot_local/bin/executable_agent-delegation-gate
   dot_local/bin/executable_pickforge-lanes-mcp
+  dot_pi/agent/extensions/delegation-gate.ts
+  dot_omp/agent/extensions/delegation-gate.ts
   dot_config/agent-config-sync/doctor.json
   dot_agents/dot_skill-lock.json
   dot_agents/skill-targets.json
@@ -43,6 +49,7 @@ mkdir -p "$DEST/.grok" "$DEST/.codex" \
   "$DEST/.claude/rules" "$DEST/.claude/skills" \
   "$DEST/.grok/skills" \
   "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
+  "$DEST/.pi/agent/extensions" "$DEST/.omp/agent/extensions" \
   "$DEST/.agents/skills"
 ln -s ../.codex/AGENTS.md "$DEST/.grok/AGENTS.md"
 
@@ -72,6 +79,14 @@ else
     && bash -n "$DEST/.local/bin/agent-config-sync" \
     && pass 'temp agent-config-sync applied' \
     || err 'temp agent-config-sync invalid'
+  [[ -x "$DEST/.local/bin/agent-delegation-gate" ]] \
+    && bash -n "$DEST/.local/bin/agent-delegation-gate" \
+    && pass 'temp delegation gate applied' \
+    || err 'temp delegation gate invalid'
+  cmp -s "$DEST/.pi/agent/extensions/delegation-gate.ts" \
+    "$DEST/.omp/agent/extensions/delegation-gate.ts" \
+    && pass 'temp Pi and OMP delegation extensions applied' \
+    || err 'temp Pi or OMP delegation extension missing'
   [[ ! -L "$DEST/.grok/AGENTS.md" ]] && grep -q '^# Grok' "$DEST/.grok/AGENTS.md" \
     && pass 'temp migration replaces Grok symlink safely' || err 'temp Grok symlink migration failed'
   grep -q '^# OMP' "$DEST/.omp/agent/AGENTS.md" \

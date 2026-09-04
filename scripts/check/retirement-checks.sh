@@ -176,6 +176,9 @@ check_active_target_completeness() {
     'dot_pi/agent/extensions/btw.ts|.pi/agent/extensions/btw.ts'
     'dot_pi/agent/extensions/fast-mode.ts|.pi/agent/extensions/fast-mode.ts'
     'dot_pi/agent/extensions/model-compaction-threshold.ts|.pi/agent/extensions/model-compaction-threshold.ts'
+    'dot_pi/agent/extensions/delegation-gate.ts|.pi/agent/extensions/delegation-gate.ts'
+    'dot_omp/agent/extensions/delegation-gate.ts|.omp/agent/extensions/delegation-gate.ts'
+    'dot_local/bin/executable_agent-delegation-gate|.local/bin/agent-delegation-gate'
   )
 
   need "$sync_command"
@@ -205,4 +208,3 @@ check_active_target_completeness() {
   done
 
 }
-
