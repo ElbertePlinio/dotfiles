@@ -36,10 +36,12 @@ check_sync_command_flow() {
     dot_claude/hooks/executable_ai-attribution-gate.sh
     dot_codex/AGENTS.md
     dot_codex/agents/architecture-reviewer.toml
+    dot_codex/hooks.json
     dot_codex/model.json
     dot_codex/ollama-launch.config.toml
     dot_grok/AGENTS.md
     dot_grok/config.toml
+    dot_cursor/hooks.json
     dot_pi/agent/AGENTS.md
     dot_pi/agent/settings.json
     dot_pi/agent/mcp.json
@@ -479,4 +481,3 @@ check_primary_global_live_regressions() {
     fi
   done
 }
-

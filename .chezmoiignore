@@ -60,7 +60,6 @@ scripts
 .codex/external_agent_session_imports.json
 .codex/*.sqlite*
 .codex/history.jsonl
-.codex/hooks.json
 .codex/installation_id
 .codex/log
 .codex/mcp-oauth-locks

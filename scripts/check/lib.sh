@@ -111,7 +111,6 @@ RETIRED_TARGET_PATHS=(
   .local/bin/claude-personal
   .local/bin/claude-profile
   .factory
-  .config/opencode
   .claude/RTK.md
   Projects/Personal/.codex
   Projects/Personal/.agent-safety
@@ -309,4 +308,3 @@ RUNTIME_IGNORE_PATHS=(
   .omp/gpu_cache.json
   .omp/puppeteer
 )
-

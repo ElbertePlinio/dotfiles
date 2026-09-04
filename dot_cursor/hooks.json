@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": "complexity-gate hook cursor"
+      }
+    ],
+    "stop": [
+      {
+        "command": "complexity-gate hook cursor",
+        "loop_limit": 3
+      }
+    ]
+  }
+}

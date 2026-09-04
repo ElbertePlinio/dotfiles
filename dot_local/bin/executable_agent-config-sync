@@ -58,10 +58,12 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.claude/CLAUDE.md"
   "${HOME}/.codex/AGENTS.md"
   "${HOME}/.codex/agents"
+  "${HOME}/.codex/hooks.json"
   "${HOME}/.codex/model.json"
   "${HOME}/.codex/ollama-launch.config.toml"
   "${HOME}/.grok/AGENTS.md"
   "${HOME}/.grok/config.toml"
+  "${HOME}/.cursor"
   "${HOME}/.pi/agent/AGENTS.md"
   "${HOME}/.pi/agent/settings.json"
   "${HOME}/.pi/agent/mcp.json"
@@ -109,6 +111,7 @@ agent_config_scope_roots() {
     "${HOME}/.agents" \
     "${HOME}/.claude" \
     "${HOME}/.codex" \
+    "${HOME}/.cursor" \
     "${HOME}/.grok" \
     "${HOME}/.pi" \
     "${HOME}/.omp"

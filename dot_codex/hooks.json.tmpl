@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "complexity-gate hook codex"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '{{ .chezmoi.homeDir }}/.codex/herdr-agent-state.sh' session",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "complexity-gate hook codex"
+          }
+        ]
+      }
+    ]
+  }
+}
