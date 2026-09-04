@@ -4,5 +4,5 @@
 
 ## OMP
 
-- Prefer OMP-native subagents over launching other CLIs from inside OMP. `agent()` takes a full selector with an effort suffix, like `openai-codex/gpt-5.6-sol:medium`.
+- Prefer OMP-native subagents over launching other CLIs from inside OMP. `agent()` takes a full selector with an effort suffix, like `openai-codex/gpt-6-astra:medium`.
 - Give every subagent a task that needs at least one tool call. Reply-only prompts can fail on `openai-codex` lanes and look like a lane failure.

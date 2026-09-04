@@ -18,6 +18,7 @@ I like short, practical work. Understand the real problem, make the smallest cle
 - `sudo` works as `sudo -A` with `SUDO_ASKPASS=~/.local/bin/sudo-askpass`. Never ask me for the password.
 - Context7 is there when library or API details matter. `x-search` is for X (Twitter).
 - Under `~/Projects/Pickforge`, GitHub Issues are the plan. The workspace `AGENTS.md` explains it.
+- Before selecting model lanes, read `lanes_models` or run `pickforge-lanes models` for ratings, effort limits, and task fit.
 - Global agent config is managed by chezmoi. Change the source, never only the rendered file. The `agent-config-sync` skill knows how.
 - Who I am, how I write, and what I'm working on live in `~/AgentMemory`. Look there when you need something about me.
 

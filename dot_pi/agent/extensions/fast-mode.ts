@@ -4,9 +4,7 @@ const STATE_ENTRY = "fast-mode-state";
 const SUPPORTED_MODELS = new Set([
   "gpt-5.4",
   "gpt-5.5",
-  "gpt-5.6-luna",
-  "gpt-5.6-sol",
-  "gpt-5.6-terra",
+  "gpt-6-astra",
 ]);
 
 type ModelRef = { provider: string; id: string } | undefined;
@@ -73,7 +71,7 @@ export default function (pi: ExtensionAPI) {
           return;
         }
         save(true, ctx);
-        ctx.ui.notify("Fast mode on: 1.5x speed, 2.5x ChatGPT credits for GPT-5.6.", "warning");
+        ctx.ui.notify("Fast mode on: priority service tier enabled.", "warning");
         return;
       }
 

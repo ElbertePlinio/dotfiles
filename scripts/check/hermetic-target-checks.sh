@@ -231,7 +231,7 @@ jq '.defaultThinkingLevel = "high"
       "anthropic/claude-opus-4-8",
       "anthropic/claude-sonnet-5",
       "ollama/glm-5.2:cloud",
-      "openai-codex/gpt-5.6-sol",
+      "openai-codex/gpt-6-astra",
       "xai/grok-4.5"
     ]' "$ROOT/dot_pi/agent/settings.json" >"$PENDING_PI_HOME/.pi/agent/settings.json"
 cp "$PENDING_PI_HOME/.pi/agent/settings.json" "$PENDING_PI_HOME/settings-exact-migration.json"

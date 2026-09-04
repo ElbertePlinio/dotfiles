@@ -322,17 +322,17 @@ pi-fable-traces() {
   pi --provider openai --model fable-traces "$@"
 }
 
-# Claude Code on the GPT-5.6 Codex subscription via cli-proxy-api.
+# Claude Code on the GPT-6 Astra Codex subscription via cli-proxy-api.
 claude-codex() {
-  local model="${CLAUDE_CODEX_MODEL:-gpt-5.6-sol}"
+  local model="${CLAUDE_CODEX_MODEL:-gpt-6-astra}"
   CLAUDE_CONFIG_DIR="$HOME/.claude" \
   ANTHROPIC_BASE_URL="http://127.0.0.1:8317" \
   ANTHROPIC_AUTH_TOKEN="$CLIPROXY_API_KEY" \
   ANTHROPIC_MODEL="$model" \
-  ANTHROPIC_SMALL_FAST_MODEL="gpt-5.6-sol" \
+  ANTHROPIC_SMALL_FAST_MODEL="gpt-6-astra" \
     "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
 }
-claude-sol()   { CLAUDE_CODEX_MODEL="gpt-5.6-sol"   claude-codex "$@"; }
+claude-astra()   { CLAUDE_CODEX_MODEL="gpt-6-astra"   claude-codex "$@"; }
 
 claudex() {
   CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1 \

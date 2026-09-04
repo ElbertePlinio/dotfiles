@@ -177,7 +177,7 @@ write_lane_runtime() {
   cat >"$dir/src/table.ts" <<'TS'
 const ALL_ORIGINS = ["pi", "mcp"];
 export const MODEL_TABLE = [
-  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: [...ALL_ORIGINS] },
+  { selector: "openai-codex/gpt-6-astra", route: "pi", origins: [...ALL_ORIGINS] },
   { selector: "xai/grok-4.6", route: "pi", origins: [...ALL_ORIGINS] },
   { selector: "anthropic/claude-fable-5-1", route: "claude-code", origins: ["pi"] },
 ];
@@ -463,7 +463,7 @@ make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-anthropic-prefix"; write_lane_runtime "$lane_root"
 cat >"$lane_root/src/table.ts" <<'TS'
 export const MODEL_TABLE = [
-  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: ["pi", "mcp"] },
+  { selector: "openai-codex/gpt-6-astra", route: "pi", origins: ["pi", "mcp"] },
   { selector: "anthropic/opus-fallback", route: "pi", origins: ["pi"] },
 ];
 TS
@@ -478,7 +478,7 @@ make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-noslash-selector"; write_lane_runtime "$lane_root"
 cat >"$lane_root/src/table.ts" <<'TS'
 export const MODEL_TABLE = [
-  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: ["pi", "mcp"] },
+  { selector: "openai-codex/gpt-6-astra", route: "pi", origins: ["pi", "mcp"] },
   { selector: "standalone", route: "pi", origins: ["pi"] },
 ];
 TS
@@ -491,7 +491,7 @@ next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-missing-required-file"; write_lane_runtime "$lane_root"; rm -f "$lane_root/mcp/server.ts"; write_lane_catalog "$lane_root"
 write_pi_settings_packages "[\"$lane_root\"]"
-write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'
 run_doctor --json
 assert_rc 1 'a missing catalog-required runtime file is a required failure'
 next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.file.mcp.server.ts" and .status == "fail" and (.message | contains("is missing")))' 'the missing runtime file check names the missing path'
@@ -500,7 +500,7 @@ next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-missing-extension"; write_lane_runtime "$lane_root"; printf '{"name":"fake-pi-kit"}\n' >"$lane_root/package.json"; write_lane_catalog "$lane_root"
 write_pi_settings_packages "[\"$lane_root\"]"
-write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'
 run_doctor --json
 assert_rc 1 'a runtime package.json missing the lanes.ts extension declaration is a required failure'
 next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.package" and .status == "fail" and (.message | contains("extensions/lanes.ts")))' 'the missing extension check names extensions/lanes.ts'
@@ -510,15 +510,15 @@ make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-origin-missing"; write_lane_runtime "$lane_root"
 cat >"$lane_root/src/table.ts" <<'TS'
 export const MODEL_TABLE = [
-  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: ["mcp"] },
+  { selector: "openai-codex/gpt-6-astra", route: "pi", origins: ["mcp"] },
 ];
 TS
 write_lane_catalog "$lane_root"
 write_pi_settings_packages "[\"$lane_root\"]"
-write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'
 run_doctor --json
 assert_rc 1 'a route-present selector missing the pi origin is a required failure'
-next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.5.6.sol.model" and .status == "pass") and any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.5.6.sol.origin" and .status == "fail" and (.message | contains("missing the required pi origin")))' 'the route still matches while the missing origin is reported separately'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.6.astra.model" and .status == "pass") and any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.6.astra.origin" and .status == "fail" and (.message | contains("missing the required pi origin")))' 'the route still matches while the missing origin is reported separately'
 
 next_test; setup_case; make_healthy_alpha; printf '{"version":1,"harnesses":["alpha"],"providers":{},"mcp":{},"lanes":{"unknown":["x"]}}\n' >"$CONFIG"; run_doctor --json
 assert_rc 2 'unknown lanes route key is rejected as invalid requirements'
@@ -527,7 +527,7 @@ next_test; assert_json 'any(.checks[]; .id == "requirements.invalid")' 'unknown 
 next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{}' '{}' '{"pi":["a","a"]}'; run_doctor --json
 assert_rc 2 'duplicate lane selector requirement is rejected as invalid'
 
-next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'; run_doctor --json
+next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'; run_doctor --json
 assert_rc 2 'Pi lane requirement without the pi harness is rejected as invalid'
 
 next_test; setup_case; make_healthy_alpha; write_requirements '["alpha"]' '{}' '{}' '{"claude-code":["anthropic/claude-fable-5-1"]}'; run_doctor --json
@@ -540,13 +540,13 @@ write_pi_settings_packages "[\"$lane_root\"]"
 write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["anthropic/claude-fable-5-1"]}'
 run_doctor --json
 assert_rc 1 'Pi lane requiring a claude-code-routed selector fails'
-next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.anthropic.claude.fable.5.model" and .status == "fail" and (.message | contains("routes through claude-code")))' 'route mismatch names the actual runtime route'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.anthropic.claude.fable.5.1.model" and .status == "fail" and (.message | contains("routes through claude-code")))' 'route mismatch names the actual runtime route'
 
 next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
 missing_root="$CASE_DIR/does-not-exist"
 write_lane_catalog "$missing_root"
-write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'
 run_doctor --json
 assert_json 'any(.checks[]; .id == "lanes.runtime.dir" and .status == "fail")' 'missing runtime directory is a required failure'
 next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selectors" and .status == "skip")' 'selector checks are skipped when the runtime directory is missing'
@@ -555,7 +555,7 @@ next_test; setup_case; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-no-bun"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
 write_pi_settings_packages "[\"$lane_root\"]"
-write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'
 run_doctor --json
 assert_json 'any(.checks[]; .id == "lanes.runtime.bun" and .status == "fail")' 'missing bun on PATH is a required failure'
 next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status == "skip")' 'model table check is skipped when bun is unavailable'
@@ -568,29 +568,49 @@ cat >"$lane_root/src/table.ts" <<TS
 import { writeFileSync } from "node:fs";
 writeFileSync("$side_effect_marker", "ran");
 export const MODEL_TABLE = [
-  { selector: "openai-codex/gpt-5.6-sol", route: "pi", origins: ["pi", "mcp"] },
+  { selector: "openai-codex/gpt-6-astra", route: "pi", origins: ["pi", "mcp"] },
 ];
 TS
 write_lane_catalog "$lane_root"
 write_pi_settings_packages "[\"$lane_root\"]"
 mkdir -p "$HOME_DIR/.pi/agent"; printf '{"openai-codex":{}}\n' >"$HOME_DIR/.pi/agent/auth.json"
-write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'
 run_doctor --json
 assert_rc 0 'a table with a top-level side effect still parses its route data'
-next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.5.6.sol.model" and .status == "pass") and any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.5.6.sol.origin" and .status == "pass")' 'route and origin data are read from a hostile table without executing it'
+next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.6.astra.model" and .status == "pass") and any(.checks[]; .id == "lanes.pi.selector.openai.codex.gpt.6.astra.origin" and .status == "pass")' 'route and origin data are read from a hostile table without executing it'
 next_test; if [ ! -e "$side_effect_marker" ]; then pass 'the runtime table top-level side effect never runs'; else fail 'the runtime table top-level side effect executed'; fi
+
+next_test; setup_case; link_tool bun; link_tool head
+make_harness pi pi '.pi/agent/settings.json'
+lane_root="$CASE_DIR/pi-kit-commented-table"; write_lane_runtime "$lane_root"
+cat >"$lane_root/src/table.ts" <<'TS'
+// export const MODEL_TABLE = [{ selector: "comment-only" }];
+const ALL_ORIGINS = ["pi", /* don't count "other" or ] */ "mcp"];
+export const MODEL_TABLE = [
+  // This runner's policy stops at xhigh. https://example.test/models
+  /* Ignore unmatched delimiters: ' " ` ] } */
+  { selector: "openai-codex/gpt-6-astra", route: "pi", origins: [...ALL_ORIGINS], url: "https://example.test/*model*/", pricingTiers: [{ inputTokensAtLeast: 272_001 }] },
+];
+TS
+write_lane_catalog "$lane_root"
+write_pi_settings_packages "[\"$lane_root\"]"
+mkdir -p "$HOME_DIR/.pi/agent"; printf '{"openai-codex":{}}\n' >"$HOME_DIR/.pi/agent/auth.json"
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'
+run_doctor --json
+assert_rc 0 'model table comments do not corrupt parsing of strings, arrays, or nested objects'
+next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status == "pass")' 'commented model table loads successfully'
 
 next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-malformed-table"; write_lane_runtime "$lane_root"
 cat >"$lane_root/src/table.ts" <<'TS'
 export const MODEL_TABLE = [
-  { selector: "openai-codex/gpt-5.6-sol, route: "pi", origins: ["pi"] },
+  { selector: "openai-codex/gpt-6-astra, route: "pi", origins: ["pi"] },
 ];
 TS
 write_lane_catalog "$lane_root"
 write_pi_settings_packages "[\"$lane_root\"]"
-write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'
 run_doctor --json
 assert_rc 1 'a malformed runtime model table is a required failure'
 next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status == "fail")' 'the malformed table is reported as an invalid runtime model table'
@@ -599,11 +619,11 @@ next_test; assert_json 'any(.checks[]; .id == "lanes.pi.selectors" and .status =
 next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-no-package"; mkdir -p "$lane_root/src"; cat >"$lane_root/src/table.ts" <<'TS'
-export const MODEL_TABLE = [{ selector: "openai-codex/gpt-5.6-sol", route: "pi" }];
+export const MODEL_TABLE = [{ selector: "openai-codex/gpt-6-astra", route: "pi" }];
 TS
 write_lane_catalog "$lane_root"
 write_pi_settings_packages "[\"$lane_root\"]"
-write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'
 run_doctor --json
 assert_json 'any(.checks[]; .id == "lanes.runtime.package" and .status == "fail")' 'missing runtime package.json is a required failure'
 
@@ -611,7 +631,7 @@ next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-unloaded"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
 write_pi_settings_packages '["npm:something-else"]'
-write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-5.6-sol"]}'
+write_requirements '["pi"]' '{"pi":["openai-codex"]}' '{}' '{"pi":["openai-codex/gpt-6-astra"]}'
 run_doctor --json
 assert_json 'any(.checks[]; .id == "lanes.pi.settings" and .status == "fail")' 'Pi settings that do not load the runtime package are a required failure'
 

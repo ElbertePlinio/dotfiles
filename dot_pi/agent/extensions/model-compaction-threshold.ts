@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export const TARGET_MODEL = {
   provider: "openai-codex",
-  id: "gpt-5.6-sol",
+  id: "gpt-6-astra",
 } as const;
 export const COMPACTION_THRESHOLD_TOKENS = 240_000;
 

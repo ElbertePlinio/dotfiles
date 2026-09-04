@@ -801,12 +801,17 @@ function extractOrigins(entryText, source) {
   return [...origins];
 }
 
+function stripComments(source) {
+  const tokens = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|(\/\/[^\r\n]*|\/\*[\s\S]*?\*\/)/g;
+  return source.replace(tokens, (token, quoted) => quoted ?? token.replace(/[^\r\n]/g, " "));
+}
+
 function main() {
   const tablePath = process.argv[2];
   if (!tablePath) fail("missing table path");
   let source;
   try {
-    source = readFileSync(tablePath, "utf8");
+    source = stripComments(readFileSync(tablePath, "utf8"));
   } catch {
     fail("runtime model table could not be read");
   }

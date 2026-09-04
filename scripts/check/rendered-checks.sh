@@ -202,7 +202,7 @@ if [[ -f .chezmoitemplates/zshrc-linux ]]; then
     && grep -Fq 'ANTHROPIC_BASE_URL="http://127.0.0.1:8317"' <<<"$linux_claude_codex" \
     && grep -Fq 'ANTHROPIC_AUTH_TOKEN="$CLIPROXY_API_KEY"' <<<"$linux_claude_codex" \
     && grep -Fq 'ANTHROPIC_MODEL="$model"' <<<"$linux_claude_codex" \
-    && grep -Fq 'ANTHROPIC_SMALL_FAST_MODEL="gpt-5.6-sol"' <<<"$linux_claude_codex" \
+    && grep -Fq 'ANTHROPIC_SMALL_FAST_MODEL="gpt-6-astra"' <<<"$linux_claude_codex" \
     && grep -Fq '"$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"' <<<"$linux_claude_codex" \
     && ! grep -Fq '.claude-personal' <<<"$linux_claude_codex"; then
     pass 'Linux claude-codex preserves proxy/model behavior on the global Claude profile'

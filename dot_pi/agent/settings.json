@@ -1,8 +1,8 @@
 {
-  "lastChangelogVersion": "0.84.4",
+  "lastChangelogVersion": "0.85.0",
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-sol",
-  "defaultThinkingLevel": "high",
+  "defaultModel": "gpt-6-astra",
+  "defaultThinkingLevel": "medium",
   "packages": [
     "npm:pi-mcp-adapter",
     "npm:pi-bar",
@@ -11,7 +11,8 @@
     "npm:@narumitw/pi-retry",
     "../../Projects/Personal/pi-kit",
     "npm:@plannotator/pi-extension",
-    "npm:@pickforge/complexity-gate"
+    "npm:@pickforge/complexity-gate",
+    "npm:@narumitw/pi-goal"
   ],
   "enabledModels": [
     "anthropic/claude-fable-5-1",
@@ -19,7 +20,7 @@
     "deepseek-official/deepseek-v4-flash",
     "opencode-go/glm-5.3-flash",
     "opencode-go/kimi-k3",
-    "openai-codex/gpt-5.6-sol",
+    "openai-codex/gpt-6-astra",
     "xai/grok-4.6"
   ],
   "hideThinkingBlock": false,
