@@ -139,6 +139,7 @@ set -eu
 printf '%s\n' configured >>"$SYNC_CONFIGURE_LOG"
 EOF
   chmod 0755 "$flow_source/run_onchange_after_configure_pickforge_lanes_mcp.sh"
+  printf '%s\n' '# Codex registration is tested separately.' >"$flow_source/run_onchange_after_configure_codex_lanes_mcp.py"
   printf '%s\n' changed-unrelated >"$flow_source/dot_unrelated-agent-config-probe"
   printf '%s\n' retired >"$flow_home/.retired-agent-config-probe/sentinel"
   printf '%s\n' retired >"$divergent_home/.retired-agent-config-probe/sentinel"

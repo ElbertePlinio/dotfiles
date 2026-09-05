@@ -1,4 +1,9 @@
 check_pickforge_lanes_deployment() {
+  if python3 "$ROOT/scripts/test-codex-lanes-config.py" >"$TMP/codex-lanes-config.log" 2>&1; then
+    pass "Codex lanes registration preserves configuration and handles failures"
+  else
+    err "Codex lanes registration tests failed"
+  fi
   local skill settings_file
   local fake_home="$TMP/pickforge-lanes-home"
   local fake_bin="$TMP/pickforge-lanes-bin"

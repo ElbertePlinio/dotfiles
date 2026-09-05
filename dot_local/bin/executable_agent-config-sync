@@ -48,6 +48,7 @@ fi
 
 CHECK="$SOURCE/scripts/check-agent-config-sync.sh"
 PICKFORGE_LANES_CONFIGURE="$SOURCE/run_onchange_after_configure_pickforge_lanes_mcp.sh"
+CODEX_LANES_CONFIGURE="$SOURCE/run_onchange_after_configure_codex_lanes_mcp.py"
 MANIFEST="$SOURCE/dot_agents/skill-targets.json"
 RETIREMENT_LIST="$SOURCE/.chezmoiremove"
 SRC=(--source "$SOURCE")
@@ -476,6 +477,11 @@ cmd_apply() {
   fi
   if ! sh "$PICKFORGE_LANES_CONFIGURE"; then
     echo "agent-config-sync: pickforge-lanes MCP registration failed" >&2
+    rm -rf "$work_dir"
+    return 1
+  fi
+  if ! python3 "$CODEX_LANES_CONFIGURE"; then
+    echo "agent-config-sync: Codex lanes MCP registration failed" >&2
     rm -rf "$work_dir"
     return 1
   fi

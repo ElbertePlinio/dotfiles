@@ -20,6 +20,16 @@
             "command": "complexity-gate hook codex"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook codex",
+            "timeout": 5
+          }
+        ],
+        "matcher": "mcp__pickforge[-_]lanes__lanes_(spawn|wait)"
       }
     ],
     "SessionStart": [
@@ -31,6 +41,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook codex",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Stop": [
@@ -39,6 +58,15 @@
           {
             "type": "command",
             "command": "complexity-gate hook codex"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook codex",
+            "timeout": 5
           }
         ]
       }
