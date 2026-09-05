@@ -610,3 +610,10 @@ video {
     scroll-behavior: auto !important;
   }
 }
+
+.viewer-stage.zoom {
+  display: block;
+}
+.viewer-stage.zoom img {
+  margin: 0 auto;
+}

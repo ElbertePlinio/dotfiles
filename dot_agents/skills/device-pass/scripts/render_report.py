@@ -51,7 +51,7 @@ def scenario_html(root, scenario):
         url = artifact_url(root, scenario['video'])
         video = f'<video controls preload="metadata" src="{url}"></video>'
     mode = 'mobile' if 'mobile' in scenario['mode'].lower() else 'desktop'
-    return f'<section class="scenario {mode}" data-mode="{mode}"><div class="scenario-head"><div><h3>{text(scenario["name"])}</h3><p class="scenario-meta">{details}</p></div><span class="badge {status}">{status}</span></div><details class="steps"><summary>Journey · {len(scenario["steps"])} verified steps</summary><ol>{steps}</ol></details><div class="images">{images}</div>{video}</section>'
+    return f'<section class="scenario {mode}" data-mode="{mode}"><div class="scenario-head"><div><h3>{text(scenario["name"])}</h3><p class="scenario-meta">{details}</p></div><span class="badge {status}">{status}</span></div><details class="steps"><summary>Journey · {len(scenario["steps"])} recorded steps</summary><ol>{steps}</ol></details><div class="images">{images}</div>{video}</section>'
 
 
 def report_context(data):
