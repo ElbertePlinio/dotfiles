@@ -31,6 +31,12 @@
       "source_root": "dot_omp/agent/skills",
       "discovery": "symlink",
       "relative_prefix": "../../../.agents/skills"
+    },
+    "hermes": {
+      "skills_root": "~/.hermes/skills",
+      "source_root": "dot_hermes/skills",
+      "discovery": "symlink",
+      "relative_prefix": "../../.agents/skills"
     }
   },
   "skills": {
@@ -68,6 +74,14 @@
       "grok",
       "pi",
       "omp"
+    ],
+    "device-pass": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp",
+      "hermes"
     ]
   }
 }

@@ -120,6 +120,9 @@ done < <(jq -r --arg dest "$DEST" '
 ' "$MANIFEST")
 
 if ((${#PORTABLE_TARGETS[@]})); then
+  for target in "${PORTABLE_TARGETS[@]}"; do
+    mkdir -p "$(dirname "$target")"
+  done
   if chezmoi "${TMP_SRC[@]}" --destination "$DEST" apply "${PORTABLE_TARGETS[@]}"; then
     pass "temp applied ${#PORTABLE_TARGETS[@]} portable skill links"
   else

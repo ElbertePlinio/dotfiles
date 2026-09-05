@@ -447,7 +447,9 @@ cmd_apply() {
     return 1
   fi
   while IFS= read -r link; do
-    [[ -n "$link" ]] && active_targets+=("$link")
+    [[ -n "$link" ]] || continue
+    mkdir -p "$(dirname "$link")"
+    active_targets+=("$link")
   done <<<"$portable_output"
   if [[ "${#active_targets[@]}" -eq 0 ]]; then
     echo "agent-config-sync: active target list is empty" >&2
