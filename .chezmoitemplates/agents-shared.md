@@ -18,7 +18,7 @@ I like short, practical work. Understand the real problem, make the smallest cle
 - `sudo` works as `sudo -A` with `SUDO_ASKPASS=~/.local/bin/sudo-askpass`. Never ask me for the password.
 - Context7 is there when library or API details matter. `x-search` is for X (Twitter).
 - Under `~/Projects/Pickforge`, GitHub Issues are the plan. The workspace `AGENTS.md` explains it.
-- Before selecting model lanes, read `lanes_models` or run `pickforge-lanes models` for ratings, effort limits, and task fit.
+- Before selecting model lanes, read `lanes_models` or run `pickforge-lanes models` for ratings, effort limits, and task fit. Choose model and effort separately for each task, with a brief reason for both in the lane rationale. Consider cheaper capable models for simple work; no mandatory cheap-first trial, quotas, forced variety, or default to the parent model. Prefer Fable 5.1 or GPT-6 Astra when available for difficult final reviews of abstractions, unnecessary complexity, and weak code; simpler reviews can use lighter models. Keep the reviewer separate from the author; a different model is optional. Escalate when verified misses, failed validation, or harder reasoning show the choice is unsuitable; distinguish model limitations from tool or environment failures. Avoid repeating an unsuitable choice. Use verified outcomes and `lanes_report` comparisons of similar tasks to adjust defaults, judging reviews by supported findings and useful fixes, not finding counts.
 - Global agent config is managed by chezmoi. Change the source, never only the rendered file. The `agent-config-sync` skill knows how.
 - Who I am, how I write, and what I'm working on live in `~/AgentMemory`. Look there when you need something about me.
 
