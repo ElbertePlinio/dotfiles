@@ -66,11 +66,14 @@
       "mcp__pickforge-lanes__lanes_spawn",
       "mcp__pickforge-lanes__lanes_status",
       "mcp__pickforge-lanes__lanes_wait",
-      "mcp__pickforge-lanes__lanes_abandon"
+      "mcp__pickforge-lanes__lanes_abandon",
+      "mcp__pickforge-lanes__lanes_models",
+      "mcp__pickforge-lanes__lanes_assess",
+      "mcp__pickforge-lanes__lanes_report"
     ],
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5-1[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -153,7 +156,7 @@
       "effortLevel": "medium"
     },
     "claude-fable-5-1": {
-      "effortLevel": "high"
+      "effortLevel": "medium"
     }
   },
   "tui": "fullscreen",

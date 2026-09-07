@@ -87,7 +87,7 @@ let sessionId = "session-a";
 const context = { sessionManager: { getSessionId: () => sessionId } };
 if (handler({ toolName: "read" }, context) !== undefined) throw new Error("read blocked");
 const first = handler({ toolName: "edit" }, context) as { block?: boolean; reason?: string };
-if (!first?.block || !first.reason?.includes("model, effort, scope, and parallelism")) throw new Error("first edit allowed");
+if (!first?.block || !first.reason?.includes("lanes_models")) throw new Error("first edit allowed");
 if (handler({ toolName: "write" }, context) !== undefined) throw new Error("retry blocked");
 sessionId = "session-b";
 const next = handler({ toolName: "apply_patch" }, context) as { block?: boolean };

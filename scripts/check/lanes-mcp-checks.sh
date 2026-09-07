@@ -253,6 +253,9 @@ assert stat.S_IMODE(os.stat(sys.argv[1]).st_mode) == 0o600
 with open(sys.argv[1], encoding="utf-8") as source:
     settings = json.load(source)
 assert isinstance(settings, dict)
+assert settings["model"] == "claude-fable-5-1[1m]"
+assert settings["effortLevel"] == "medium"
+assert settings["modelSettings"]["claude-fable-5-1"]["effortLevel"] == "medium"
 assert isinstance(settings.get("permissions"), dict)
 allow = settings["permissions"].get("allow")
 assert isinstance(allow, list)
@@ -261,6 +264,9 @@ expected = {
     "mcp__pickforge-lanes__lanes_status",
     "mcp__pickforge-lanes__lanes_wait",
     "mcp__pickforge-lanes__lanes_abandon",
+    "mcp__pickforge-lanes__lanes_models",
+    "mcp__pickforge-lanes__lanes_assess",
+    "mcp__pickforge-lanes__lanes_report",
 }
 pickforge_permissions = [
     permission

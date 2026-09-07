@@ -10,9 +10,7 @@ type GateApi = {
 
 const MUTATING_TOOLS = new Set(["edit", "write", "apply_patch"]);
 const reminder =
-  "Delegation gate: before the first file change in this session, decide whether delegation is useful. " +
-  "If yes, state each lane or subagent's model, effort, scope, and parallelism, plus what stays in this session. " +
-  "If delegation adds overhead, say why. Then retry the change.";
+  "Delegation gate: decide whether delegation is useful for this change; consult lanes_models or pickforge-lanes models for model and effort choices. Continue locally for tiny or tightly coupled work, or give a worker clear ownership. Retry the change without asking for permission again.";
 
 export default function delegationGate(pi: GateApi) {
   const promptedSessions = new Set<string>();

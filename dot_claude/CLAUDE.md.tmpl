@@ -1,3 +1,5 @@
 # Claude
 
 {{ template "agents-shared.md" . }}
+
+Select reviewers using lanes_models. Route Astra reviews through Lanes; when Fable is selected, use native final-reviewer (medium) or final-reviewer-high (high). For dual review, run Astra through Lanes and Fable natively in separate reviews. Keep it read-only and run tests separately. Pickforge Lanes deliberately excludes Claude-to-Claude delegation; use its Pi routes for cross-provider workers.

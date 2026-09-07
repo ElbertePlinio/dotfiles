@@ -1,124 +1,17 @@
-# Agent configuration operations
+Resolve the repository with `chezmoi source-path`. The command implementation is `dot_local/bin/executable_agent-config-sync`; validation lives in `scripts/check-agent-config-sync.sh`. Read these sources when command behavior matters rather than assuming the installed CLI matches.
 
-Use this reference for first-machine setup and requests scoped to one harness. The
-canonical repository is `~/.local/share/chezmoi`; rendered files under `$HOME`
-are never the source of truth.
+`agent-config-sync check` validates source templates and skill distribution. `check-live` performs read-only live migration checks. `targets` prints active targets, exclusions, and scope roots. `doctor` diagnoses local harness configuration. `apply` updates the CLI itself, validates source, runs strict live preflight, applies registered targets, configures Claude and Codex lanes MCP, and checks live state. Do not repeat checks already completed by apply on unchanged source.
 
-## First machine bootstrap
+Apply exit 73 means self-update failed, 74 means batched apply failed, and 75 means the CLI changed: rerun apply once. `sync` fast-forwards clean dotfiles on main and clean AgentMemory, then applies; it handles exit 75 itself. Exit 76 means the dotfiles update was blocked. Sync can leave dirty or unavailable AgentMemory unchanged and reports that separately. Use it only when repository updates are authorized, not for local source edits.
 
-The skill cannot bootstrap itself. Before an agent can use it:
+There is no harness scope argument. Never use `agent-config-sync apply pi`. For a harness-only request, select explicit live paths from the corresponding source and declared skill links, review their scoped diff without exposing credentials, run source validation and `bash scripts/check-agent-config-sync.sh --check-live-migration --strict-preflight` from the source, then `chezmoi apply -- <explicit-live-paths>`. Finish with `agent-config-sync check-live` and any missing relevant harness check. Preserve shared templates and other harnesses. Report unrelated validation failures rather than widening scope to fix them.
 
-1. Install `chezmoi`, `age`, `git`, and the system GitHub CLI (`gh`),
-   which `agent-config-sync apply` requires for its Personal GitHub safety link.
-2. Restore `~/.config/chezmoi/key.txt` and recreate the age configuration.
-3. Verify `ssh -T git@github.com` succeeds before apply. A managed `run_after_`
-   script clones `pickforge-platform`, which provides the local Pi `pi-kit`.
-4. Run `chezmoi init git@github.com:ElbertePlinio/dotfiles.git`.
-5. Review the diff, then run `chezmoi apply --interactive`.
-6. Start a new shell and reload/restart the harness.
-7. Run `agent-config-sync check-live`.
+Claude's adapter is `dot_claude/CLAUDE.md.tmpl`; Codex and Grok use `dot_codex/AGENTS.md.tmpl` and `dot_grok/AGENTS.md.tmpl`. Pi and OMP use `dot_pi/agent/AGENTS.md.tmpl` and `dot_omp/agent/AGENTS.md.tmpl`. Their native configuration stays under those same harness roots. Rendered paths replace `dot_` with `.` under `$HOME` and omit `.tmpl`. Hermes has no managed SOUL adapter or configuration scope root here. Its declared portable skill links, currently device-pass, are derived from the registry and included in agent apply. Do not invent a `private_dot_hermes/SOUL.md.tmpl` adapter or treat those links as ownership of Hermes configuration; establish its actual owner before changing that configuration.
 
-The first apply installs both `~/.local/bin/agent-config-sync` and the canonical
-skill at `~/.agents/skills/agent-config-sync`. Harness links become available
-after apply. Authentication, credentials, sessions, and caches are separate and
-must not be copied from the repository.
+Portable content lives in `dot_agents/skills/`. In `dot_agents/skill-targets.json`, `canonical` discovery reads `~/.agents/skills` directly, while `symlink` discovery uses managed relative links. A missing target means no distribution there. Harness-only work may repair existing declared links, not silently expand the registry. Never replace divergent live skill directories or bypass strict preflight.
 
-## Scope semantics
+For a first machine, install chezmoi, age, git, and the runtime tools required by the source checks and selected harnesses, including Bash, Python 3, and jq. Restore the age key at `~/.config/chezmoi/key.txt` and its configuration securely. Arrange GitHub repository access using the intended SSH identity; GitHub's successful `ssh -T` greeting can still exit 1. Run `chezmoi init git@github.com:ElbertePlinio/dotfiles.git`, then inspect source and explicit target diffs. A full-machine `chezmoi apply --interactive` requires authorization for that wider scope; agent-only apply is not a full bootstrap.
 
-`agent-config-sync` currently accepts only `check`, `check-live`, and `apply`.
-It has no harness argument. Never run `agent-config-sync apply pi` or similar:
-extra arguments are not a scope contract and full apply may touch other
-harnesses.
+The full-machine scripts `run_after_clone_pi_kit.sh` and `run_after_clone_agent_memory.sh` clone `ElbertePlinio/pi-kit` into `~/Projects/Personal/pi-kit` and `ElbertePlinio/AgentMemory` into `~/AgentMemory`. They try configured GitHub SSH aliases if needed and refuse unexpected existing repositories. Pi-kit attempts `bun install --frozen-lockfile` when dependencies are absent. Full bootstrap installs the sync CLI, canonical skills, and declared links. Reload the shell and affected harnesses, then use a live check unless that revision was already checked by agent apply. There is no system-gh safety-link step in the current apply implementation.
 
-Interpret requests as follows:
-
-- **Sync only `<harness>`:** change only that harness adapter/native source and
-  its declared skill links. Preserve shared templates and every other harness.
-  Use scoped `chezmoi diff` and `chezmoi apply` targets.
-- **Sync a shared/global rule:** update the shared templates and all applicable
-  adapters, then use the full `agent-config-sync apply` workflow.
-- **Sync a portable skill:** edit the canonical skill, update
-  `dot_agents/skill-targets.json`, and update only compatible declared links.
-- **Sync a harness-native skill or extension:** keep it under that harness; do
-  not promote it to the portable registry without an explicit portability
-  decision.
-
-Always run the full read-only `agent-config-sync check` before and after edits.
-For a harness-only request, use `check-live` plus scoped target validation after
-the scoped apply. Run full `apply` only when its preflight is clean and touching
-all registered targets matches the requested scope.
-
-## Harness map
-
-| Harness | Adapter source | Rendered adapter | Native/config source |
-|---|---|---|---|
-| Claude | `dot_claude/CLAUDE.md.tmpl` | `~/.claude/CLAUDE.md` | `dot_claude/` |
-| Codex | `dot_codex/AGENTS.md.tmpl` | `~/.codex/AGENTS.md` | `dot_codex/` |
-| Grok | `dot_grok/AGENTS.md.tmpl` | `~/.grok/AGENTS.md` | `dot_grok/` |
-| Pi | `dot_pi/agent/AGENTS.md.tmpl` | `~/.pi/agent/AGENTS.md` | `dot_pi/agent/` |
-| OMP | `dot_omp/agent/AGENTS.md.tmpl` | `~/.omp/agent/AGENTS.md` | `dot_omp/agent/` |
-| Hermes | `private_dot_hermes/SOUL.md.tmpl` | `~/.hermes/SOUL.md` | `private_dot_hermes/` |
-
-Shared behavior is composed from `.chezmoitemplates/agents-shared*.md`. Do not
-edit a harness adapter for a genuinely shared rule merely to avoid updating the
-other applicable adapters.
-
-### Pi-only boundary
-
-Typical Pi targets are:
-
-- `dot_pi/agent/AGENTS.md.tmpl`
-- `dot_pi/agent/encrypted_settings.json.age`
-- `dot_pi/agent/encrypted_models.json.age`
-- `dot_pi/agent/encrypted_mcp.json.age`
-- `dot_pi/agent/extensions/`
-- `dot_pi/agent/skills/`
-- Pi-specific shell/bootstrap helpers explicitly required by those resources
-
-Render or diff only the corresponding paths under `~/.pi/agent` and any named
-helper path. Do not include OMP just because both harnesses share agent concepts.
-
-### OMP-only boundary
-
-Typical OMP targets are:
-
-- `dot_omp/agent/AGENTS.md.tmpl`
-- `dot_omp/agent/config.yml`
-- `dot_omp/agent/mcp.json`
-- `dot_omp/agent/agents/`
-- `dot_omp/agent/extensions/`
-- `dot_omp/agent/skills/`
-
-Render or diff only the corresponding paths under `~/.omp/agent`.
-
-## Portable skills
-
-Canonical skill content lives under `dot_agents/skills/` and renders to
-`~/.agents/skills/`. `dot_agents/skill-targets.json` is the distribution source
-of truth:
-
-- `canonical` means the harness reads `~/.agents/skills` directly.
-- `symlink` means the harness source contains a managed relative link.
-- Absence from a skill's target list means do not distribute it there.
-
-A harness-only request may repair that harness's existing declared links. It
-must not silently add the harness to a portable skill's target list.
-
-## Never sync
-
-Do not manage credentials, OAuth tokens, sessions, histories, caches, databases,
-locks, usage counters, generated package installs, or transient extension
-state. Follow `.chezmoiignore` and the runtime exclusions enforced by
-`scripts/check-agent-config-sync.sh`.
-
-## Completion evidence
-
-A scoped sync is done only when:
-
-1. Source and live paths are named explicitly.
-2. Unrelated dirty and untracked files remain untouched.
-3. `agent-config-sync check` has no new failure.
-4. Scoped `chezmoi diff` is reviewed and the scoped apply succeeds.
-5. `agent-config-sync check-live` passes or any unrelated pre-existing failure
-   is reported precisely.
-6. The narrowest harness-specific behavioral validation passes.
+Keep managed credentials encrypted. Live OAuth tokens and authentication state remain harness-owned; sessions, histories, caches, databases, locks, generated packages, and transient extension state are not portable configuration. Respect `.chezmoiignore` and validator exclusions. Completion means the named scope was validated, any authorized apply succeeded, and remaining drift or blocked checks are reported without touching unrelated work.

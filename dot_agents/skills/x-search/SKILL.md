@@ -1,56 +1,19 @@
 ---
 name: x-search
-description: Search X (Twitter) for practitioner signal — model and tool reputations, launch and benchmark chatter, library sentiment, "what actually breaks in production" reports — and to read specific posts, threads, or X Articles that normal web fetching cannot reach. Use when a question needs what people say rather than what docs state, or when an x.com URL must be read.
+description: Use to read X posts, threads, or Articles, or research practitioner reactions on X.
 ---
 
-# X search
+Use a live native X search tool when available. For one public post's text, try `curl -s "https://cdn.syndication.twimg.com/tweet-result?id=<ID>&token=a"`; an Article stub contains only a title and preview, not its body. Web search or an official mirror may suffice for indexed posts. Neither indexing nor unauthenticated retrieval is guaranteed.
 
-x.com returns `402` to unauthenticated fetchers and X Articles are not indexed by
-web search. Grok has native X access; route X work through it.
-
-## Native first
-
-If the current harness already has a live X search tool, call it directly. The
-CLI path below is for harnesses without one.
-
-## Grok CLI
+For threads, reactions, Articles, or failed direct retrieval without a native tool, use Grok:
 
 ```sh
 grok --prompt-file <scratchpad>/x-<topic>.md --model grok-4.6 --reasoning-effort high \
   --deny "Write(*)" --deny "Edit(*)" > <scratchpad>/x-<topic>-out.md 2>&1
 ```
 
-- `--prompt-file <path>` takes the prompt; `-p` is `--single <PROMPT>` and requires
-  an inline value, so `-p --prompt-file …` fails.
-- Start at the table prior (`high`) unless a different effort is chosen.
-- Run it in the background and read the output file — a research loop takes minutes.
-- Deny `Write`/`Edit` for research; add `--json-schema` when a caller needs structure.
+`--prompt-file` is single-turn mode; do not add `-p`, which needs an inline prompt. Research can take minutes; run in the background and read the output file when ready. Deny writes and edits for research. Use `--json-schema` if structured output is needed.
 
-## Writing the prompt
+Grok has no session context. Give it the question, relevant context, post URL and numeric status ID. Ask for verbatim quotes distinguished from summaries or reconstruction, account handles and source links, retrieval gaps, and disagreement or corrections. For Articles, ask for an official mirror when the body cannot be retrieved. Require its own knowledge to be separated from retrieved material.
 
-Grok gets no session context, so restate everything it needs.
-
-- Give the post URL **and** the numeric status ID — the ID survives when URL
-  resolution fails.
-- Require verbatim text in blockquotes, and require reconstructed or summarized
-  passages to be labeled as such.
-- Ask explicitly what it could **not** retrieve, and to say so plainly instead of
-  filling the gap. Ask it to separate its own knowledge from the source.
-- For an X Article, ask it to look for an official mirror — company blogs,
-  crossposts. Mirrors are fetchable when the Article is not.
-- Require account handles in reaction summaries so claims stay checkable.
-- Ask for disagreement and correction, not just the supportive replies.
-
-## Verify what you build on
-
-Grok routes around the wall via mirrors, quote-posts, and other people's
-summaries. Confirm load-bearing quotes against a fetchable source before acting
-on them, and say which source you confirmed against.
-
-## Cheaper paths worth trying first
-
-- One post's text, no thread — no auth needed:
-  `curl -s "https://cdn.syndication.twimg.com/tweet-result?id=<ID>&token=a"`
-  returns JSON with `text`, `created_at`, `entities.urls`, and an `article` stub
-  (title and preview only, not the body).
-- Web search reaches posts older than roughly a day; same-day posts are not indexed.
+Attribute claims to their sources and label uncertainty. Never present reconstructed text as a quote. Verify consequential quotes and reconstructed claims against a fetchable original or official mirror before relying on them, and name that source. If verification is unavailable, report the limit rather than filling the gap or treating reactions as established fact.

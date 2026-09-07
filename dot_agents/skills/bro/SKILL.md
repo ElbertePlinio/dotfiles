@@ -1,7 +1,7 @@
 ---
 name: bro
-description: Restate the last message in plain human language, with no jargon.
+description: Use only when explicitly invoked to restate the last assistant message plainly.
 disable-model-invocation: true
 ---
 
-Restate your last message. Stop using jargon and speak coherently. State it more simply and concisely, like one human talking to another.
+Only when explicitly invoked, restate your last message in plain, concise language. Keep the meaning, remove jargon, and add no new work.

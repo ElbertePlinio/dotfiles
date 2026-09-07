@@ -146,8 +146,8 @@ check_live_retired_target_regressions() {
 }
 
 check_active_retired_references() {
-  local matches
-  if matches="$(rg -n -i --hidden \
+  local matches status
+  if matches="$(rg --pcre2 -n -i --hidden \
     --glob '!.git' \
     --glob '!.git/**' \
     --glob '!docs/**' \
@@ -159,7 +159,34 @@ check_active_retired_references() {
     err 'active source contains retired harness/profile/tooling references'
     printf '%s\n' "$matches" >&2
   else
-    pass 'active source excludes retired harness/profile/tooling references'
+    status=$?
+    if [[ "$status" -eq 1 ]]; then
+      pass 'active source excludes retired harness/profile/tooling references'
+    else
+      err "retired-reference scan failed (ripgrep exit $status)"
+    fi
+  fi
+}
+
+check_retired_reference_scanner_regressions() {
+  local fixture="$TMP/retired-reference-scanner"
+  mkdir -p "$fixture"
+  printf '%s\n' 'opencode-go/kimi-k3' >"$fixture/instructions.md"
+  if (cd "$fixture"; fail=0; check_active_retired_references >/dev/null; [[ "$fail" -eq 0 ]]); then
+    pass 'retired-reference scanner accepts the active provider route'
+  else
+    err 'retired-reference scanner rejected the active provider route'
+  fi
+  printf '%s\n' 'use opencode' >>"$fixture/instructions.md"
+  if (cd "$fixture"; fail=0; check_active_retired_references >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
+    pass 'retired-reference scanner detects a retired harness'
+  else
+    err 'retired-reference scanner missed a retired harness'
+  fi
+  if (rg() { return 2; }; fail=0; check_active_retired_references >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
+    pass 'retired-reference scanner distinguishes execution errors from no matches'
+  else
+    err 'retired-reference scanner treated an execution error as clean'
   fi
 }
 

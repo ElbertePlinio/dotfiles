@@ -19,11 +19,12 @@ else
   err 'Grok source default or effort is stale'
 fi
 
-if grep -Fq 'template "codex-behavior-override.md"' dot_codex/AGENTS.md.tmpl \
-  && grep -Fq 'template "codex-behavior-override.md"' dot_agents/codex-lane-override.md.tmpl; then
-  pass 'Codex adapters consume the canonical behavior override'
+if grep -Fq 'template "agents-shared.md"' dot_codex/AGENTS.md.tmpl \
+  && ! grep -Fq 'Prepend this block' dot_agents/codex-lane-override.md.tmpl \
+  && ! grep -Fq 'takes precedence over' .chezmoitemplates/codex-behavior-override.md; then
+  pass 'Codex uses shared policy without a per-lane override requirement'
 else
-  err 'Codex behavior override include missing from an adapter'
+  err 'Codex shared policy or lane reference is inconsistent'
 fi
 
 for path in "${STALE_PI_FLOW_PATHS[@]}"; do
@@ -64,7 +65,8 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
     jq -e 'any(.. | strings; ascii_downcase | contains("haiku"))' >/dev/null <<<"$pi_settings" \
       && err 'Pi settings contain a forbidden Haiku selector' \
       || pass 'Pi settings contain no Haiku selector'
-    jq -e '(.enabledModels | any(. == "xai/grok-4.6"))
+    jq -e '(.enabledModels | any(. == "openai-codex/gpt-5.6-luna"))
+      and (.enabledModels | any(. == "xai/grok-4.6"))
       and (.enabledModels | all(. != "xai/grok-4.5"))
       and (.enabledModels | any(. == "opencode-go/kimi-k3"))
       and (.enabledModels | any(. == "opencode-go/glm-5.3-flash"))

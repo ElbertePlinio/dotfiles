@@ -2,8 +2,4 @@
 
 {{ template "agents-shared.md" . }}
 
-## Pi
-
-- Prefer Pi-native subagents over launching other CLIs from inside Pi.
-- `pi-kit` lanes need a full model selector and an effort per call. Read `lanes_models` for current selectors, effort limits, and task fit.
-- When opening Plannotator or a grill review, include the `plannotator-url` output so another device can open it.
+Use the installed pi-kit lanes for cross-provider work. Pi handles background lane continuation; inspect results before reporting acceptance. When opening Plannotator or a grill review, include the plannotator-url output for access from another device.

@@ -93,6 +93,7 @@ check_retired_target_removals
 check_retired_target_apply
 check_live_retired_target_regressions
 check_active_retired_references
+check_retired_reference_scanner_regressions
 check_active_target_completeness
 check_sync_command_flow
 check_pickforge_lanes_deployment
@@ -130,7 +131,7 @@ for entry in "${HARNESS[@]}"; do
   if [[ ! -f "$path" ]]; then err "missing: $path"; continue; fi
   grep -Fq 'template "agents-shared.md"' "$path" \
     || err "missing shared include: $path"
-  for bad in 'I like short, practical work' 'names, model IDs, and technical terms' 'AgentMemory'; do
+  for bad in 'Make the smallest clean change that solves the requested problem.' 'names, model IDs, and technical terms' 'AgentMemory'; do
     grep -Fq "$bad" "$path" && err "duplicate shared policy in $path: $bad"
   done
   out="$TMP/$(echo "$path" | tr '/' '_')"
@@ -138,7 +139,7 @@ for entry in "${HARNESS[@]}"; do
   pass "rendered $path"
   grep -Fq "$want" "$out" || err "missing heading in $path: $want"
   grep -Fq "$forbid" "$out" && err "forbidden heading in $path: $forbid"
-  [[ "$(grep -c 'I like short, practical work' "$out" || true)" -eq 1 ]] || err "shared intro count != 1 in $path"
+  [[ "$(grep -c 'Make the smallest clean change that solves the requested problem.' "$out" || true)" -eq 1 ]] || err "shared intro count != 1 in $path"
   grep -Fq 'AgentMemory' "$out" || err "missing AgentMemory in $path"
 done
 

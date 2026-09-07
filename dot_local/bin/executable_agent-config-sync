@@ -57,6 +57,8 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.zshrc"
   "${HOME}/.bashrc"
   "${HOME}/.claude/CLAUDE.md"
+  "${HOME}/.claude/agents/final-reviewer.md"
+  "${HOME}/.claude/agents/final-reviewer-high.md"
   "${HOME}/.codex/AGENTS.md"
   "${HOME}/.codex/agents"
   "${HOME}/.codex/hooks.json"
@@ -432,6 +434,7 @@ cmd_apply() {
   fi
   mkdir -p \
     "${HOME}/.claude/hooks" \
+    "${HOME}/.claude/agents" \
     "${HOME}/.claude/skills" \
     "${HOME}/.codex/skills" \
     "${HOME}/.grok/skills" \

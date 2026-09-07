@@ -1,8 +1,5 @@
 # Codex
 
-{{ template "codex-behavior-override.md" . }}
-When a task specifies an OUTPUT CONTRACT, follow it exactly.
-
 {{ template "agents-shared.md" . }}
 
-Pickforge Lanes is available through the `pickforge-lanes` MCP server. Read `lanes_models`, choose task kind, effort and mode, then spawn independent work when useful. Prefer read-only for reviews; use a separate writable lane for test execution. Collect with `lanes_wait` before reporting completion and verify the result before `lanes_assess`. Use `lanes_report` to compare outcomes. Codex uses explicit waits and Stop reminders; Pi automatic continuation is not available here.
+Use Pickforge Lanes through MCP. Set taskKind, mode, model, and effort explicitly. Reviews use read-only; missing test execution uses a writable worker. Collect with lanes_wait before reporting completion and verify before lanes_assess. Codex uses explicit waits and Stop reminders, not Pi automatic continuation. Use lanes_abandon to stop lanes.
