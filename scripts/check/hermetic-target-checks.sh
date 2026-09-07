@@ -1,6 +1,8 @@
 TARGETS=(
   "$DEST/.zshrc" "$DEST/.bashrc"
   "$DEST/.claude/CLAUDE.md"
+  "$DEST/.claude/agents/final-reviewer.md"
+  "$DEST/.claude/agents/final-reviewer-high.md"
   "$DEST/.claude/settings.json"
   "$DEST/.codex/AGENTS.md"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
@@ -46,7 +48,7 @@ chezmoi "${TMP_SRC[@]}" --destination "$DEST" --dry-run status >/dev/null 2>"$TM
 
 mkdir -p "$DEST/.grok" "$DEST/.codex" \
   "$DEST/.local/bin" "$DEST/.config/agent-config-sync" \
-  "$DEST/.claude/rules" "$DEST/.claude/skills" \
+  "$DEST/.claude/rules" "$DEST/.claude/skills" "$DEST/.claude/agents" \
   "$DEST/.grok/skills" \
   "$DEST/.pi/agent/skills" "$DEST/.omp/agent/skills" \
   "$DEST/.pi/agent/extensions" "$DEST/.omp/agent/extensions" \
@@ -63,7 +65,7 @@ else
     && ! grep -Fq 'claude-personal' "$DEST/.zshrc" \
     && pass 'temp zsh profile uses unrestricted global claude wrapper' \
     || err 'temp zsh profile still routes through split-profile launchers'
-  grep -Fq '## Hard limits' "$DEST/.claude/CLAUDE.md" \
+  grep -Fq 'Never expose, commit, or send secrets or private production data.' "$DEST/.claude/CLAUDE.md" \
     && pass 'temp global Claude profile applied' \
     || err 'temp global Claude profile missing hard limits'
   [[ ! -e "$DEST/.claude-personal" ]] \
@@ -120,6 +122,9 @@ done < <(jq -r --arg dest "$DEST" '
 ' "$MANIFEST")
 
 if ((${#PORTABLE_TARGETS[@]})); then
+  for target in "${PORTABLE_TARGETS[@]}"; do
+    mkdir -p "$(dirname "$target")"
+  done
   if chezmoi "${TMP_SRC[@]}" --destination "$DEST" apply "${PORTABLE_TARGETS[@]}"; then
     pass "temp applied ${#PORTABLE_TARGETS[@]} portable skill links"
   else

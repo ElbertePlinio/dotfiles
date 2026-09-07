@@ -32,6 +32,8 @@ check_sync_command_flow() {
     dot_zshrc
     dot_bashrc
     dot_claude/CLAUDE.md
+    dot_claude/agents/final-reviewer.md
+    dot_claude/agents/final-reviewer-high.md
     dot_claude/settings.json
     dot_claude/hooks/executable_ai-attribution-gate.sh
     dot_codex/AGENTS.md

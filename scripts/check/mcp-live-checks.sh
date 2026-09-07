@@ -267,6 +267,8 @@ check_live_primary_global_targets() {
   local target_root="${1:-$HOME}"
   local -a targets=(
     "${target_root}/.claude/CLAUDE.md"
+    "${target_root}/.claude/agents/final-reviewer.md"
+    "${target_root}/.claude/agents/final-reviewer-high.md"
     "${target_root}/.claude/settings.json"
     "${target_root}/.claude/skills"
     "${target_root}/.zshrc"
