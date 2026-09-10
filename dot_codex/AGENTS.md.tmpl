@@ -2,4 +2,6 @@
 
 {{ template "agents-shared.md" . }}
 
-Use Pickforge Lanes through MCP. Set taskKind, mode, model, and effort explicitly. Reviews use read-only; missing test execution uses a writable worker. Collect with lanes_wait before reporting completion and verify before lanes_assess. Codex uses explicit waits and Stop reminders, not Pi automatic continuation. Use lanes_abandon to stop lanes.
+Use native Codex sub-agents for OpenAI models, Claude Code lanes for Anthropic models, and Pi lanes for other allowed models. If native tools are unavailable, report the blocker; never substitute a subprocess. Keep cross-provider dispatch with the parent and give native children bounded tasks. Native OpenAI sub-agents belong to the same managed task as lane workers, and Lanes registers and settles their attempts; supply the real native session or agent identity rather than a made-up one.
+
+Use Pickforge Lanes through MCP with explicit taskKind, mode, model, and effort. Reviews use read-only; missing test execution uses a writable worker. With an armed CLI notification listener, you may yield while lanes run. On a notice, inspect results within the current task using lanes_wait with its run ID. Without working notifications, wait explicitly. Collect settled results before reporting completion and verify before lanes_assess. Notices never override cancellation, changed scope, or verification. Use lanes_abandon to stop lanes. Native children keep native completion and usage records.

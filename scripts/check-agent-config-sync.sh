@@ -26,6 +26,7 @@ for module in \
   mcp-live-checks.sh \
   live-checks.sh \
   rendered-checks.sh \
+  ai-memory-capture-checks.sh \
   source-policy-checks.sh \
   sync-coverage-checks.sh \
   encryption-policy-checks.sh \

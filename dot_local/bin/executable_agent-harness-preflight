@@ -13,6 +13,20 @@ case "$requested" in
   *) usage ;;
 esac
 
+if [[ "${AGENT_PREFLIGHT_BYPASS:-}" == 1 ]]; then
+  echo "agent preflight: warning: $requested readiness check bypassed" >&2
+  exit 0
+fi
+
+finish() {
+  local rc=$?
+  [[ -z "${work_dir:-}" ]] || rm -rf "$work_dir"
+  if [[ "$rc" -ne 0 ]]; then
+    echo "Retry with: AGENT_PREFLIGHT_BYPASS=1 $requested <your original arguments>" >&2
+  fi
+}
+trap finish EXIT
+
 sync="${HOME}/.local/bin/agent-config-sync"
 if [[ ! -x "$sync" ]]; then
   echo "agent preflight: missing executable $sync" >&2
@@ -23,7 +37,6 @@ work_dir="$(mktemp -d "${TMPDIR:-/tmp}/agent-harness-preflight.XXXXXX")" || {
   echo 'agent preflight: cannot create private workspace' >&2
   exit 1
 }
-trap 'rm -rf "$work_dir"' EXIT
 chmod 0700 "$work_dir"
 
 output="$work_dir/$requested.json"

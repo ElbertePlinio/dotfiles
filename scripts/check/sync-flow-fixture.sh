@@ -53,6 +53,9 @@ check_sync_command_flow() {
     dot_pi/agent/extensions/model-compaction-threshold.ts
     dot_pi/agent/extensions/delegation-gate.ts
     dot_omp/agent/extensions/delegation-gate.ts
+    dot_pi/agent/extensions/ai-memory-pi.ts
+    dot_omp/agent/extensions/ai-memory-omp.ts
+    dot_grok/hooks/ai-memory.json.tmpl
     dot_pi/agent/skills/symlink_probe
     dot_omp/agent/AGENTS.md
     dot_omp/agent/config.yml
@@ -62,6 +65,7 @@ check_sync_command_flow() {
     dot_agents/skill-targets.json
     dot_agents/doctor-targets.json
     dot_config/agent-config-sync/doctor.json
+    dot_config/pickforge-lanes/workflow.json
     dot_agents/desktop-capture.md
     dot_agents/browser-use.md
     dot_agents/codex-lane-override.md

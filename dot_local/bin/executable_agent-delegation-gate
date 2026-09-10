@@ -17,6 +17,26 @@ case "$tool_name" in
 esac
 [[ -z "$agent_id" && -n "$session_id" ]] || exit 0
 
+# The managed Pickforge Lanes workflow gates the same edit tools with a task-aware
+# check. When it is both configured and installed, stay silent so one edit does not
+# collect two reminders. This advisory remains the fallback whenever the workflow is
+# off, unconfigured, or its CLI is missing.
+workflow_mode() {
+  local mode="${PIKIT_WORKFLOW_MODE:-}"
+  local config
+  if [[ -z "$mode" ]]; then
+    config="${XDG_CONFIG_HOME:-$HOME/.config}/pickforge-lanes/workflow.json"
+    [[ -r "$config" ]] || return 0
+    mode="$(jq -r '.mode // empty' "$config" 2>/dev/null)" || return 0
+  fi
+  printf '%s' "$mode"
+}
+case "$(workflow_mode)" in
+  observe|enforce)
+    command -v pickforge-lanes >/dev/null 2>&1 && exit 0
+    ;;
+esac
+
 state_root="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/agent-delegation-gate-${UID}"
 mkdir -p "$state_root" || exit 0
 chmod 700 "$state_root" || exit 0

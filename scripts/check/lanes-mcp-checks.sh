@@ -267,6 +267,11 @@ expected = {
     "mcp__pickforge-lanes__lanes_models",
     "mcp__pickforge-lanes__lanes_assess",
     "mcp__pickforge-lanes__lanes_report",
+    "mcp__pickforge-lanes__lanes_task",
+    "mcp__pickforge-lanes__lanes_continue",
+    "mcp__pickforge-lanes__lanes_observe",
+    "mcp__pickforge-lanes__lanes_benchmark",
+    "mcp__pickforge-lanes__lanes_observations_missing",
 }
 pickforge_permissions = [
     permission
@@ -299,4 +304,3 @@ PY
   fi
   rm -f "$settings_file"
 }
-

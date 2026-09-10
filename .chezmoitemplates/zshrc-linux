@@ -283,6 +283,10 @@ qwen38-unc() {
     --repeat-penalty 1.0
 }
 
+# Load the local proxy credential without storing it in dotfiles.
+if [[ -z "$CLIPROXY_API_KEY" && -r "$HOME/.local/state/cliproxyapi/shell-api-key" ]]; then
+  export CLIPROXY_API_KEY="$(<"$HOME/.local/state/cliproxyapi/shell-api-key")"
+fi
 export CLIPROXY_API_BASE_URL="http://127.0.0.1:8317/v1"
 
 # Claude Code apontado pro Qwen local (I-Mini via cli-proxy-api)

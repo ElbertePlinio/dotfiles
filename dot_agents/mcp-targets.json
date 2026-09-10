@@ -3,6 +3,7 @@
   "omp": {
     "native": [
       "agentmemory-vault",
+      "ai-memory",
       "codegraph",
       "cua-driver",
       "picklab",

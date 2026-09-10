@@ -97,7 +97,13 @@ check_retired_reference_scanner_regressions
 check_active_target_completeness
 check_sync_command_flow
 check_pickforge_lanes_deployment
+if python3 "$ROOT/scripts/test-lanes-hooks-config.py" >"$TMP/lanes-hooks-config.log" 2>&1; then
+  pass "Lanes notification hooks track lifecycle and rearm with harness wake support"
+else
+  err "Lanes notification hook configuration tests failed"
+fi
 check_delegation_gate
+check_managed_workflow_mode
 check_doctor_sources
 check_os_gating
 check_portable_home_literals
@@ -116,6 +122,34 @@ if render .chezmoitemplates/agents-shared.md "$TMP/agents-shared.md"; then
 else
   err 'shared template render failed'
 fi
+
+for routing_rule in \
+  'Consider the whole eligible pool, not just the parent provider.' \
+  'Astra and Fable remain coding options, not only leads or reviewers.' \
+  'Read-only Pi and Claude Code lanes lack shell access' \
+  'including native agents and excluding diagnostics' \
+  'Always use openai-codex/gpt-6-astra at low effort to execute device-pass and Picklab/Pickforge computer-use tasks.'; do
+  grep -Fq "$routing_rule" "$TMP/agents-shared.md" \
+    || err "shared routing policy missing: $routing_rule"
+done
+if grep -Fq 'Always execute this pass with `openai-codex/gpt-6-astra` at `low` effort.' dot_agents/skills/device-pass/SKILL.md \
+  && grep -Fq 'Confirm the worker has the required browser/device tools before spawning' dot_agents/skills/device-pass/SKILL.md \
+  && grep -Fq 'Pi lanes disable extensions and do not inherit browser/MCP tools' dot_agents/skills/device-pass/SKILL.md; then
+  pass 'device-pass pins Astra low and checks worker tool access'
+else
+  err 'device-pass is missing its fixed model/effort or worker tool check'
+fi
+for routing_adapter in dot_claude/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl; do
+  routing_render="$TMP/routing-$(basename "$(dirname "$routing_adapter")")-$(basename "$routing_adapter")"
+  if render "$routing_adapter" "$routing_render" \
+    && grep -Fq 'Consider the whole eligible pool, not just the parent provider.' "$routing_render" \
+    && grep -Fq 'Always use openai-codex/gpt-6-astra at low effort to execute device-pass and Picklab/Pickforge computer-use tasks.' "$routing_render"; then
+    pass "shared routing policy reaches $routing_adapter"
+  else
+    err "shared routing policy missing from $routing_adapter"
+  fi
+done
+unset routing_rule routing_adapter routing_render
 
 for path in "${RETIRED_SOURCE_PATHS[@]}"; do
   source_absent "$path"

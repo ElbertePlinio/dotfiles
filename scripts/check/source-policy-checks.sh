@@ -65,15 +65,15 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
     jq -e 'any(.. | strings; ascii_downcase | contains("haiku"))' >/dev/null <<<"$pi_settings" \
       && err 'Pi settings contain a forbidden Haiku selector' \
       || pass 'Pi settings contain no Haiku selector'
-    jq -e '(.enabledModels | any(. == "openai-codex/gpt-5.6-luna"))
+    jq -e '(.enabledModels | all(. != "openai-codex/gpt-5.6-luna"))
       and (.enabledModels | any(. == "xai/grok-4.6"))
       and (.enabledModels | all(. != "xai/grok-4.5"))
       and (.enabledModels | any(. == "opencode-go/kimi-k3"))
       and (.enabledModels | any(. == "opencode-go/glm-5.3-flash"))
       and (.enabledModels | all(. != "opencode-go/ox-alpha-free"))
       and (.enabledModels | all(. != "ollama/kimi-k3:cloud"))' >/dev/null <<<"$pi_settings" \
-      && pass 'Pi enabled models select Grok 4.6 and OpenCode Go Kimi/GLM Flash, and retire Ox Alpha' \
-      || err 'Pi enabled models missing OpenCode Go pool, still list retired Ox Alpha, or still pin Ollama Kimi'
+      && pass 'Pi enabled models select Grok 4.6 and OpenCode Go Kimi/GLM Flash, and retire Luna and Ox Alpha' \
+      || err 'Pi enabled models missing OpenCode Go pool, still list retired Luna or Ox Alpha, or still pin Ollama Kimi'
     jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-6-astra" and .defaultThinkingLevel == "medium"' >/dev/null <<<"$pi_settings" \
       && pass 'Pi canonical bootstrap defaults to GPT-6 Astra' \
       || err 'Pi canonical GPT-6 Astra bootstrap default is missing or misconfigured'
@@ -90,9 +90,9 @@ if pi_models="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/models.json")"; then
   if jq -e . >/dev/null 2>&1 <<<"$pi_models"; then
     pass 'Pi models JSON valid'
     jq -e '.providers["openai-codex"].models
-      | any(.id == "gpt-6-astra" and .contextWindow == 1050000)' >/dev/null <<<"$pi_models" \
-      && pass 'Pi GPT-6 Astra uses a 1.05M context window' \
-      || err 'Pi GPT-6 Astra context window is not 1.05M'
+      | any(.id == "gpt-6-astra" and .contextWindow == 272000)' >/dev/null <<<"$pi_models" \
+      && pass 'Pi GPT-6 Astra uses a 272k context window' \
+      || err 'Pi GPT-6 Astra context window is not 272k'
     jq -e '(.providers.ollama.models // []) | any(.id == "kimi-k3:cloud")' >/dev/null <<<"$pi_models" \
       && err 'Pi models still pin Ollama Kimi K3 Cloud; use OpenCode Go' \
       || pass 'Pi models no longer pin Ollama Kimi K3'

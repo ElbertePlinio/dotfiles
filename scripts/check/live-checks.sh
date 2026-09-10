@@ -28,12 +28,12 @@ check_live_pi_enabled_models() {
     else
       err 'live Pi settings contain unmanaged drift'
     fi
-  elif jq -e '(.enabledModels | any(. == "openai-codex/gpt-5.6-luna"))
+  elif jq -e '(.enabledModels | all(. != "openai-codex/gpt-5.6-luna"))
     and (.enabledModels | any(. == "xai/grok-4.6"))
     and (.enabledModels | all(. != "xai/grok-4.5"))' "$settings" >/dev/null 2>&1; then
-    pass 'live Pi enabled models include Luna and Grok 4.6 and retire Grok 4.5'
+    pass 'live Pi enabled models include Grok 4.6 and exclude Luna and Grok 4.5'
   else
-    err 'live Pi enabled models do not cleanly replace Grok 4.5 with Grok 4.6'
+    err 'live Pi enabled models must include Grok 4.6 and exclude Luna and Grok 4.5'
   fi
 }
 

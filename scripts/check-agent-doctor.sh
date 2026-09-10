@@ -600,6 +600,40 @@ run_doctor --json
 assert_rc 0 'model table comments do not corrupt parsing of strings, arrays, or nested objects'
 next_test; assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status == "pass")' 'commented model table loads successfully'
 
+next_test; setup_case; link_tool bun; link_tool head; make_claude_harness
+lane_root="$CASE_DIR/pi-kit-family-table"; write_lane_runtime "$lane_root"; write_lane_catalog "$lane_root"
+side_effect_marker="$CASE_DIR/family-side-effect"
+cat >"$lane_root/src/table.ts" <<TS
+import { writeFileSync } from "node:fs";
+writeFileSync("$side_effect_marker", "ran");
+export const MODEL_TABLE = [
+  { selector: "openai-codex/gpt-6-astra", family: "openai" },
+  { selector: "anthropic/claude-fable-5-1", family: "anthropic" },
+  { selector: "xai/grok-4.6", family: "other" },
+];
+export const ROUTING_BY_ORIGIN: Record<LaneOrigin, Record<ModelFamily, LaneRoute>> = {
+  codex: { openai: "native-codex", anthropic: "claude-code", other: "pi" },
+  // Ignore fake routing: pi: { anthropic: "wrong" }
+  pi: { openai: "pi", anthropic: "claude-code", other: "pi" },
+  mcp: { openai: "codex-cli", anthropic: "native-claude", other: "pi" },
+};
+TS
+write_requirements '["claude"]' '{}' '{}' '{"claude-code":["anthropic/claude-fable-5-1"]}'
+run_doctor --json
+assert_rc 0 'family-based model table permits a healthy Claude launch'
+next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.selector.anthropic.claude.fable.5.1.model" and .status == "pass") and any(.checks[]; .id == "lanes.claude-code.selector.anthropic.claude.fable.5.1.origin" and .status == "pass")' 'family routing uses the Pi origin and ignores comments and other parent routes'
+next_test; if [ ! -e "$side_effect_marker" ]; then pass 'family-based table is never executed'; else fail 'family-based table side effect executed'; fi
+
+next_test
+sed -i 's/family: "other"/family: "unsupported"/' "$lane_root/src/table.ts"
+run_doctor --json
+assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status == "fail")' 'unknown model families remain diagnostic failures'
+
+next_test
+sed -i 's/family: "unsupported"/family: "other"/; /  pi: {/d' "$lane_root/src/table.ts"
+run_doctor --json
+assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status == "fail")' 'family tables without a Pi routing map remain diagnostic failures'
+
 next_test; setup_case; link_tool bun; link_tool head
 make_harness pi pi '.pi/agent/settings.json'
 lane_root="$CASE_DIR/pi-kit-malformed-table"; write_lane_runtime "$lane_root"

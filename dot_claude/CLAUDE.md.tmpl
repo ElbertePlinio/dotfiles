@@ -2,4 +2,8 @@
 
 {{ template "agents-shared.md" . }}
 
-Select reviewers using lanes_models. Route Astra reviews through Lanes; when Fable is selected, use native final-reviewer (medium) or final-reviewer-high (high). For dual review, run Astra through Lanes and Fable natively in separate reviews. Keep it read-only and run tests separately. Pickforge Lanes deliberately excludes Claude-to-Claude delegation; use its Pi routes for cross-provider workers.
+Use Codex CLI lanes for OpenAI models, the native Claude workflow for Anthropic models, and Pi lanes for other allowed models. If native tools are unavailable, report the blocker; never substitute a subprocess. Keep cross-provider dispatch with the parent and give native children bounded tasks. Native Anthropic children belong to the same managed task as lane workers, and Lanes registers and settles their attempts; supply the real native session or agent identity rather than a made-up one.
+
+Select reviewers using lanes_models. Route Astra reviews through Lanes; when Fable is selected, use native final-reviewer (medium) or final-reviewer-high (high). For dual review, run Astra through Lanes and Fable natively in separate reviews. Keep reviews read-only and run tests separately.
+
+With an armed asyncRewake listener, you may yield while lanes run. Exit code 2 from that hook requests a wake-up; it does not mean the lane failed. On a notice, inspect results within the current task using lanes_wait with its run ID. Without working notifications, wait explicitly. Collect settled results before reporting completion and verify before lanes_assess. Notices never override cancellation, changed scope, or verification. Use lanes_abandon to stop lanes. Native children keep native completion and usage records.

@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": "complexity-gate hook cursor"
+      }
+    ],
+    "stop": [
+      {
+        "command": "complexity-gate hook cursor",
+        "loop_limit": 3
+      },
+      {
+        "type": "command",
+        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent cursor --server-url http://127.0.0.1:49374",
+        "matcher": ""
+      }
+    ],
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent cursor --server-url http://127.0.0.1:49374",
+        "matcher": ""
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent cursor --server-url http://127.0.0.1:49374",
+        "matcher": ""
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "type": "command",
+        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent cursor --server-url http://127.0.0.1:49374",
+        "matcher": ""
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent cursor --server-url http://127.0.0.1:49374",
+        "matcher": ""
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent cursor --server-url http://127.0.0.1:49374",
+        "matcher": ""
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "type": "command",
+        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent cursor --server-url http://127.0.0.1:49374",
+        "matcher": ""
+      }
+    ],
+    "preCompact": [
+      {
+        "type": "command",
+        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent cursor --server-url http://127.0.0.1:49374",
+        "matcher": ""
+      }
+    ]
+  }
+}

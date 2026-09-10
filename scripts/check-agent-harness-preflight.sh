@@ -65,6 +65,7 @@ if HOME="$HOME_DIR" PREFLIGHT_TEST_LOG="$LOG" PREFLIGHT_FAIL=pi \
   fail 'structural failure blocks launch'
 elif grep -Fq 'pi is not ready' "$ROOT/fail.out" \
   && grep -Fq 'configuration invalid' "$ROOT/fail.out" \
+  && grep -Fq 'Retry with: AGENT_PREFLIGHT_BYPASS=1 pi' "$ROOT/fail.out" \
   && ! grep -Fq 'SECRET_SENTINEL' "$ROOT/fail.out"; then
   pass 'structural failure is actionable and secret-safe'
 else
@@ -155,8 +156,42 @@ else
   fail 'plain Claude authentication recovery behavior'
 fi
 
+for harness in claude codex grok pi omp; do
+  : >"$LOG"
+  if HOME="$HOME_DIR" PREFLIGHT_TEST_LOG="$LOG" PREFLIGHT_FAIL="$harness" AGENT_PREFLIGHT_BYPASS=1 \
+    "$SCRIPT" "$harness" >"$ROOT/bypass.out" 2>&1 \
+    && [[ ! -s "$LOG" ]] \
+    && grep -Fq "warning: $harness readiness check bypassed" "$ROOT/bypass.out"; then
+    pass "$harness explicit bypass warns and skips diagnostics"
+  else
+    fail "$harness explicit bypass"
+  fi
+done
+
+for shell in bash zsh; do
+  : >"$ROOT/bypass-harness.log"
+  shell_args=(--noprofile --norc -ic)
+  shell_source="$BASHRC"
+  if [[ "$shell" == zsh ]]; then shell_args=(-dfc); shell_source="$ZSH_COMMON"; fi
+  if HOME="$HOME_DIR" PATH="$ROOT/bin:$PATH" PREFLIGHT_TEST_LOG="$LOG" PREFLIGHT_FAIL=claude \
+    HARNESS_CALL_LOG="$ROOT/bypass-harness.log" \
+    "$shell" "${shell_args[@]}" "source '$shell_source'; AGENT_PREFLIGHT_BYPASS=1 claude --resume session-id" \
+      >"$ROOT/bypass-wrapper.out" 2>&1 \
+    && [[ "$(cat "$ROOT/bypass-harness.log")" == 'claude --dangerously-skip-permissions --resume session-id' ]]; then
+    pass "$shell bypass launches Claude with original resume arguments"
+  else
+    fail "$shell bypass wrapper"
+  fi
+done
+
+if HOME="$ROOT/missing-home" AGENT_PREFLIGHT_BYPASS=1 "$SCRIPT" claude >"$ROOT/missing-sync.out" 2>&1; then
+  pass 'explicit bypass works even when the diagnostic executable is missing'
+else
+  fail 'missing diagnostic executable bypass'
+fi
+
 set +e
-HOME="$HOME_DIR" PREFLIGHT_TEST_LOG="$LOG" "$SCRIPT" unknown >/dev/null 2>&1
+HOME="$HOME_DIR" PREFLIGHT_TEST_LOG="$LOG" AGENT_PREFLIGHT_BYPASS=1 "$SCRIPT" unknown >/dev/null 2>&1
 rc=$?
 set -e
 if [[ "$rc" -eq 64 ]]; then pass 'unknown harness is rejected'; else fail 'unknown harness usage status'; fi

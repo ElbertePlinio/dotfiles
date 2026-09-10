@@ -1,4 +1,5 @@
 {
+  "theme": "dark",
   "permissions": {
     "allow": [
       "Read",
@@ -69,7 +70,12 @@
       "mcp__pickforge-lanes__lanes_abandon",
       "mcp__pickforge-lanes__lanes_models",
       "mcp__pickforge-lanes__lanes_assess",
-      "mcp__pickforge-lanes__lanes_report"
+      "mcp__pickforge-lanes__lanes_report",
+      "mcp__pickforge-lanes__lanes_task",
+      "mcp__pickforge-lanes__lanes_continue",
+      "mcp__pickforge-lanes__lanes_observe",
+      "mcp__pickforge-lanes__lanes_benchmark",
+      "mcp__pickforge-lanes__lanes_observations_missing"
     ],
     "defaultMode": "auto"
   },
@@ -86,11 +92,30 @@
         ]
       },
       {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|apply_patch|search_replace",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook claude",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/ai-attribution-gate.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent claude-code --server-url http://127.0.0.1:49374",
+            "timeout": 10
           }
         ]
       }
@@ -101,6 +126,15 @@
           {
             "type": "command",
             "command": "codegraph prompt-hook"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent claude-code --server-url http://127.0.0.1:49374",
+            "timeout": 10
           }
         ]
       }
@@ -115,6 +149,24 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook claude",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent claude-code --server-url http://127.0.0.1:49374",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -126,6 +178,35 @@
             "command": "complexity-gate hook claude"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook claude",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent claude-code --server-url http://127.0.0.1:49374",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__pickforge[-_]lanes__lanes_(spawn|continue|wait|status|abandon)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook claude --listen",
+            "timeout": 14700,
+            "asyncRewake": true
+          }
+        ]
       }
     ],
     "Stop": [
@@ -134,6 +215,87 @@
           {
             "type": "command",
             "command": "complexity-gate hook claude"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook claude",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent claude-code --server-url http://127.0.0.1:49374",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook claude --listen",
+            "timeout": 14700,
+            "asyncRewake": true
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent claude-code --server-url http://127.0.0.1:49374",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent claude-code --server-url http://127.0.0.1:49374",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook claude",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event subagent-start --agent claude-code --server-url http://127.0.0.1:49374",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event subagent-stop --agent claude-code --server-url http://127.0.0.1:49374",
+            "timeout": 10
           }
         ]
       }
@@ -171,6 +333,10 @@
       "args": [
         "{{ .chezmoi.homeDir }}/AgentMemory/scripts/agent_memory_mcp.py"
       ]
+    },
+    "ai-memory": {
+      "type": "http",
+      "url": "http://127.0.0.1:49374/mcp"
     }
   }
 }

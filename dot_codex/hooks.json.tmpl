@@ -9,6 +9,25 @@
             "command": "{{ .chezmoi.homeDir }}/.local/bin/agent-delegation-gate"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|apply_patch|search_replace",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook codex",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent codex --server-url http://127.0.0.1:49374"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -28,8 +47,27 @@
             "command": "pickforge-lanes hook codex",
             "timeout": 5
           }
-        ],
-        "matcher": "mcp__pickforge[-_]lanes__lanes_(spawn|wait)"
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent codex --server-url http://127.0.0.1:49374"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__pickforge[-_]lanes__lanes_(spawn|continue|wait|status|abandon)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook codex --listen",
+            "timeout": 14700,
+            "async": true
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -50,6 +88,15 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent codex --server-url http://127.0.0.1:49374"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -67,6 +114,67 @@
             "type": "command",
             "command": "pickforge-lanes hook codex",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent codex --server-url http://127.0.0.1:49374"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook codex --listen",
+            "timeout": 14700,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent codex --server-url http://127.0.0.1:49374"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent codex --server-url http://127.0.0.1:49374"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent codex --server-url http://127.0.0.1:49374"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pickforge-lanes hook codex",
+            "timeout": 3
           }
         ]
       }

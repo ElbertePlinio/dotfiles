@@ -36,3 +36,7 @@ default_skills_installs_purged = true
 [[marketplace.sources]]
 name = "xAI Official"
 git = "https://github.com/xai-org/plugin-marketplace.git"
+
+[mcp_servers.ai-memory]
+url = "http://127.0.0.1:49374/mcp"
+enabled = true

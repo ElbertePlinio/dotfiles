@@ -3,6 +3,8 @@ name: device-pass
 description: Use for device passes, responsive browser QA, or verifying a changed user journey on desktop and mobile.
 ---
 
+Always execute this pass with `openai-codex/gpt-6-astra` at `low` effort. If the current executor is not Astra low, hand off to an Astra low session with the required browser/device tools, giving it the revision, scenarios, test environment, and evidence destination. Pi lanes disable extensions and do not inherit browser/MCP tools; do not assume a lane spawn can perform the pass. Confirm the worker has the required browser/device tools before spawning; a tool name alone does not guarantee access in the child. Use an execution mode that exposes those tools and limit the task to verification, not code edits. If the route or tools are unavailable, report the blocker instead of substituting another model. This fixed rule overrides general model and effort preferences.
+
 Test the changed user journey in a rendered browser. Unit tests, HTTP probes, and screenshots of the landing page alone do not establish an end-to-end pass.
 
 Record the tested commit, any uncommitted changes, and any PR stack, the target URL, browser version, viewport, device scale, touch settings, and whether each run is desktop, mobile emulation, or physical hardware. Choose a representative desktop width and narrow phone width from the product's supported range. Emulating an iPhone in Chromium is not a Safari or physical-device test. Only claim those when they were actually used.

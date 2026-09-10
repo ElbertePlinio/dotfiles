@@ -66,6 +66,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.codex/ollama-launch.config.toml"
   "${HOME}/.grok/AGENTS.md"
   "${HOME}/.grok/config.toml"
+  "${HOME}/.grok/hooks"
   "${HOME}/.cursor"
   "${HOME}/.pi/agent/AGENTS.md"
   "${HOME}/.pi/agent/settings.json"
@@ -75,10 +76,12 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.pi/agent/extensions/fast-mode.ts"
   "${HOME}/.pi/agent/extensions/model-compaction-threshold.ts"
   "${HOME}/.pi/agent/extensions/delegation-gate.ts"
+  "${HOME}/.pi/agent/extensions/ai-memory-pi.ts"
   "${HOME}/.omp/agent/AGENTS.md"
   "${HOME}/.omp/agent/config.yml"
   "${HOME}/.omp/agent/mcp.json"
   "${HOME}/.omp/agent/extensions/delegation-gate.ts"
+  "${HOME}/.omp/agent/extensions/ai-memory-omp.ts"
   "${HOME}/.agents/.skill-lock.json"
   "${HOME}/.agents/mcp-targets.json"
   "${HOME}/.agents/skill-targets.json"
@@ -94,6 +97,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.local/bin/agent-delegation-gate"
   "${HOME}/.local/bin/sudo-askpass"
   "${HOME}/.config/agent-config-sync/doctor.json"
+  "${HOME}/.config/pickforge-lanes/workflow.json"
   "${HOME}/.config/environment.d/50-sudo-askpass.conf"
   "${HOME}/.config/environment.d/60-omp.conf"
   "${HOME}/.config/environment.d/70-pi-caffeinate.conf"
@@ -444,7 +448,8 @@ cmd_apply() {
     "${HOME}/.omp/agent/skills" \
     "${HOME}/.agents/skills" \
     "${HOME}/.local/bin" \
-    "${HOME}/.config/agent-config-sync"
+    "${HOME}/.config/agent-config-sync" \
+    "${HOME}/.config/pickforge-lanes"
   if ! portable_output="$(portable_link_targets)"; then
     echo "agent-config-sync: cannot build portable skill targets" >&2
     return 1

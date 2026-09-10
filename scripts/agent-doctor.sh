@@ -806,6 +806,26 @@ function stripComments(source) {
   return source.replace(tokens, (token, quoted) => quoted ?? token.replace(/[^\r\n]/g, " "));
 }
 
+function extractFamilyRoute(source, family) {
+  // Doctor's configured lane selectors describe the Pi-origin routes.
+  const declaration = /(?:^|\n)\s*export\s+const\s+ROUTING_BY_ORIGIN\b[^=\n]*=\s*\{/;
+  const match = declaration.exec(source);
+  if (!match) fail("ROUTING_BY_ORIGIN declaration was not found");
+  const start = match.index + match[0].length - 1;
+  const end = findMatching(source, start, "{", "}");
+  if (end === -1) fail("ROUTING_BY_ORIGIN object is unterminated");
+  const routing = source.slice(start + 1, end);
+  const pi = /(?:^|[,\s])pi\s*:\s*\{/.exec(routing);
+  if (!pi) fail("ROUTING_BY_ORIGIN is missing the Pi origin");
+  const piStart = pi.index + pi[0].length - 1;
+  const piEnd = findMatching(routing, piStart, "{", "}");
+  if (piEnd === -1) fail("Pi routing object is unterminated");
+  if (!["openai", "anthropic", "other"].includes(family)) fail("unknown model family");
+  const route = extractField(routing.slice(piStart, piEnd + 1), family);
+  if (!route) fail(`Pi routing is missing family ${family}`);
+  return route;
+}
+
 function main() {
   const tablePath = process.argv[2];
   if (!tablePath) fail("missing table path");
@@ -831,8 +851,9 @@ function main() {
   const seenSelectors = new Set();
   const rows = entries.map((entryText) => {
     const selector = extractField(entryText, "selector");
-    const route = extractField(entryText, "route");
-    const origins = extractOrigins(entryText, source);
+    const family = extractField(entryText, "family");
+    const route = family ? extractFamilyRoute(source, family) : extractField(entryText, "route");
+    const origins = family ? ["pi"] : extractOrigins(entryText, source);
     if (!selector) fail("a MODEL_TABLE row is missing a quoted selector");
     if (!route) fail("a MODEL_TABLE row is missing a quoted route");
     if (!origins) fail("a MODEL_TABLE row is missing an origins array");

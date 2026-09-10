@@ -206,6 +206,7 @@ check_active_target_completeness() {
     'dot_pi/agent/extensions/delegation-gate.ts|.pi/agent/extensions/delegation-gate.ts'
     'dot_omp/agent/extensions/delegation-gate.ts|.omp/agent/extensions/delegation-gate.ts'
     'dot_local/bin/executable_agent-delegation-gate|.local/bin/agent-delegation-gate'
+    'dot_config/pickforge-lanes/workflow.json|.config/pickforge-lanes/workflow.json'
   )
 
   need "$sync_command"
