@@ -125,7 +125,9 @@ fi
 
 for routing_rule in \
   'Consider the whole eligible pool, not just the parent provider.' \
-  'Astra and Fable remain coding options, not only leads or reviewers.' \
+  'Astra is also a regular coding option for backend, infrastructure, performance, concurrency, persistence, and correctness-heavy work' \
+  'Fable is a selective first-class planner and advisor for consequential ambiguity, architecture, product intent and nuanced review' \
+  'Use model-backed assessment attempts for read-only planning and investigation' \
   'Read-only Pi and Claude Code lanes lack shell access' \
   'including native agents and excluding diagnostics' \
   'Always use openai-codex/gpt-6-astra at low effort to execute device-pass and Picklab/Pickforge computer-use tasks.'; do
