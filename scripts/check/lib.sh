@@ -75,7 +75,6 @@ RETIRED_SOURCE_PATHS=(
   dot_local/bin/executable_agent-profile-doctor
   dot_claude/private_RTK.md
   private_dot_factory
-  dot_config/opencode
   .chezmoitemplates/claude-restricted.md
   .chezmoitemplates/claude-personal-lite.md
   dot_agents/skills/model-runners
@@ -88,6 +87,9 @@ RETIRED_SOURCE_PATHS=(
   dot_claude/skills/pickgauge-usage
   dot_claude/hooks/executable_kickoff-delegation-gate.sh.tmpl
   .chezmoitemplates/kickoff-delegation-gate.sh
+  dot_local/bin/executable_agent-delegation-gate
+  dot_pi/agent/extensions/delegation-gate.ts
+  dot_omp/agent/extensions/delegation-gate.ts
 )
 
 RETIRED_SKILL_LOCK_ENTRIES=(
@@ -228,6 +230,9 @@ RETIRED_TARGET_PATHS=(
   .claude/hooks/orchestration-reminder.sh
   .pi/agent/extensions/decision-audit-gate.ts
   .omp/agent/extensions/decision-audit-gate.ts
+  .local/bin/agent-delegation-gate
+  .pi/agent/extensions/delegation-gate.ts
+  .omp/agent/extensions/delegation-gate.ts
 )
 
 RUNTIME_SOURCE_PATHS=(

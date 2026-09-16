@@ -154,7 +154,8 @@ check_active_retired_references() {
     --glob '!.chezmoiremove' \
     --glob '!scripts/check-agent-config-sync.sh' \
     --glob '!scripts/check/**' \
-    'claude-personal|claude-default|claude-profile|agentProfile|agent-profiles|Projects/Personal/\.codex|\.agent-safety|superpowers|\brtk\b|RTK\.md|\bfrun\b|caveman|cavecrew|\bfactory\b|\bdroid\b|(?<![\w-])opencode(?!-[Gg]o)(?![\w-])' \
+    --glob '!dot_config/opencode/private_opencode.jsonc' \
+    'claude-personal|claude-default|claude-profile|agentProfile|agent-profiles|Projects/Personal/\.codex|\.agent-safety|superpowers|\brtk\b|RTK\.md|\bfrun\b|caveman|cavecrew|\bfactory\b|\bdroid\b|(?<![\w-])(?<!\.config/opencode/)(?!opencode/opencode\.jsonc)opencode(?!-[Gg]o)(?![\w-])' \
     .)"; then
     err 'active source contains retired harness/profile/tooling references'
     printf '%s\n' "$matches" >&2
@@ -172,8 +173,9 @@ check_retired_reference_scanner_regressions() {
   local fixture="$TMP/retired-reference-scanner"
   mkdir -p "$fixture"
   printf '%s\n' 'opencode-go/kimi-k3' >"$fixture/instructions.md"
+  printf '%s\n' '"${HOME}/.config/opencode/opencode.jsonc"' >>"$fixture/instructions.md"
   if (cd "$fixture"; fail=0; check_active_retired_references >/dev/null; [[ "$fail" -eq 0 ]]); then
-    pass 'retired-reference scanner accepts the active provider route'
+    pass 'retired-reference scanner accepts the active provider route and the hook-removal OpenCode config target'
   else
     err 'retired-reference scanner rejected the active provider route'
   fi
@@ -203,10 +205,8 @@ check_active_target_completeness() {
     'dot_pi/agent/extensions/btw.ts|.pi/agent/extensions/btw.ts'
     'dot_pi/agent/extensions/fast-mode.ts|.pi/agent/extensions/fast-mode.ts'
     'dot_pi/agent/extensions/model-compaction-threshold.ts|.pi/agent/extensions/model-compaction-threshold.ts'
-    'dot_pi/agent/extensions/delegation-gate.ts|.pi/agent/extensions/delegation-gate.ts'
-    'dot_omp/agent/extensions/delegation-gate.ts|.omp/agent/extensions/delegation-gate.ts'
-    'dot_local/bin/executable_agent-delegation-gate|.local/bin/agent-delegation-gate'
     'dot_config/pickforge-lanes/workflow.json|.config/pickforge-lanes/workflow.json'
+    'dot_config/opencode/private_opencode.jsonc|.config/opencode/opencode.jsonc'
   )
 
   need "$sync_command"

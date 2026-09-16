@@ -6,15 +6,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{ .chezmoi.homeDir }}/.local/bin/agent-delegation-gate"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|apply_patch|search_replace",
-        "hooks": [
-          {
-            "type": "command",
             "command": "pickforge-lanes hook codex",
             "timeout": 10
           }
@@ -31,15 +22,6 @@
       }
     ],
     "PostToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "complexity-gate hook codex"
-          }
-        ]
-      },
       {
         "hooks": [
           {
@@ -100,14 +82,6 @@
       }
     ],
     "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "complexity-gate hook codex"
-          }
-        ]
-      },
       {
         "hooks": [
           {

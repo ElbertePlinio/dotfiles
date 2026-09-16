@@ -37,6 +37,24 @@ check_live_pi_enabled_models() {
   fi
 }
 
+# The managed OpenCode config shares its file with user-added MCP servers and
+# plugins. Apply may replace it only when it already matches source or is still
+# exactly what chezmoi last applied; anything else fails closed before apply.
+check_live_opencode_config() {
+  local config="$HOME/.config/opencode/opencode.jsonc"
+  if [[ ! -e "$config" && ! -L "$config" ]]; then
+    pass "live OpenCode config not yet applied: $config"
+  elif [[ -L "$config" || ! -f "$config" ]]; then
+    err "live OpenCode config must be a managed regular file: $config"
+  elif cmp -s "$config" "$ROOT/dot_config/opencode/private_opencode.jsonc"; then
+    pass 'live OpenCode config matches canonical source'
+  elif [[ "$STRICT_PREFLIGHT" -eq 1 ]] && managed_regular_file_unchanged "$config"; then
+    pass 'live OpenCode config has managed pending drift'
+  else
+    err 'live OpenCode config has edits beyond the last applied state, or that state is missing or invalid; refusing an implicit overwrite'
+  fi
+}
+
 if [[ "$MODE" == live ]]; then
   if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
     echo "== agent-config-sync strict live preflight (read-only) =="
@@ -115,7 +133,7 @@ if [[ "$MODE" == live ]]; then
   fi
   if [[ "$STRICT_PREFLIGHT" -eq 0 ]]; then
     check_live_primary_global_targets
-    check_live_delegation_gate
+    check_live_agent_hook_policy
   fi
 
   check_mcp_registry_and_config
@@ -127,6 +145,7 @@ if [[ "$MODE" == live ]]; then
   fi
 
   check_live_pi_enabled_models
+  check_live_opencode_config
 
   echo
   [[ "$fail" -eq 0 ]] && { echo "PASSED: live migration checks"; exit 0; }

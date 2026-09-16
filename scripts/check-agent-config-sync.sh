@@ -18,7 +18,7 @@ done
 CHECK_MODULE_DIR="$ROOT/scripts/check"
 for module in \
   lib.sh \
-  delegation-gate-checks.sh \
+  agent-hook-policy-checks.sh \
   lanes-mcp-checks.sh \
   retirement-checks.sh \
   sync-flow-fixture.sh \

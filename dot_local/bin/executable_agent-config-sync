@@ -75,12 +75,10 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.pi/agent/extensions/btw.ts"
   "${HOME}/.pi/agent/extensions/fast-mode.ts"
   "${HOME}/.pi/agent/extensions/model-compaction-threshold.ts"
-  "${HOME}/.pi/agent/extensions/delegation-gate.ts"
   "${HOME}/.pi/agent/extensions/ai-memory-pi.ts"
   "${HOME}/.omp/agent/AGENTS.md"
   "${HOME}/.omp/agent/config.yml"
   "${HOME}/.omp/agent/mcp.json"
-  "${HOME}/.omp/agent/extensions/delegation-gate.ts"
   "${HOME}/.omp/agent/extensions/ai-memory-omp.ts"
   "${HOME}/.agents/.skill-lock.json"
   "${HOME}/.agents/mcp-targets.json"
@@ -94,10 +92,10 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.agents/skills"
   "${HOME}/.local/bin/pickforge-lanes-mcp"
   "${HOME}/.local/bin/agent-harness-preflight"
-  "${HOME}/.local/bin/agent-delegation-gate"
   "${HOME}/.local/bin/sudo-askpass"
   "${HOME}/.config/agent-config-sync/doctor.json"
   "${HOME}/.config/pickforge-lanes/workflow.json"
+  "${HOME}/.config/opencode/opencode.jsonc"
   "${HOME}/.config/environment.d/50-sudo-askpass.conf"
   "${HOME}/.config/environment.d/60-omp.conf"
   "${HOME}/.config/environment.d/70-pi-caffeinate.conf"
@@ -449,7 +447,8 @@ cmd_apply() {
     "${HOME}/.agents/skills" \
     "${HOME}/.local/bin" \
     "${HOME}/.config/agent-config-sync" \
-    "${HOME}/.config/pickforge-lanes"
+    "${HOME}/.config/pickforge-lanes" \
+    "$(dirname "${HOME}/.config/opencode/opencode.jsonc")"
   if ! portable_output="$(portable_link_targets)"; then
     echo "agent-config-sync: cannot build portable skill targets" >&2
     return 1

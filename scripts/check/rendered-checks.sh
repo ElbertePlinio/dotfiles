@@ -102,7 +102,7 @@ if python3 "$ROOT/scripts/test-lanes-hooks-config.py" >"$TMP/lanes-hooks-config.
 else
   err "Lanes notification hook configuration tests failed"
 fi
-check_delegation_gate
+check_agent_hook_policy
 check_managed_workflow_mode
 check_doctor_sources
 check_os_gating
@@ -127,13 +127,39 @@ for routing_rule in \
   'Consider the whole eligible pool, not just the parent provider.' \
   'Astra is also a regular coding option for backend, infrastructure, performance, concurrency, persistence, and correctness-heavy work' \
   'Fable is a selective first-class planner and advisor for consequential ambiguity, architecture, product intent and nuanced review' \
-  'Use model-backed assessment attempts for read-only planning and investigation' \
+  'When delegating read-only planning or investigation, use model-backed assessment attempts' \
   'Read-only Pi and Claude Code lanes lack shell access' \
   'including native agents and excluding diagnostics' \
-  'Always use openai-codex/gpt-6-astra at low effort to execute device-pass and Picklab/Pickforge computer-use tasks.'; do
+  'Always use openai-codex/gpt-6-astra at low effort to execute device-pass and Picklab/Pickforge computer-use tasks.' \
+  'The current model executes the work directly by default, whatever its size.' \
+  'Discussion, investigation, and PR review get no automatic delegation and no review of the review.' \
+  'Do not create a managed Pickforge Lanes task just to record a choice to execute directly.' \
+  'Code being shipped gets one independent review by a model that did not author it.' \
+  'A model, effort, or reviewer I explicitly request takes precedence over catalog selection.' \
+  'it is not a per-edit, per-commit, per-review, or pre-review step'; do
   grep -Fq "$routing_rule" "$TMP/agents-shared.md" \
     || err "shared routing policy missing: $routing_rule"
 done
+for retired_rule in \
+  'orchestrates rather than doing the substantive implementation' \
+  'Create a planned Pickforge Lanes task before substantive implementation' \
+  'Direct work by the lead is fine when it is tiny' \
+  'defined sensitive work takes two' \
+  'Use model-backed assessment attempts for read-only planning and investigation' \
+  'Before committing code to publish'; do
+  grep -Fq "$retired_rule" "$TMP/agents-shared.md" \
+    && err "shared policy keeps retired delegation rule: $retired_rule"
+done
+if grep -Fq 'before completing every coding or code-review task' dot_agents/skills/complexity-gate/SKILL.md \
+  || grep -Fq 'Stop hook' dot_agents/skills/complexity-gate/references/output.md \
+  || ! grep -Fxq 'set -euo pipefail' dot_agents/skills/complexity-gate/SKILL.md \
+  || ! grep -Fq 'git rev-parse --verify --quiet "$base^{commit}"' dot_agents/skills/complexity-gate/SKILL.md \
+  || ! grep -Fq '"$base...HEAD" -- | xargs -0 -r complexity-gate check --' dot_agents/skills/complexity-gate/SKILL.md; then
+  err 'complexity-gate skill requires automatic runs or lacks the fail-safe range command'
+else
+  pass 'complexity-gate skill is a manual pre-publication check'
+fi
+unset retired_rule
 if grep -Fq 'Always execute this pass with `openai-codex/gpt-6-astra` at `low` effort.' dot_agents/skills/device-pass/SKILL.md \
   && grep -Fq 'Confirm the worker has the required browser/device tools before spawning' dot_agents/skills/device-pass/SKILL.md \
   && grep -Fq 'Pi lanes disable extensions and do not inherit browser/MCP tools' dot_agents/skills/device-pass/SKILL.md; then

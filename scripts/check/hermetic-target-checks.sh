@@ -9,10 +9,7 @@ TARGETS=(
   "$DEST/.omp/agent/config.yml" "$DEST/.omp/agent/mcp.json"
   "$DEST/.local/bin/agent-config-sync"
   "$DEST/.local/bin/agent-harness-preflight"
-  "$DEST/.local/bin/agent-delegation-gate"
   "$DEST/.local/bin/pickforge-lanes-mcp"
-  "$DEST/.pi/agent/extensions/delegation-gate.ts"
-  "$DEST/.omp/agent/extensions/delegation-gate.ts"
   "$DEST/.config/agent-config-sync/doctor.json"
   "$DEST/.agents/.skill-lock.json"
   "$DEST/.agents/skill-targets.json"
@@ -27,10 +24,7 @@ EXPECTED=(
   dot_omp/agent/config.yml dot_omp/agent/mcp.json.tmpl
   dot_local/bin/executable_agent-config-sync
   dot_local/bin/executable_agent-harness-preflight
-  dot_local/bin/executable_agent-delegation-gate
   dot_local/bin/executable_pickforge-lanes-mcp
-  dot_pi/agent/extensions/delegation-gate.ts
-  dot_omp/agent/extensions/delegation-gate.ts
   dot_config/agent-config-sync/doctor.json
   dot_agents/dot_skill-lock.json
   dot_agents/skill-targets.json
@@ -81,14 +75,6 @@ else
     && bash -n "$DEST/.local/bin/agent-config-sync" \
     && pass 'temp agent-config-sync applied' \
     || err 'temp agent-config-sync invalid'
-  [[ -x "$DEST/.local/bin/agent-delegation-gate" ]] \
-    && bash -n "$DEST/.local/bin/agent-delegation-gate" \
-    && pass 'temp delegation gate applied' \
-    || err 'temp delegation gate invalid'
-  cmp -s "$DEST/.pi/agent/extensions/delegation-gate.ts" \
-    "$DEST/.omp/agent/extensions/delegation-gate.ts" \
-    && pass 'temp Pi and OMP delegation extensions applied' \
-    || err 'temp Pi or OMP delegation extension missing'
   [[ ! -L "$DEST/.grok/AGENTS.md" ]] && grep -q '^# Grok' "$DEST/.grok/AGENTS.md" \
     && pass 'temp migration replaces Grok symlink safely' || err 'temp Grok symlink migration failed'
   grep -q '^# OMP' "$DEST/.omp/agent/AGENTS.md" \
@@ -276,6 +262,65 @@ else
   err 'strict live preflight accepted concatenated Pi settings documents'
 fi
 unset -f chezmoi
+
+# OpenCode drift guard against real chezmoi applied state. Apply is gated on the
+# strict preflight exactly as agent-config-sync orders it.
+OPENCODE_ROOT="$TMP/opencode-source"
+OPENCODE_HOME="$TMP/opencode-home"
+OPENCODE_STATE="$TMP/opencode-state.boltdb"
+OPENCODE_SOURCE="$OPENCODE_ROOT/dot_config/opencode/private_opencode.jsonc"
+OPENCODE_LIVE="$OPENCODE_HOME/.config/opencode/opencode.jsonc"
+mkdir -p "${OPENCODE_SOURCE%/*}" "${OPENCODE_LIVE%/*}"
+cp "$ROOT/dot_config/opencode/private_opencode.jsonc" "$OPENCODE_SOURCE"
+
+opencode_gated_apply() {
+  (
+    HOME="$OPENCODE_HOME"; ROOT="$OPENCODE_ROOT"; STRICT_PREFLIGHT=1; fail=0
+    chezmoi() { command chezmoi --persistent-state "$OPENCODE_STATE" "$@"; }
+    check_live_opencode_config >/dev/null 2>&1
+    [[ "$fail" -eq 0 ]] || exit 1
+    chezmoi -S "$OPENCODE_ROOT" -D "$OPENCODE_HOME" apply --force --no-tty -- "$OPENCODE_LIVE" \
+      >/dev/null 2>&1 || exit 2
+  )
+}
+
+opencode_blocks_without_write() {
+  local label="$1" before after status=0
+  read -r before _ < <(sha256sum "$OPENCODE_LIVE")
+  opencode_gated_apply || status=$?
+  if [[ "$status" -ne 1 ]]; then
+    err "OpenCode preflight did not block $label (status $status)"
+  else
+    read -r after _ < <(sha256sum "$OPENCODE_LIVE")
+    [[ "$before" == "$after" ]] \
+      && pass "OpenCode preflight blocks $label without writing" \
+      || err "OpenCode preflight wrote over $label"
+  fi
+}
+
+opencode_gated_apply && cmp -s "$OPENCODE_LIVE" "$OPENCODE_SOURCE" \
+  && pass 'OpenCode first apply into an absent target succeeds' \
+  || err 'OpenCode first apply into an absent target failed'
+
+jq '.mcp.fixture = {type: "remote", url: "http://127.0.0.1:1/mcp", enabled: false}' \
+  "$ROOT/dot_config/opencode/private_opencode.jsonc" >"$OPENCODE_SOURCE"
+opencode_gated_apply && cmp -s "$OPENCODE_LIVE" "$OPENCODE_SOURCE" \
+  && pass 'OpenCode source update applies over the unchanged applied config' \
+  || err 'OpenCode source update was blocked over the unchanged applied config'
+
+jq '.mcp.user = {type: "local", command: ["user-mcp"], enabled: true}' "$OPENCODE_LIVE" \
+  >"$OPENCODE_LIVE.new" && mv "$OPENCODE_LIVE.new" "$OPENCODE_LIVE"
+opencode_blocks_without_write 'a later live MCP addition'
+cp "$OPENCODE_SOURCE" "$OPENCODE_LIVE"
+jq '.plugin = ["user-plugin"]' "$OPENCODE_LIVE" >"$OPENCODE_LIVE.new" \
+  && mv "$OPENCODE_LIVE.new" "$OPENCODE_LIVE"
+jq '.mcp.fixture.enabled = true' "$ROOT/dot_config/opencode/private_opencode.jsonc" >"$OPENCODE_SOURCE"
+opencode_blocks_without_write 'a later live plugin addition during a source update'
+
+rm -f "$OPENCODE_STATE"
+opencode_blocks_without_write 'an unmanaged target without applied state'
+printf 'not-a-bolt-database\n' >"$OPENCODE_STATE"
+opencode_blocks_without_write 'a target with unreadable applied state'
 
 bash -n "$ROOT/scripts/check-agent-config-sync.sh" "$ROOT"/scripts/check/*.sh \
   && pass 'bash -n' || err 'bash -n failed'
