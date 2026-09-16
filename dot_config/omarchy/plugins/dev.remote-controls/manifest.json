@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "dev.remote-controls",
+  "name": "OmniPick",
+  "version": "1.0.0",
+  "description": "Touch-friendly window controls with an edge hotspot.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "OmniPick",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

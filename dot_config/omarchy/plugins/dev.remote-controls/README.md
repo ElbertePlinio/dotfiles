@@ -1,0 +1,11 @@
+Remote Controls is an Omarchy shell plugin. Its service keeps an invisible 18-by-56-pixel hotspot at the top-right edge of each screen, including above fullscreen windows. Hover for 350 ms to reveal the handle, then click it. With touch, tap the corner to reveal it and tap the handle to open the panel. The revealed handle hides 900 ms after the pointer leaves. Only the hotspot, handle, or open panel receives pointer input; the rest of the desktop stays available.
+
+The native bar icon and Super+F12 also toggle the panel. The keyboard binding lives in ~/.config/hypr/bindings.lua. Keyboard capture by a game or Moonlight may affect the shortcut. The plugin does not synthesize controller or keyboard input.
+
+The panel selects the previously focused window without taking keyboard focus. Select another window from the list if needed. Fullscreen and Windowed set explicit states; Move and follow moves the selected window to workspace 1 through 10. Successful actions close the panel and focus that window. Hide panel leaves focus unchanged. Refresh updates stale window lists. Close window requires a second confirmation tap and sends a graceful close request to the selected window, never a force-kill. Save prompts may appear, and apps may keep background processes running. Changing the selection or performing another action cancels the confirmation.
+
+The panel uses Omarchy UI components and theme tokens. It is independent of Sunshine and the bar visibility setting. Disable it with `omarchy plugin disable dev.remote-controls`. If the shell caches a code update, use `omarchy restart shell` while the desktop is unlocked; do not reset the shell configuration.
+
+Run helper tests with `python3 -B -m unittest discover -s . -p 'test_*.py'` from this directory. Actual touch handling, captured-mouse behavior, and Sunshine overlay capture still need a Moonlight device test.
+
+Apps opens a native-styled application search view with a touch keyboard. The keyboard edits only the search field, never sends keys to other windows, and can be hidden independently. Launch requests use the same scoped desktop-entry command as Omarchy. Back returns to window controls; Hide panel or launching an app dismisses the keyboard and panel. Show bar reveals the desktop bar for the current session without changing the streaming profile.

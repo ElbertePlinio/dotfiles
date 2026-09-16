@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Temporarily use 1080p60 and inhibit Omarchy idle for a Sunshine app."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+OUTPUT = "HDMI-A-1"
+RUNTIME = Path(os.environ["XDG_RUNTIME_DIR"])
+STATE = RUNTIME / "sunshine-stream-session.json"
+
+
+def run(*args):
+    return subprocess.check_output(args, text=True).strip()
+
+
+def monitor():
+    monitors = json.loads(run("hyprctl", "monitors", "-j"))
+    return next(m for m in monitors if m["name"] == OUTPUT)
+
+
+def configure(mode, position, scale):
+    fields = {"output": OUTPUT, "mode": mode, "position": position, "scale": scale}
+    lua = ",".join(f"{key}={json.dumps(value)}" for key, value in fields.items())
+    result = run("hyprctl", "eval", "hl.monitor({" + lua + "})")
+    if result != "ok":
+        raise RuntimeError(result)
+
+
+def restore():
+    if not STATE.exists():
+        return
+    saved = json.loads(STATE.read_text())
+    configure(saved["mode"], saved["position"], saved["scale"])
+    idle = "stay-awake" if saved["stay_awake"] else "allow-idle"
+    run("omarchy", "toggle", "idle", idle)
+    # The bar command toggles the bar-off flag: on means hidden.
+    run("omarchy", "toggle", "bar", "on" if saved.get("bar_hidden", False) else "off")
+    STATE.unlink()
+
+
+def start():
+    current = monitor()
+    position = f'{current["x"]}x{current["y"]}'
+    if not STATE.exists():
+        saved = {
+            "mode": f'{current["width"]}x{current["height"]}@{current["refreshRate"]}',
+            "position": position,
+            "scale": current["scale"],
+            "bar_hidden": (Path.home() / ".local/state/omarchy/toggles/bar-off").exists(),
+            "stay_awake": json.loads(run("omarchy", "toggle", "idle", "status"))["enabled"],
+        }
+        with STATE.open("x") as state_file:
+            json.dump(saved, state_file)
+    try:
+        configure("1920x1080@60", position, 1)
+        run("omarchy", "toggle", "idle", "stay-awake")
+        run("omarchy", "toggle", "bar", "on")
+    except Exception:
+        restore()
+        raise
+
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in ("start", "stop"):
+        raise SystemExit("Usage: sunshine-stream-session start|stop")
+    with (RUNTIME / "sunshine-stream-session.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if sys.argv[1] == "start":
+            start()
+        else:
+            restore()
+
+
+if __name__ == "__main__":
+    main()
