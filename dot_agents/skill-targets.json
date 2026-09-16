@@ -82,6 +82,13 @@
       "pi",
       "omp",
       "hermes"
+    ],
+    "product-demo-video": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
     ]
   }
 }
