@@ -1,0 +1,7 @@
+{
+  "dot_claude/CLAUDE.md.tmpl": "0e49dc3288d4152d1c9ebcdf46aabeb50736a7f58e0f44b2eca095f22257b1cb",
+  "dot_codex/AGENTS.md.tmpl": "3e816e764c304296fa5dc9c709ebee882289ea2ce83a3ca14ad20d6f2560af2c",
+  "dot_grok/AGENTS.md.tmpl": "b199a888e6027649765902fa045a1e14c2679200d5e82adba61ebc8ae142fdbf",
+  "dot_pi/agent/AGENTS.md.tmpl": "0559380216c1424c5f549c7dd0557ac93ed13b1bde1ce02a2c15b7a186971e53",
+  "dot_omp/agent/AGENTS.md.tmpl": "5dde60a121821bf34f0009ef802ee92fbaf05d1086862edc7eb4567b317a59b0"
+}

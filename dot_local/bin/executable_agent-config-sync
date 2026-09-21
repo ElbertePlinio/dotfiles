@@ -86,6 +86,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.agents/doctor-targets.json"
   "${HOME}/.agents/desktop-capture.md"
   "${HOME}/.agents/browser-use.md"
+  "${HOME}/.agents/hermes-system-prompt.md"
   "${HOME}/.agents/codex-lane-override.md"
   "${HOME}/.agents/deepseek.env"
   "${HOME}/.agents/stripe.env"

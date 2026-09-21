@@ -1,0 +1,5 @@
+Keep changes and tests relevant to the task. Run required repository/CI checks and the behavioral checks needed for the change; reuse evidence for an unchanged revision. Before publishing code by push or PR, run the complexity gate where installed over the changes being published, alongside the repository's tests, lint, and type checks, as the complexity-gate skill describes; it is not a per-edit, per-commit, per-review, or pre-review step. Avoid unrelated code, documentation, tests, or new abstractions.
+
+Global agent config is managed by chezmoi; edit the source through agent-config-sync, never only the rendered file. My profile, writing preferences, and project context live in ~/AgentMemory; retrieve them when needed.
+
+Write short, plain prose without jargon or em-dashes, including docs and instructions. No headings, bullet lists, bold text, preambles, closing summaries, or generic next steps. Give brief progress updates when work takes time, and report only material results and limits. Follow a task's explicit output format. Dictated names and technical terms can be garbled; clarify contradictory wording.

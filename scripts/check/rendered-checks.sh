@@ -110,7 +110,7 @@ check_portable_home_literals
 
 for f in "${SHARED[@]}"; do need "$f"; done
 
-shared_bytes="$(wc -c <.chezmoitemplates/agents-shared.md)"
+shared_bytes="$(chezmoi "${SRC[@]}" execute-template '{{ template "agents-shared.md" . }}' | wc -c)"
 if ((shared_bytes <= SHARED_MAX_BYTES)); then
   pass "shared policy size ${shared_bytes} bytes (budget ${SHARED_MAX_BYTES})"
 else
@@ -125,8 +125,10 @@ fi
 
 for routing_rule in \
   'Consider the whole eligible pool, not just the parent provider.' \
-  'Astra is also a regular coding option for backend, infrastructure, performance, concurrency, persistence, and correctness-heavy work' \
-  'Fable is a selective first-class planner and advisor for consequential ambiguity, architecture, product intent and nuanced review' \
+  'Sol and Fable are the preferred Pi and Claude Code orchestrators.' \
+  'Reserve Astra primarily for independent final review, difficult correctness work' \
+  'Treat the catalog'\''s Budget pressure score as a practical API or subscription resource prior' \
+  'Fable is a selective first-class planner and advisor for consequential ambiguity, architecture, product intent, visual judgment, and nuanced review' \
   'When delegating read-only planning or investigation, use model-backed assessment attempts' \
   'Read-only Pi and Claude Code lanes lack shell access' \
   'including native agents and excluding diagnostics' \

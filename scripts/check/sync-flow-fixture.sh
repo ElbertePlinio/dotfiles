@@ -67,6 +67,7 @@ check_sync_command_flow() {
     dot_config/opencode/opencode.jsonc
     dot_agents/desktop-capture.md
     dot_agents/browser-use.md
+    dot_agents/hermes-system-prompt.md
     dot_agents/codex-lane-override.md
     dot_agents/private_deepseek.env
     dot_agents/private_stripe.env

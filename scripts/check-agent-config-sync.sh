@@ -15,6 +15,8 @@ for arg in "$@"; do
 done
 
 
+python3 "$ROOT/scripts/check-hermes-policy.py"
+
 CHECK_MODULE_DIR="$ROOT/scripts/check"
 for module in \
   lib.sh \
