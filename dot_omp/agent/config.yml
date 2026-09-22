@@ -9,7 +9,7 @@ setupVersion: 1
 enabledModels:
   - openai-codex/gpt-6-astra
   - anthropic/claude-fable-5-1
-  - anthropic/claude-opus-5
+  - anthropic/claude-opus-5-5
   - xai-oauth/grok-4.6
   - opencode-go/kimi-k3
   - opencode-go/glm-5.3-flash

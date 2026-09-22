@@ -17,11 +17,11 @@
   "lanes": {
     "pi": [
       "openai-codex/gpt-6-astra",
-      "xai/grok-4.6"
+      "xai/grok-4.7"
     ],
     "claude-code": [
       "anthropic/claude-fable-5-1",
-      "anthropic/claude-opus-5"
+      "anthropic/claude-opus-5-5"
     ]
   }
 }
