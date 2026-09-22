@@ -29,7 +29,7 @@ check_live_pi_enabled_models() {
       err 'live Pi settings contain unmanaged drift'
     fi
   elif jq -e '(.enabledModels | all(. != "openai-codex/gpt-5.6-luna"))
-    and (.enabledModels | any(. == "openai-codex/gpt-5.6-sol"))
+    and (.enabledModels | any(. == "openai-codex/gpt-6-sol"))
     and (.enabledModels | any(. == "xai/grok-4.7"))
     and (.enabledModels | all(. != "xai/grok-4.5" and . != "xai/grok-4.6"))' "$settings" >/dev/null 2>&1; then
     pass 'live Pi enabled models include Sol and Grok 4.7 and exclude Luna, Grok 4.5 and Grok 4.6'

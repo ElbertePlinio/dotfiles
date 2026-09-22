@@ -66,7 +66,7 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
       && err 'Pi settings contain a forbidden Haiku selector' \
       || pass 'Pi settings contain no Haiku selector'
     jq -e '(.enabledModels | all(. != "openai-codex/gpt-5.6-luna"))
-      and (.enabledModels | any(. == "openai-codex/gpt-5.6-sol"))
+      and (.enabledModels | any(. == "openai-codex/gpt-6-sol"))
       and (.enabledModels | any(. == "xai/grok-4.7"))
       and (.enabledModels | all(. != "xai/grok-4.5" and . != "xai/grok-4.6"))
       and (.enabledModels | any(. == "opencode-go/kimi-k3"))
@@ -75,9 +75,9 @@ if pi_settings="$(chezmoi "${SRC[@]}" cat "$HOME/.pi/agent/settings.json")"; the
       and (.enabledModels | all(. != "ollama/kimi-k3:cloud"))' >/dev/null <<<"$pi_settings" \
       && pass 'Pi enabled models select Sol, Grok 4.7 and OpenCode Go Kimi/GLM Flash, and retire Luna and Ox Alpha' \
       || err 'Pi enabled models missing Sol or the OpenCode Go pool, still list retired Luna or Ox Alpha, or still pin Ollama Kimi'
-    jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-5.6-sol" and .defaultThinkingLevel == "medium"' >/dev/null <<<"$pi_settings" \
-      && pass 'Pi canonical bootstrap defaults to GPT-5.6 Sol' \
-      || err 'Pi canonical GPT-5.6 Sol bootstrap default is missing or misconfigured'
+    jq -e '.defaultProvider == "openai-codex" and .defaultModel == "gpt-6-sol" and .defaultThinkingLevel == "medium"' >/dev/null <<<"$pi_settings" \
+      && pass 'Pi canonical bootstrap defaults to GPT-6 Sol' \
+      || err 'Pi canonical GPT-6 Sol bootstrap default is missing or misconfigured'
   else
     err 'Pi settings JSON invalid'
   fi
