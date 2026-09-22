@@ -233,6 +233,11 @@ RETIRED_TARGET_PATHS=(
   .local/bin/agent-delegation-gate
   .pi/agent/extensions/delegation-gate.ts
   .omp/agent/extensions/delegation-gate.ts
+  .agents/skills/complexity-gate
+  .claude/skills/complexity-gate
+  .grok/skills/complexity-gate
+  .pi/agent/skills/complexity-gate
+  .omp/agent/skills/complexity-gate
 )
 
 RUNTIME_SOURCE_PATHS=(

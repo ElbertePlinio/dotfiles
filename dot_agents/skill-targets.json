@@ -61,7 +61,7 @@
       "pi",
       "omp"
     ],
-    "complexity-gate": [
+    "pickcheck": [
       "claude",
       "codex",
       "grok",

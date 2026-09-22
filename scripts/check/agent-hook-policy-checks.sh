@@ -1,8 +1,8 @@
-# Complexity checks and delegation decisions are not automatic. complexity-gate
-# stays a manual pre-publication check and the delegation gate is retired, so no
+# Complexity checks and delegation decisions are not automatic. pickcheck (formerly
+# complexity-gate) stays a manual pre-publication check and the delegation gate is retired, so no
 # managed harness may register either on edit, tool, or stop events. Unrelated
 # hooks must survive the removal.
-AGENT_HOOK_FORBIDDEN_PATTERN='complexity-gate|agent-delegation-gate|delegation-gate\.ts'
+AGENT_HOOK_FORBIDDEN_PATTERN='pickcheck|complexity-gate|agent-delegation-gate|delegation-gate\.ts'
 
 # Prints every hook command string in a rendered JSON hook document.
 hook_commands() {
@@ -65,11 +65,11 @@ check_agent_hook_policy() {
     err 'Grok hooks render failed'
   fi
 
-  if jq -e '.packages | any(contains("pi-kit")) and all(contains("complexity-gate") | not)' \
+  if jq -e '.packages | any(contains("pi-kit")) and all(test("pickcheck|complexity-gate") | not)' \
     "$pi_settings" >/dev/null 2>&1; then
-    pass 'Pi packages keep pi-kit without the complexity-gate extension'
+    pass 'Pi packages keep pi-kit without the pickcheck extension'
   else
-    err 'Pi packages load the complexity-gate extension or lost pi-kit'
+    err 'Pi packages load the pickcheck extension or lost pi-kit'
   fi
 
   if extension="$(grep -ElR "$AGENT_HOOK_FORBIDDEN_PATTERN" \
@@ -87,9 +87,9 @@ check_agent_hook_policy() {
   fi
 
   if grep -Eq "$AGENT_HOOK_FORBIDDEN_PATTERN" "$ROOT/dot_config/git/hooks/executable_hook-dispatch"; then
-    err 'global Git hook dispatcher runs complexity-gate in every repository'
+    err 'global Git hook dispatcher runs pickcheck in every repository'
   else
-    pass 'global Git hook dispatcher leaves complexity-gate to repository-local hooks'
+    pass 'global Git hook dispatcher leaves pickcheck to repository-local hooks'
   fi
 
   if awk '
@@ -106,16 +106,16 @@ check_agent_hook_policy() {
   check_hook_policy_detection
 }
 
-# OpenCode loads complexity-gate as a plugin package rather than a hook command.
+# OpenCode loads pickcheck as a plugin package rather than a hook command.
 # Only that plugin is removed; the ai-memory MCP server must survive.
 check_opencode_hook_policy() {
   local config="$1" label="$2"
   if ! jq -e . "$config" >/dev/null 2>&1; then
     err "$label is missing or not strict JSON: $config"
-  elif jq -e '.plugin // [] | any(contains("complexity-gate"))' "$config" >/dev/null; then
-    err "$label loads the complexity-gate plugin"
+  elif jq -e '.plugin // [] | any(test("pickcheck|complexity-gate"))' "$config" >/dev/null; then
+    err "$label loads the pickcheck plugin"
   else
-    pass "$label does not load the complexity-gate plugin"
+    pass "$label does not load the pickcheck plugin"
   fi
   if jq -e '.mcp["ai-memory"] == {type: "remote", url: "http://127.0.0.1:49374/mcp", enabled: true}' \
     "$config" >/dev/null 2>&1; then
@@ -129,7 +129,7 @@ check_opencode_hook_policy() {
 # rejection.
 check_hook_policy_detection() {
   local fixture="$TMP/hook-policy-fixture.json" command
-  for command in 'complexity-gate hook claude' "$HOME/.local/bin/agent-delegation-gate"; do
+  for command in 'pickcheck hook claude' "$HOME/.local/bin/agent-delegation-gate"; do
     jq -n --arg command "$command" \
       '{hooks: {Stop: [{hooks: [{type: "command", command: $command}]}]}}' >"$fixture"
     if (fail=0; check_hook_document_policy fixture "$fixture" >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
@@ -138,7 +138,7 @@ check_hook_policy_detection() {
       err "hook policy accepted seeded hook: ${command##*/}"
     fi
   done
-  jq '.plugin = ["@pickforge/complexity-gate"] | del(.mcp)' \
+  jq '.plugin = ["@pickforge/pickcheck"] | del(.mcp)' \
     "$ROOT/dot_config/opencode/private_opencode.jsonc" >"$fixture"
   if (fail=0; check_opencode_hook_policy "$fixture" fixture >/dev/null 2>&1; [[ "$fail" -ne 0 ]]) \
     && [[ "$(check_opencode_hook_policy "$fixture" fixture 2>&1 | grep -c '^ERR')" -eq 2 ]]; then
@@ -201,10 +201,10 @@ check_live_agent_hook_policy() {
   done
 
   if [[ -f "$HOME/.pi/agent/settings.json" ]] \
-    && jq -e '.packages // [] | any(contains("complexity-gate"))' "$HOME/.pi/agent/settings.json" >/dev/null 2>&1; then
-    err 'live Pi settings still load the complexity-gate extension'
+    && jq -e '.packages // [] | any(test("pickcheck|complexity-gate"))' "$HOME/.pi/agent/settings.json" >/dev/null 2>&1; then
+    err 'live Pi settings still load the pickcheck extension'
   else
-    pass 'live Pi settings do not load the complexity-gate extension'
+    pass 'live Pi settings do not load the pickcheck extension'
   fi
 
   check_opencode_hook_policy "$HOME/.config/opencode/opencode.jsonc" 'live OpenCode config'

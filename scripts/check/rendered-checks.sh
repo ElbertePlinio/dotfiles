@@ -152,14 +152,14 @@ for retired_rule in \
   grep -Fq "$retired_rule" "$TMP/agents-shared.md" \
     && err "shared policy keeps retired delegation rule: $retired_rule"
 done
-if grep -Fq 'before completing every coding or code-review task' dot_agents/skills/complexity-gate/SKILL.md \
-  || grep -Fq 'Stop hook' dot_agents/skills/complexity-gate/references/output.md \
-  || ! grep -Fxq 'set -euo pipefail' dot_agents/skills/complexity-gate/SKILL.md \
-  || ! grep -Fq 'git rev-parse --verify --quiet "$base^{commit}"' dot_agents/skills/complexity-gate/SKILL.md \
-  || ! grep -Fq '"$base...HEAD" -- | xargs -0 -r complexity-gate check --' dot_agents/skills/complexity-gate/SKILL.md; then
-  err 'complexity-gate skill requires automatic runs or lacks the fail-safe range command'
+if grep -Fq 'before completing every coding or code-review task' dot_agents/skills/pickcheck/SKILL.md \
+  || grep -Fq 'Stop hook' dot_agents/skills/pickcheck/references/output.md \
+  || ! grep -Fxq 'set -euo pipefail' dot_agents/skills/pickcheck/SKILL.md \
+  || ! grep -Fq 'git rev-parse --verify --quiet "$base^{commit}"' dot_agents/skills/pickcheck/SKILL.md \
+  || ! grep -Fq '"$base...HEAD" -- | xargs -0 -r pickcheck check --' dot_agents/skills/pickcheck/SKILL.md; then
+  err 'pickcheck skill requires automatic runs or lacks the fail-safe range command'
 else
-  pass 'complexity-gate skill is a manual pre-publication check'
+  pass 'pickcheck skill is a manual pre-publication check'
 fi
 unset retired_rule
 if grep -Fq 'Always execute this pass with `openai-codex/gpt-6-astra` at `low` effort.' dot_agents/skills/device-pass/SKILL.md \

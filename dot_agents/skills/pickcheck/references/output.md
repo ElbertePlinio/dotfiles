@@ -1,4 +1,4 @@
-`complexity-gate check --changed` reports counts and at most 20 paths. Follow its `DETAILS` command one file at a time, such as `complexity-gate check --changed --verbose <file>`.
+`pickcheck check --changed` reports counts and at most 20 paths. Follow its `DETAILS` command one file at a time, such as `pickcheck check --changed --verbose <file>`.
 
 Detailed failures read `FAIL path:line name metric value > limit`. Metrics include `complexity`, `depth`, `lines`, and `params`. Use the reported limits and measurements, not hand estimates.
 
