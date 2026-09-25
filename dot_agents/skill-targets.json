@@ -89,6 +89,14 @@
       "grok",
       "pi",
       "omp"
+    ],
+    "flutter-component-preview": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp",
+      "hermes"
     ]
   }
 }
