@@ -136,7 +136,7 @@ for routing_rule in \
   'The current model executes the work directly by default, whatever its size.' \
   'Discussion, investigation, and PR review get no automatic delegation and no review of the review.' \
   'Do not create a managed Pickforge Lanes task just to record a choice to execute directly.' \
-  'Code being shipped gets one independent review by a model that did not author it.' \
+  'Astra reviews all code being shipped.' \
   'A model, effort, or reviewer I explicitly request takes precedence over catalog selection.' \
   'it is not a per-edit, per-commit, per-review, or pre-review step'; do
   grep -Fq "$routing_rule" "$TMP/agents-shared.md" \
