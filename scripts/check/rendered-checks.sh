@@ -132,7 +132,6 @@ for routing_rule in \
   'When delegating read-only planning or investigation, use model-backed assessment attempts' \
   'Read-only Pi and Claude Code lanes lack shell access' \
   'including native agents and excluding diagnostics' \
-  'Always use openai-codex/gpt-6-astra at low effort to execute device-pass and Picklab/Pickforge computer-use tasks.' \
   'The current model executes the work directly by default, whatever its size.' \
   'Discussion, investigation, and PR review get no automatic delegation and no review of the review.' \
   'Do not create a managed Pickforge Lanes task just to record a choice to execute directly.' \
@@ -148,7 +147,8 @@ for retired_rule in \
   'Direct work by the lead is fine when it is tiny' \
   'defined sensitive work takes two' \
   'Use model-backed assessment attempts for read-only planning and investigation' \
-  'Before committing code to publish'; do
+  'Before committing code to publish' \
+  'Always use openai-codex/gpt-6-astra at low effort to execute device-pass'; do
   grep -Fq "$retired_rule" "$TMP/agents-shared.md" \
     && err "shared policy keeps retired delegation rule: $retired_rule"
 done
@@ -162,18 +162,17 @@ else
   pass 'pickcheck skill is a manual pre-publication check'
 fi
 unset retired_rule
-if grep -Fq 'Always execute this pass with `openai-codex/gpt-6-astra` at `low` effort.' dot_agents/skills/device-pass/SKILL.md \
+if ! grep -Fq 'gpt-6-astra' dot_agents/skills/device-pass/SKILL.md \
   && grep -Fq 'Confirm the worker has the required browser/device tools before spawning' dot_agents/skills/device-pass/SKILL.md \
   && grep -Fq 'Pi lanes disable extensions and do not inherit browser/MCP tools' dot_agents/skills/device-pass/SKILL.md; then
-  pass 'device-pass pins Astra low and checks worker tool access'
+  pass 'device-pass leaves model choice open and checks worker tool access'
 else
-  err 'device-pass is missing its fixed model/effort or worker tool check'
+  err 'device-pass pins a model or is missing its worker tool check'
 fi
 for routing_adapter in dot_claude/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl; do
   routing_render="$TMP/routing-$(basename "$(dirname "$routing_adapter")")-$(basename "$routing_adapter")"
   if render "$routing_adapter" "$routing_render" \
-    && grep -Fq 'Consider the whole eligible pool, not just the parent provider.' "$routing_render" \
-    && grep -Fq 'Always use openai-codex/gpt-6-astra at low effort to execute device-pass and Picklab/Pickforge computer-use tasks.' "$routing_render"; then
+    && grep -Fq 'Consider the whole eligible pool, not just the parent provider.' "$routing_render"; then
     pass "shared routing policy reaches $routing_adapter"
   else
     err "shared routing policy missing from $routing_adapter"
