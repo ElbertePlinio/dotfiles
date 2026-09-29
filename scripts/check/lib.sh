@@ -2,6 +2,9 @@ pass() { printf 'OK  %s\n' "$*"; }
 err()  { printf 'ERR %s\n' "$*" >&2; fail=1; }
 need() { [[ -f "$1" ]] || err "missing: $1"; }
 
+# macOS before 14 has shasum but no sha256sum.
+command -v sha256sum >/dev/null 2>&1 || sha256sum() { shasum -a 256 "$@"; }
+
 source_absent() {
   local path="$1"
   if [[ -e "$ROOT/$path" || -L "$ROOT/$path" ]]; then
