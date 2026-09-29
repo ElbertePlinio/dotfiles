@@ -154,10 +154,10 @@ for retired_rule in \
 done
 if grep -Fq 'before completing every coding or code-review task' dot_agents/skills/pickcheck/SKILL.md \
   || grep -Fq 'Stop hook' dot_agents/skills/pickcheck/references/output.md \
-  || ! grep -Fxq 'set -euo pipefail' dot_agents/skills/pickcheck/SKILL.md \
-  || ! grep -Fq 'git rev-parse --verify --quiet "$base^{commit}"' dot_agents/skills/pickcheck/SKILL.md \
-  || ! grep -Fq '"$base...HEAD" -- | xargs -0 -r pickcheck check --' dot_agents/skills/pickcheck/SKILL.md; then
-  err 'pickcheck skill requires automatic runs or lacks the fail-safe range command'
+  || ! grep -Fq 'pickcheck check --base origin/main --fail-on new,worsened,unmatched --format json' dot_agents/skills/pickcheck/SKILL.md \
+  || ! grep -Fq 'exits 2; fetch the base branch' dot_agents/skills/pickcheck/SKILL.md \
+  || grep -Fq 'xargs -0 -r pickcheck check' dot_agents/skills/pickcheck/SKILL.md; then
+  err 'pickcheck skill requires automatic runs or lacks the fail-safe --base command'
 else
   pass 'pickcheck skill is a manual pre-publication check'
 fi
