@@ -110,7 +110,7 @@ Claude Code route, never a Pi provider. Core Pi has no MCP of its own, so only
   "providers": {"pi": ["openai-codex"]},
   "mcp": {"claude": ["pickforge-lanes"]},
   "lanes": {
-    "pi": ["openai-codex/gpt-6-astra", "openai-codex/gpt-6-sol"],
+    "pi": ["openai-codex/gpt-6-astra", "openai-codex/gpt-6.1-sol"],
     "claude-code": ["anthropic/claude-fable-5-1", "anthropic/claude-opus-5-5"]
   }
 }
