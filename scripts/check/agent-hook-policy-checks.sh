@@ -32,6 +32,32 @@ check_hook_document_policy() {
   done
 }
 
+# Optional hook tools are pinned so the policy checks do not depend on this
+# machine. Absent tools must drop only their own hooks.
+AGENT_TOOLS_ON=(--override-data '{"agentTools":{"aiMemory":"/usr/bin/ai-memory","herdr":"/usr/bin/herdr"}}')
+AGENT_TOOLS_OFF=(--override-data '{"agentTools":{"aiMemory":"","herdr":""}}')
+
+check_absent_hook_tools() {
+  local template rendered="$TMP/hook-tools-absent.json"
+  for template in dot_claude/settings.json.tmpl dot_codex/hooks.json.tmpl \
+    dot_cursor/hooks.json.tmpl dot_grok/hooks/ai-memory.json.tmpl; do
+    if chezmoi "${SRC[@]}" execute-template "${AGENT_TOOLS_OFF[@]}" --file "$ROOT/$template" >"$rendered" \
+      && jq -e '[.. | objects | .command? | strings] | all(test("ai-memory|herdr") | not)' "$rendered" >/dev/null; then
+      pass "$template renders valid hooks without ai-memory and herdr"
+    else
+      err "$template keeps hooks for absent tools or renders invalid JSON"
+    fi
+  done
+  for template in dot_claude/settings.json.tmpl dot_codex/hooks.json.tmpl; do
+    if chezmoi "${SRC[@]}" execute-template "${AGENT_TOOLS_OFF[@]}" --file "$ROOT/$template" >"$rendered" \
+      && grep -Fq 'pickforge-lanes hook' "$rendered"; then
+      pass "$template keeps lanes hooks without optional tools"
+    else
+      err "$template lost lanes hooks without optional tools"
+    fi
+  done
+}
+
 check_agent_hook_policy() {
   local claude="$TMP/hook-policy-claude.json"
   local codex="$TMP/hook-policy-codex.json"
@@ -40,26 +66,26 @@ check_agent_hook_policy() {
   local pi_settings="$ROOT/dot_pi/agent/settings.json"
   local extension
 
-  if chezmoi "${SRC[@]}" execute-template --file "$ROOT/dot_claude/settings.json.tmpl" >"$claude"; then
+  if chezmoi "${SRC[@]}" execute-template "${AGENT_TOOLS_ON[@]}" --file "$ROOT/dot_claude/settings.json.tmpl" >"$claude"; then
     check_hook_document_policy 'Claude settings' "$claude" \
       'pickforge-lanes hook claude' 'ai-attribution-gate.sh' 'codegraph prompt-hook' \
       '--event stop --agent claude-code' 'herdr-agent-state.sh'
   else
     err 'Claude settings render failed'
   fi
-  if chezmoi "${SRC[@]}" execute-template --file "$ROOT/dot_codex/hooks.json.tmpl" >"$codex"; then
+  if chezmoi "${SRC[@]}" execute-template "${AGENT_TOOLS_ON[@]}" --file "$ROOT/dot_codex/hooks.json.tmpl" >"$codex"; then
     check_hook_document_policy 'Codex hooks' "$codex" \
       'pickforge-lanes hook codex' '--event stop --agent codex' 'herdr-agent-state.sh'
   else
     err 'Codex hooks render failed'
   fi
-  if chezmoi "${SRC[@]}" execute-template --file "$ROOT/dot_cursor/hooks.json.tmpl" >"$cursor"; then
+  if chezmoi "${SRC[@]}" execute-template "${AGENT_TOOLS_ON[@]}" --file "$ROOT/dot_cursor/hooks.json.tmpl" >"$cursor"; then
     check_hook_document_policy 'Cursor hooks' "$cursor" \
       '--event stop --agent cursor' '--event session-start --agent cursor'
   else
     err 'Cursor hooks render failed'
   fi
-  if chezmoi "${SRC[@]}" execute-template --file "$ROOT/dot_grok/hooks/ai-memory.json.tmpl" >"$grok"; then
+  if chezmoi "${SRC[@]}" execute-template "${AGENT_TOOLS_ON[@]}" --file "$ROOT/dot_grok/hooks/ai-memory.json.tmpl" >"$grok"; then
     check_hook_document_policy 'Grok hooks' "$grok" '--event session-start --agent grok'
   else
     err 'Grok hooks render failed'
@@ -80,7 +106,7 @@ check_agent_hook_policy() {
   fi
 
   check_opencode_hook_policy "$ROOT/dot_config/opencode/private_opencode.jsonc" 'OpenCode config'
-  if [[ "$(find "$ROOT/dot_config/opencode" -mindepth 1 -printf '%P\n')" == private_opencode.jsonc ]]; then
+  if [[ "$(cd "$ROOT/dot_config/opencode" && find . -mindepth 1)" == ./private_opencode.jsonc ]]; then
     pass 'OpenCode source manages only its global config file'
   else
     err 'OpenCode source manages more than its global config file'
@@ -103,6 +129,7 @@ check_agent_hook_policy() {
     err 'Grok disables the Claude hook source'
   fi
 
+  check_absent_hook_tools
   check_hook_policy_detection
 }
 

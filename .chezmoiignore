@@ -148,4 +148,7 @@ scripts
 .config/QtProject.conf
 .config/Trolltech.conf
 .config/user-dirs.locale
+.config/omarchy/**
+.config/systemd/**
+.local/bin/sunshine-stream-session
 {{ end }}

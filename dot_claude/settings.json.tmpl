@@ -1,3 +1,4 @@
+{{- $tools := includeTemplate "agent-tools.json" . | fromJson -}}
 {
   "theme": "dark",
   "permissions": {
@@ -100,16 +101,16 @@
             "command": "$HOME/.claude/hooks/ai-attribution-gate.sh"
           }
         ]
-      },
+      }{{ if $tools.aiMemory }},
       {
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent claude-code --server-url http://127.0.0.1:49374",
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent claude-code --server-url http://127.0.0.1:49374",
             "timeout": 10
           }
         ]
-      }
+      }{{ end }}
     ],
     "UserPromptSubmit": [
       {
@@ -119,19 +120,19 @@
             "command": "codegraph prompt-hook"
           }
         ]
-      },
+      }{{ if $tools.aiMemory }},
       {
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent claude-code --server-url http://127.0.0.1:49374",
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent claude-code --server-url http://127.0.0.1:49374",
             "timeout": 10
           }
         ]
-      }
+      }{{ end }}
     ],
     "SessionStart": [
-      {
+{{ if $tools.herdr }}      {
         "matcher": "*",
         "hooks": [
           {
@@ -140,7 +141,7 @@
             "timeout": 10
           }
         ]
-      },
+      },{{ end }}
       {
         "hooks": [
           {
@@ -149,16 +150,16 @@
             "timeout": 10
           }
         ]
-      },
+      }{{ if $tools.aiMemory }},
       {
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent claude-code --server-url http://127.0.0.1:49374",
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent claude-code --server-url http://127.0.0.1:49374",
             "timeout": 10
           }
         ]
-      }
+      }{{ end }}
     ],
     "PostToolUse": [
       {
@@ -170,15 +171,15 @@
           }
         ]
       },
-      {
+{{ if $tools.aiMemory }}      {
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent claude-code --server-url http://127.0.0.1:49374",
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent claude-code --server-url http://127.0.0.1:49374",
             "timeout": 10
           }
         ]
-      },
+      },{{ end }}
       {
         "matcher": "mcp__pickforge[-_]lanes__lanes_(spawn|continue|wait|status|abandon)",
         "hooks": [
@@ -201,15 +202,15 @@
           }
         ]
       },
-      {
+{{ if $tools.aiMemory }}      {
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent claude-code --server-url http://127.0.0.1:49374",
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent claude-code --server-url http://127.0.0.1:49374",
             "timeout": 10
           }
         ]
-      },
+      },{{ end }}
       {
         "hooks": [
           {
@@ -222,26 +223,26 @@
       }
     ],
     "PreCompact": [
-      {
+{{ if $tools.aiMemory }}      {
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent claude-code --server-url http://127.0.0.1:49374",
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent claude-code --server-url http://127.0.0.1:49374",
             "timeout": 10
           }
         ]
-      }
+      }{{ end }}
     ],
     "SessionEnd": [
-      {
+{{ if $tools.aiMemory }}      {
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent claude-code --server-url http://127.0.0.1:49374",
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent claude-code --server-url http://127.0.0.1:49374",
             "timeout": 10
           }
         ]
-      },
+      },{{ end }}
       {
         "hooks": [
           {
@@ -253,26 +254,26 @@
       }
     ],
     "SubagentStart": [
-      {
+{{ if $tools.aiMemory }}      {
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event subagent-start --agent claude-code --server-url http://127.0.0.1:49374",
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event subagent-start --agent claude-code --server-url http://127.0.0.1:49374",
             "timeout": 10
           }
         ]
-      }
+      }{{ end }}
     ],
     "SubagentStop": [
-      {
+{{ if $tools.aiMemory }}      {
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event subagent-stop --agent claude-code --server-url http://127.0.0.1:49374",
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event subagent-stop --agent claude-code --server-url http://127.0.0.1:49374",
             "timeout": 10
           }
         ]
-      }
+      }{{ end }}
     ]
   },
   "statusLine": {

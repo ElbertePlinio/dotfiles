@@ -1,3 +1,4 @@
+{{- $tools := includeTemplate "agent-tools.json" . | fromJson -}}
 {
   "hooks": {
     "PreToolUse": [
@@ -10,16 +11,16 @@
             "timeout": 10
           }
         ]
-      },
+      }{{ if $tools.aiMemory }},
       {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent codex --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent codex --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "PostToolUse": [
       {
@@ -31,15 +32,15 @@
           }
         ]
       },
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent codex --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent codex --server-url http://127.0.0.1:49374"
           }
         ]
-      },
+      },{{ end }}
       {
         "matcher": "mcp__pickforge[-_]lanes__lanes_(spawn|continue|wait|status|abandon)",
         "hooks": [
@@ -53,7 +54,7 @@
       }
     ],
     "SessionStart": [
-      {
+{{ if $tools.herdr }}      {
         "hooks": [
           {
             "type": "command",
@@ -61,7 +62,7 @@
             "timeout": 10
           }
         ]
-      },
+      },{{ end }}
       {
         "hooks": [
           {
@@ -70,16 +71,16 @@
             "timeout": 5
           }
         ]
-      },
+      }{{ if $tools.aiMemory }},
       {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent codex --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent codex --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "Stop": [
       {
@@ -91,15 +92,15 @@
           }
         ]
       },
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent codex --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent codex --server-url http://127.0.0.1:49374"
           }
         ]
-      },
+      },{{ end }}
       {
         "hooks": [
           {
@@ -112,37 +113,37 @@
       }
     ],
     "UserPromptSubmit": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent codex --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent codex --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "PreCompact": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent codex --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent codex --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "SessionEnd": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent codex --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent codex --server-url http://127.0.0.1:49374"
           }
         ]
-      },
+      },{{ end }}
       {
         "hooks": [
           {
