@@ -1,5 +1,5 @@
-`pickcheck check --changed` reports counts and at most 20 paths. Follow its `DETAILS` command one file at a time, such as `pickcheck check --changed --verbose <file>`.
+The text summary lists `FAIL` totals and paths, then `UNVERIFIED`, then `WARN`, with at most 20 rows. Follow its `DETAILS` command one file at a time, such as `pickcheck check --base origin/main --fail-on new,worsened,unmatched --verbose <file>`.
 
-Detailed failures read `FAIL path:line name metric value > limit`. Metrics include `complexity`, `depth`, `lines`, and `params`. Use the reported limits and measurements, not hand estimates.
+Detailed lines read `FAIL path:line name  metric value > limit  status`, with `from <base value>` when the value changed, and `WARN` in place of `FAIL` for a status outside `--fail-on`. `cognitive` is the default gate; `depth`, `lines`, `params`, `bool_ops`, and `widget_depth` for Dart `build` methods also have limits, and cyclomatic `complexity` is measured but off unless a config sets its limit. Use the reported limits and measurements, not hand estimates.
 
-`UNVERIFIED path` means the binary has no grammar for that language. Report the gap; do not substitute a manual count or claim it passed.
+`UNVERIFIED path` means the binary has no grammar for that language. Report the gap; do not substitute a manual count or claim it passed. `note: <path> has no readable base; its functions count as new` means the base version could not be read or parsed, so its violations are `new` rather than compared.
