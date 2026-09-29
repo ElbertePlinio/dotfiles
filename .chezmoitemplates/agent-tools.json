@@ -1,5 +1,5 @@
 {{- /* Optional agent hook tools, resolved on the target machine. Hooks for a
 missing tool are left out. Checks pin values with the agentTools data key. */ -}}
 {{- $tools := dict "aiMemory" (lookPath "ai-memory") "herdr" (lookPath "herdr") -}}
-{{- if hasKey . "agentTools" }}{{ $tools = merge (deepCopy .agentTools) $tools }}{{ end -}}
+{{- if hasKey . "agentTools" }}{{ range $name, $path := .agentTools }}{{ $_ := set $tools $name $path }}{{ end }}{{ end -}}
 {{- toJson $tools -}}
