@@ -1,0 +1,41 @@
+#!/bin/sh
+# Install the pinned pickcheck binary. It is a manual pre-publication check,
+# so no harness hooks are installed. Changing the version reruns this script.
+set -eu
+
+version=0.4.0
+{{- $arch := get (dict "amd64" "x86_64" "arm64" "aarch64") .chezmoi.arch }}
+{{- $os := get (dict "darwin" "apple-darwin" "linux" "unknown-linux-gnu") .chezmoi.os }}
+{{- if and $arch $os }}
+target={{ $arch }}-{{ $os }}
+{{- else }}
+printf 'warning: no pickcheck build for {{ .chezmoi.os }}/{{ .chezmoi.arch }}\n' >&2
+exit 0
+{{- end }}
+bin="$HOME/.local/bin/pickcheck"
+
+if [ -x "$bin" ] && "$bin" --version 2>/dev/null | grep -Fqx "pickcheck $version"; then
+  exit 0
+fi
+command -v curl >/dev/null 2>&1 || { printf 'warning: curl is required to install pickcheck\n' >&2; exit 0; }
+
+archive="pickcheck-$target.tar.xz"
+url="https://github.com/pickforge/pickcheck/releases/download/v$version"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+curl -fsSL "$url/$archive" -o "$work/$archive"
+expected="$(curl -fsSL "$url/$archive.sha256" | cut -d' ' -f1)"
+if command -v sha256sum >/dev/null 2>&1; then
+  actual="$(sha256sum "$work/$archive" | cut -d' ' -f1)"
+else
+  actual="$(shasum -a 256 "$work/$archive" | cut -d' ' -f1)"
+fi
+if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+  printf 'error: pickcheck %s checksum mismatch\n' "$version" >&2
+  exit 1
+fi
+
+tar -xJf "$work/$archive" -C "$work"
+mkdir -p "${bin%/*}"
+install -m 0755 "$work/pickcheck-$target/pickcheck" "$bin"

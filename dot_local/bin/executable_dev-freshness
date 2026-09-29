@@ -136,7 +136,7 @@ check_cargo() {
   bin_path=$(command -v "$bin" 2>/dev/null) || { echo "not installed"; return; }
   bin_path=$(readlink -f "$bin_path")
   commit_epoch=$(git -C "$path" log -1 --format=%ct 2>/dev/null) || { echo "unknown"; return; }
-  bin_epoch=$(stat -c %Y "$bin_path" 2>/dev/null) || { echo "unknown"; return; }
+  bin_epoch=$(stat -c %Y "$bin_path" 2>/dev/null || stat -f %m "$bin_path" 2>/dev/null) || { echo "unknown"; return; }
   [ "$bin_epoch" -ge "$commit_epoch" ] || echo "binary predates $(git -C "$path" log -1 --format=%h)"
 }
 

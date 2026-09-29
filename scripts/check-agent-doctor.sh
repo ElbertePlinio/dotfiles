@@ -625,12 +625,12 @@ next_test; assert_json 'any(.checks[]; .id == "lanes.claude-code.selector.anthro
 next_test; if [ ! -e "$side_effect_marker" ]; then pass 'family-based table is never executed'; else fail 'family-based table side effect executed'; fi
 
 next_test
-sed -i 's/family: "other"/family: "unsupported"/' "$lane_root/src/table.ts"
+sed -i.bak 's/family: "other"/family: "unsupported"/' "$lane_root/src/table.ts" && rm -f "$lane_root/src/table.ts.bak"
 run_doctor --json
 assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status == "fail")' 'unknown model families remain diagnostic failures'
 
 next_test
-sed -i 's/family: "unsupported"/family: "other"/; /  pi: {/d' "$lane_root/src/table.ts"
+sed -i.bak 's/family: "unsupported"/family: "other"/; /  pi: {/d' "$lane_root/src/table.ts" && rm -f "$lane_root/src/table.ts.bak"
 run_doctor --json
 assert_json 'any(.checks[]; .id == "lanes.runtime.table" and .status == "fail")' 'family tables without a Pi routing map remain diagnostic failures'
 

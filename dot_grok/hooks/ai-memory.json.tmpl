@@ -1,103 +1,104 @@
+{{- $tools := includeTemplate "agent-tools.json" . | fromJson -}}
 {
   "hooks": {
     "SessionStart": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent grok --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent grok --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "UserPromptSubmit": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent grok --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent grok --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "PreToolUse": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent grok --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent grok --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "PostToolUse": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent grok --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent grok --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "PreCompact": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent grok --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent grok --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "Stop": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent grok --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent grok --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "SessionEnd": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent grok --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent grok --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "SubagentStart": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event subagent-start --agent grok --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event subagent-start --agent grok --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ],
     "SubagentStop": [
-      {
+{{ if $tools.aiMemory }}      {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event subagent-stop --agent grok --server-url http://127.0.0.1:49374"
+            "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event subagent-stop --agent grok --server-url http://127.0.0.1:49374"
           }
         ]
-      }
+      }{{ end }}
     ]
   }
 }

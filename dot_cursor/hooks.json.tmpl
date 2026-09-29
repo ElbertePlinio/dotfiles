@@ -1,61 +1,62 @@
+{{- $tools := includeTemplate "agent-tools.json" . | fromJson -}}
 {
   "version": 1,
   "hooks": {
     "stop": [
-      {
+{{ if $tools.aiMemory }}      {
         "type": "command",
-        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent cursor --server-url http://127.0.0.1:49374",
+        "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event stop --agent cursor --server-url http://127.0.0.1:49374",
         "matcher": ""
-      }
+      }{{ end }}
     ],
     "sessionStart": [
-      {
+{{ if $tools.aiMemory }}      {
         "type": "command",
-        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent cursor --server-url http://127.0.0.1:49374",
+        "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-start --agent cursor --server-url http://127.0.0.1:49374",
         "matcher": ""
-      }
+      }{{ end }}
     ],
     "sessionEnd": [
-      {
+{{ if $tools.aiMemory }}      {
         "type": "command",
-        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent cursor --server-url http://127.0.0.1:49374",
+        "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event session-end --agent cursor --server-url http://127.0.0.1:49374",
         "matcher": ""
-      }
+      }{{ end }}
     ],
     "beforeSubmitPrompt": [
-      {
+{{ if $tools.aiMemory }}      {
         "type": "command",
-        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent cursor --server-url http://127.0.0.1:49374",
+        "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event user-prompt-submit --agent cursor --server-url http://127.0.0.1:49374",
         "matcher": ""
-      }
+      }{{ end }}
     ],
     "preToolUse": [
-      {
+{{ if $tools.aiMemory }}      {
         "type": "command",
-        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent cursor --server-url http://127.0.0.1:49374",
+        "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-tool-use --agent cursor --server-url http://127.0.0.1:49374",
         "matcher": ""
-      }
+      }{{ end }}
     ],
     "postToolUse": [
-      {
+{{ if $tools.aiMemory }}      {
         "type": "command",
-        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent cursor --server-url http://127.0.0.1:49374",
+        "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent cursor --server-url http://127.0.0.1:49374",
         "matcher": ""
-      }
+      }{{ end }}
     ],
     "postToolUseFailure": [
-      {
+{{ if $tools.aiMemory }}      {
         "type": "command",
-        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent cursor --server-url http://127.0.0.1:49374",
+        "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event post-tool-use --agent cursor --server-url http://127.0.0.1:49374",
         "matcher": ""
-      }
+      }{{ end }}
     ],
     "preCompact": [
-      {
+{{ if $tools.aiMemory }}      {
         "type": "command",
-        "command": "/usr/bin/ai-memory --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent cursor --server-url http://127.0.0.1:49374",
+        "command": "{{ $tools.aiMemory }} --data-dir {{ .chezmoi.homeDir }}/.local/share/ai-memory hook --event pre-compact --agent cursor --server-url http://127.0.0.1:49374",
         "matcher": ""
-      }
+      }{{ end }}
     ]
   }
 }

@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import re
+import subprocess
 import unittest
 
 
@@ -14,7 +15,11 @@ SOURCES = {
 
 
 def lane_hooks(harness, event, listen=False):
-    document = json.loads((ROOT / SOURCES[harness]).read_text())
+    rendered = subprocess.run(
+        ["chezmoi", "--source", str(ROOT), "execute-template", "--file", str(ROOT / SOURCES[harness])],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    document = json.loads(rendered)
     command = f"pickforge-lanes hook {harness}" + (" --listen" if listen else "")
     return [
         (group, hook)

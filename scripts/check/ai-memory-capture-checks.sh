@@ -1,8 +1,8 @@
 check_ai_memory_capture() {
   local harness="$ROOT/scripts/test-ai-memory-capture.ts"
   local expected="$ROOT/scripts/test-ai-memory-capture.expected.jsonl"
-  local -A pids=()
-  local entry extension agent log status
+  local entries=() pids=()
+  local i entry extension agent log status
 
   need "$harness"
   need "$expected"
@@ -19,13 +19,15 @@ check_ai_memory_capture() {
     log="$TMP/ai-memory-capture-$agent"
     AI_MEMORY_EXTENSION="$ROOT/$extension" AI_MEMORY_EXPECTED_AGENT="$agent" \
       bun "$harness" >"$log.jsonl" 2>"$log.err" &
-    pids[$entry]=$!
+    entries+=("$entry")
+    pids+=($!)
   done
 
-  for entry in "${!pids[@]}"; do
+  for i in "${!entries[@]}"; do
+    entry="${entries[$i]}"
     extension="${entry%%:*}"
     log="$TMP/ai-memory-capture-${entry##*:}"
-    if wait "${pids[$entry]}"; then
+    if wait "${pids[$i]}"; then
       status=0
     else
       status=$?
