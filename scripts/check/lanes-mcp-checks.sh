@@ -68,9 +68,9 @@ EOF
     && grep -Fq 'os.killpg(process.pid, signal.SIGKILL)' "$PICKFORGE_LANES_CONFIGURE" \
     && grep -Fq 'claude mcp get pickforge-lanes' "$PICKFORGE_LANES_CONFIGURE" \
     && grep -Fq 'claude mcp remove --scope user pickforge-lanes' "$PICKFORGE_LANES_CONFIGURE" \
-    && grep -Fq 'claude mcp add --scope user pickforge-lanes -- pickforge-lanes-mcp' "$PICKFORGE_LANES_CONFIGURE" \
+    && ! grep -Fq 'claude mcp add' "$PICKFORGE_LANES_CONFIGURE" \
     && ! grep -Fqi 'context7' "$PICKFORGE_LANES_CONFIGURE"; then
-    pass 'pickforge lanes configure uses the required private Python process-group boundary'
+    pass 'pickforge lanes Claude removal uses the required private Python process-group boundary'
   else
     err 'pickforge lanes configure source contract invalid'
   fi
@@ -86,10 +86,10 @@ if [ "$1 $2 $3" = 'mcp get pickforge-lanes' ]; then
     mismatch|remove_failure)
       printf '%s\n' 'pickforge-lanes:' '  Scope: User config (available in all your projects)' '  Type: stdio' '  Command: wrong-command' '  Args:' 'secret-probe-value'
       ;;
-    extra_args)
-      printf '%s\n' 'pickforge-lanes:' '  Scope: User config (available in all your projects)' '  Type: stdio' '  Command: pickforge-lanes-mcp' '  Args: --unexpected'
+    project_scope)
+      printf '%s\n' 'pickforge-lanes:' '  Scope: Project config (shared via .mcp.json)' '  Type: stdio' '  Command: pickforge-lanes-mcp' '  Args:'
       ;;
-    missing|add_failure)
+    missing)
       printf '%s\n' 'No MCP server named pickforge-lanes. Configured servers: context7' >&2
       exit 1
       ;;
@@ -112,10 +112,6 @@ if [ "$1 $2 $3" = 'mcp get pickforge-lanes' ]; then
       wait
       ;;
   esac
-elif [ "$PICKFORGE_CLAUDE_MODE" = add_failure ] \
-  && [ "$1 $2 $3 $4 $5 $6 $7" = 'mcp add --scope user pickforge-lanes -- pickforge-lanes-mcp' ]; then
-  printf '%s\n' 'X-Api-Key: secret-add-probe' >&2
-  exit 1
 elif [ "$PICKFORGE_CLAUDE_MODE" = remove_failure ] \
   && [ "$1 $2 $3 $4 $5" = 'mcp remove --scope user pickforge-lanes' ]; then
   printf '%s\n' 'Authorization: Bearer secret-remove-probe' >&2
@@ -125,8 +121,8 @@ EOF
   chmod 0755 "$fake_bin/claude"
 
   mkdir -p "$fake_private_root"
-  for mode in matching mismatch extra_args missing generic_get_error private_get_error \
-    add_failure remove_failure timeout_descendant; do
+  for mode in matching mismatch project_scope missing generic_get_error private_get_error \
+    remove_failure timeout_descendant; do
     : >"$fake_log"
     : >"$run_log"
     rm -f "$descendant_pid_file"
@@ -141,7 +137,7 @@ EOF
     fi
     elapsed="$(python3 -c 'import sys, time; print(time.monotonic() - float(sys.argv[1]))' "$started")"
     case "$mode" in
-      add_failure|remove_failure)
+      remove_failure)
         [[ "$status" -ne 0 ]] \
           && pass "pickforge lanes configure reports mutation failure: $mode" \
           || err "pickforge lanes configure hid mutation failure: $mode"
@@ -167,29 +163,21 @@ EOF
       pass "pickforge lanes configure leaves Context7 untouched: $mode"
     fi
     case "$mode" in
-      matching)
+      matching|mismatch)
+        if grep -Fxq 'mcp remove --scope user pickforge-lanes' "$fake_log" \
+          && ! grep -Fq 'mcp add' "$fake_log" \
+          && [[ "$(wc -l <"$fake_log" | tr -d ' ')" == 2 ]]; then
+          pass "pickforge lanes configure removes the user-scoped Claude registration: $mode"
+        else
+          err "pickforge lanes configure removal contract failed: $mode"
+        fi
+        ;;
+      project_scope|missing)
         if [[ "$(wc -l <"$fake_log" | tr -d ' ')" == 1 ]] \
           && grep -Fxq 'mcp get pickforge-lanes' "$fake_log"; then
-          pass 'pickforge lanes configure is idempotent for canonical registration'
+          pass "pickforge lanes configure leaves Claude registration alone: $mode"
         else
-          err 'pickforge lanes configure changed canonical registration'
-        fi
-        ;;
-      mismatch|extra_args)
-        if grep -Fxq 'mcp remove --scope user pickforge-lanes' "$fake_log" \
-          && grep -Fxq 'mcp add --scope user pickforge-lanes -- pickforge-lanes-mcp' "$fake_log" \
-          && [[ "$(wc -l <"$fake_log" | tr -d ' ')" == 3 ]]; then
-          pass "pickforge lanes configure replaces mismatched user registration: $mode"
-        else
-          err "pickforge lanes configure mismatch repair contract failed: $mode"
-        fi
-        ;;
-      missing)
-        if grep -Fxq 'mcp add --scope user pickforge-lanes -- pickforge-lanes-mcp' "$fake_log" \
-          && ! grep -Fq 'mcp remove' "$fake_log"; then
-          pass 'pickforge lanes configure adds genuinely missing registration'
-        else
-          err 'pickforge lanes configure missing-registration contract failed'
+          err "pickforge lanes configure changed a registration it does not own: $mode"
         fi
         ;;
       generic_get_error|private_get_error)
@@ -198,14 +186,6 @@ EOF
           pass "pickforge lanes configure leaves registration unchanged after ambiguous get error: $mode"
         else
           err "pickforge lanes configure mutated registration after ambiguous get error: $mode"
-        fi
-        ;;
-      add_failure)
-        if grep -Fxq 'mcp add --scope user pickforge-lanes -- pickforge-lanes-mcp' "$fake_log" \
-          && ! grep -Fq 'mcp remove' "$fake_log"; then
-          pass 'pickforge lanes configure propagates add failure without removal'
-        else
-          err 'pickforge lanes configure add-failure contract failed'
         fi
         ;;
       remove_failure)
@@ -259,28 +239,6 @@ assert settings["modelSettings"]["claude-fable-5-1"]["effortLevel"] == "medium"
 assert isinstance(settings.get("permissions"), dict)
 allow = settings["permissions"].get("allow")
 assert isinstance(allow, list)
-expected = {
-    "mcp__pickforge-lanes__lanes_spawn",
-    "mcp__pickforge-lanes__lanes_status",
-    "mcp__pickforge-lanes__lanes_wait",
-    "mcp__pickforge-lanes__lanes_abandon",
-    "mcp__pickforge-lanes__lanes_models",
-    "mcp__pickforge-lanes__lanes_assess",
-    "mcp__pickforge-lanes__lanes_report",
-    "mcp__pickforge-lanes__lanes_task",
-    "mcp__pickforge-lanes__lanes_continue",
-    "mcp__pickforge-lanes__lanes_observe",
-    "mcp__pickforge-lanes__lanes_benchmark",
-    "mcp__pickforge-lanes__lanes_observations_missing",
-}
-pickforge_permissions = [
-    permission
-    for permission in allow
-    if isinstance(permission, str)
-    and permission.startswith("mcp__pickforge-lanes__")
-]
-assert set(pickforge_permissions) == expected
-assert len(pickforge_permissions) == len(expected)
 assert any(isinstance(value, str) and value.startswith("Bash") for value in allow)
 assert any(isinstance(value, str) and value.startswith("Bash") and "git" in value.lower() for value in allow)
 
@@ -296,9 +254,10 @@ def strings(value):
 
 all_strings = list(strings(settings))
 assert not any("rtk hook claude" in value for value in all_strings)
+assert not any("pickforge-lanes" in value or "pickforge_lanes" in value for value in all_strings)
 PY
   then
-    pass 'Claude settings retain Bash/Git shape and exact pickforge-lanes permissions'
+    pass 'Claude settings retain Bash/Git shape and carry no pickforge-lanes permissions or hooks'
   else
     err 'Claude settings structural invariants failed'
   fi

@@ -10,16 +10,20 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = {
     "codex": "dot_codex/hooks.json.tmpl",
-    "claude": "dot_claude/settings.json.tmpl",
 }
+CLAUDE_SETTINGS = "dot_claude/settings.json.tmpl"
+
+
+def render(source):
+    rendered = subprocess.run(
+        ["chezmoi", "--source", str(ROOT), "execute-template", "--file", str(ROOT / source)],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    return json.loads(rendered)
 
 
 def lane_hooks(harness, event, listen=False):
-    rendered = subprocess.run(
-        ["chezmoi", "--source", str(ROOT), "execute-template", "--file", str(ROOT / SOURCES[harness])],
-        check=True, capture_output=True, text=True,
-    ).stdout
-    document = json.loads(rendered)
+    document = render(SOURCES[harness])
     command = f"pickforge-lanes hook {harness}" + (" --listen" if listen else "")
     return [
         (group, hook)
@@ -30,6 +34,10 @@ def lane_hooks(harness, event, listen=False):
 
 
 class LaneHookConfigurationTests(unittest.TestCase):
+    def test_claude_code_registers_no_lane_hooks(self):
+        # Claude Code runs OpenAI models through its codex skill, not Lanes.
+        self.assertNotIn("pickforge-lanes", json.dumps(render(CLAUDE_SETTINGS)))
+
     def test_lifecycle_tracking_is_synchronous_and_includes_shutdown(self):
         for harness in SOURCES:
             for event in ("SessionStart", "PostToolUse", "Stop", "SessionEnd"):
@@ -45,7 +53,7 @@ class LaneHookConfigurationTests(unittest.TestCase):
 
     def test_listeners_use_the_harness_wake_mechanism_and_rearm_at_stop(self):
         for harness in SOURCES:
-            flag = "async" if harness == "codex" else "asyncRewake"
+            flag = "async"
             for event in ("PostToolUse", "Stop"):
                 with self.subTest(harness=harness, event=event):
                     entries = lane_hooks(harness, event, listen=True)

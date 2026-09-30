@@ -61,6 +61,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.claude/agents/final-reviewer-high.md"
   "${HOME}/.claude/agents/final-reviewer-xhigh.md"
   "${HOME}/.claude/skills/kickoff"
+  "${HOME}/.claude/skills/codex"
   "${HOME}/.codex/AGENTS.md"
   "${HOME}/.codex/agents"
   "${HOME}/.codex/hooks.json"
@@ -488,7 +489,7 @@ cmd_apply() {
     return 1
   fi
   if ! sh "$PICKFORGE_LANES_CONFIGURE"; then
-    echo "agent-config-sync: pickforge-lanes MCP registration failed" >&2
+    echo "agent-config-sync: pickforge-lanes MCP removal for Claude failed" >&2
     rm -rf "$work_dir"
     return 1
   fi

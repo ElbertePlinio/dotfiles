@@ -16,7 +16,7 @@ HARNESS=(
 SHARED_MAX_BYTES=10000
 
 ADAPTER_BUDGETS=(
-  'dot_claude/CLAUDE.md.tmpl|2400'
+  'dot_claude/CLAUDE.md.tmpl|3800'
   'dot_codex/AGENTS.md.tmpl|2000'
   'dot_grok/AGENTS.md.tmpl|700'
   'dot_pi/agent/AGENTS.md.tmpl|1800'
@@ -170,7 +170,7 @@ if ! grep -Fq 'gpt-6-astra' dot_agents/skills/device-pass/SKILL.md \
 else
   err 'device-pass pins a model or is missing its worker tool check'
 fi
-for routing_adapter in dot_claude/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl; do
+for routing_adapter in dot_codex/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_grok/AGENTS.md.tmpl dot_omp/agent/AGENTS.md.tmpl; do
   routing_render="$TMP/routing-$(basename "$(dirname "$routing_adapter")")-$(basename "$routing_adapter")"
   if render "$routing_adapter" "$routing_render" \
     && grep -Fq 'Consider the whole eligible pool, not just the parent provider.' "$routing_render"; then
@@ -180,6 +180,20 @@ for routing_adapter in dot_claude/CLAUDE.md.tmpl dot_codex/AGENTS.md.tmpl dot_pi
   fi
 done
 unset routing_rule routing_adapter routing_render
+
+# Claude Code runs Anthropic models natively and OpenAI models through its codex skill, never Lanes.
+claude_render="$TMP/routing-claude-CLAUDE.md"
+if render dot_claude/CLAUDE.md.tmpl "$claude_render" \
+  && [[ "$(grep -c 'Make the smallest clean change that solves the requested problem.' "$claude_render" || true)" -eq 1 ]] \
+  && grep -Fq 'AgentMemory' "$claude_render" \
+  && grep -Fq 'Claude Code does not use Lanes or other providers.' "$claude_render" \
+  && grep -Fq 'Astra reviews all code being shipped, through the codex skill.' "$claude_render" \
+  && ! grep -Eq 'lanes_|pickforge-lanes|Lanes registers' "$claude_render"; then
+  pass 'Claude adapter keeps neutral shared policy and routes OpenAI models through the codex skill'
+else
+  err 'Claude adapter lost neutral shared policy or still routes through Lanes'
+fi
+unset claude_render
 
 for path in "${RETIRED_SOURCE_PATHS[@]}"; do
   source_absent "$path"

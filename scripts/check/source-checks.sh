@@ -155,10 +155,10 @@ check_legacy_model_skill_absence() {
 
   if chezmoi "${SRC[@]}" managed --include=files,symlinks --path-style=absolute \
     >"$managed_log" \
-    && ! grep -Eq '/\.claude/skills/(codex|grok)(/|$)' "$managed_log"; then
-    pass 'managed targets have no legacy Claude codex/grok skill paths'
+    && ! grep -Eq '/\.claude/skills/grok(/|$)' "$managed_log"; then
+    pass 'managed targets have no legacy Claude grok skill path'
   else
-    err 'managed targets contain or could not check legacy Claude codex/grok skill paths'
+    err 'managed targets contain or could not check the legacy Claude grok skill path'
   fi
 }
 

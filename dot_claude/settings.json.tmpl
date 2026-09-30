@@ -64,35 +64,13 @@
       "Bash(curl *)",
       "Bash(wget *)",
       "WebFetch(*)",
-      "mcp__codegraph__*",
-      "mcp__pickforge-lanes__lanes_spawn",
-      "mcp__pickforge-lanes__lanes_status",
-      "mcp__pickforge-lanes__lanes_wait",
-      "mcp__pickforge-lanes__lanes_abandon",
-      "mcp__pickforge-lanes__lanes_models",
-      "mcp__pickforge-lanes__lanes_assess",
-      "mcp__pickforge-lanes__lanes_report",
-      "mcp__pickforge-lanes__lanes_task",
-      "mcp__pickforge-lanes__lanes_continue",
-      "mcp__pickforge-lanes__lanes_observe",
-      "mcp__pickforge-lanes__lanes_benchmark",
-      "mcp__pickforge-lanes__lanes_observations_missing"
+      "mcp__codegraph__*"
     ],
     "defaultMode": "auto"
   },
   "model": "claude-fable-5-1[1m]",
   "hooks": {
     "PreToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|apply_patch|search_replace",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pickforge-lanes hook claude",
-            "timeout": 10
-          }
-        ]
-      },
       {
         "matcher": "Bash",
         "hooks": [
@@ -141,17 +119,8 @@
             "timeout": 10
           }
         ]
-      },{{ end }}
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pickforge-lanes hook claude",
-            "timeout": 10
-          }
-        ]
-      }{{ if $tools.aiMemory }},
-      {
+      }{{ end }}{{ if and $tools.herdr $tools.aiMemory }},{{ end }}
+{{ if $tools.aiMemory }}      {
         "hooks": [
           {
             "type": "command",
@@ -162,15 +131,6 @@
       }{{ end }}
     ],
     "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pickforge-lanes hook claude",
-            "timeout": 10
-          }
-        ]
-      },
 {{ if $tools.aiMemory }}      {
         "hooks": [
           {
@@ -179,29 +139,9 @@
             "timeout": 10
           }
         ]
-      },{{ end }}
-      {
-        "matcher": "mcp__pickforge[-_]lanes__lanes_(spawn|continue|wait|status|abandon)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pickforge-lanes hook claude --listen",
-            "timeout": 14700,
-            "asyncRewake": true
-          }
-        ]
-      }
+      }{{ end }}
     ],
     "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pickforge-lanes hook claude",
-            "timeout": 10
-          }
-        ]
-      },
 {{ if $tools.aiMemory }}      {
         "hooks": [
           {
@@ -210,17 +150,7 @@
             "timeout": 10
           }
         ]
-      },{{ end }}
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pickforge-lanes hook claude --listen",
-            "timeout": 14700,
-            "asyncRewake": true
-          }
-        ]
-      }
+      }{{ end }}
     ],
     "PreCompact": [
 {{ if $tools.aiMemory }}      {
@@ -242,16 +172,7 @@
             "timeout": 10
           }
         ]
-      },{{ end }}
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pickforge-lanes hook claude",
-            "timeout": 5
-          }
-        ]
-      }
+      }{{ end }}
     ],
     "SubagentStart": [
 {{ if $tools.aiMemory }}      {
@@ -275,11 +196,6 @@
         ]
       }{{ end }}
     ]
-  },
-  "statusLine": {
-    "type": "command",
-    "command": "pickforge-lanes statusline",
-    "refreshInterval": 5000
   },
   "enabledPlugins": {
     "context7@claude-plugins-official": true,

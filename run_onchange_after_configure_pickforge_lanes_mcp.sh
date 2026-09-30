@@ -11,11 +11,11 @@ if [ "$timeout_seconds" -lt 1 ] || [ "$timeout_seconds" -gt 300 ]; then
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
-  printf '%s\n' 'error: python3 is required to configure the pickforge-lanes MCP safely' >&2
+  printf '%s\n' 'error: python3 is required to remove the pickforge-lanes MCP safely' >&2
   exit 1
 fi
 if ! command -v claude >/dev/null 2>&1; then
-  printf '%s\n' 'warning: Claude CLI is unavailable; pickforge-lanes MCP was not configured' >&2
+  printf '%s\n' 'warning: Claude CLI is unavailable; pickforge-lanes MCP was not checked' >&2
   exit 0
 fi
 
@@ -87,30 +87,19 @@ raise SystemExit(status if status >= 0 else 128 - status)
 PY
 }
 
+# Claude Code no longer uses Lanes; it runs OpenAI models through the codex skill.
+# Remove the user-scoped registration this script used to add, and leave any other scope alone.
 if run_capture "$details" claude mcp get pickforge-lanes; then
-  if grep -Eq '^[[:space:]]*Scope:[[:space:]]*User config([[:space:]]+\([^[:cntrl:]]*\))?[[:space:]]*$' "$details" \
-    && grep -Eq '^[[:space:]]*Type:[[:space:]]*stdio[[:space:]]*$' "$details" \
-    && grep -Eq '^[[:space:]]*Command:[[:space:]]*pickforge-lanes-mcp[[:space:]]*$' "$details" \
-    && grep -Eq '^[[:space:]]*Args:[[:space:]]*$' "$details"; then
+  if ! grep -Eq '^[[:space:]]*Scope:[[:space:]]*User config([[:space:]]+\([^[:cntrl:]]*\))?[[:space:]]*$' "$details"; then
     exit 0
   fi
   if ! run_capture "$private_dir/remove" claude mcp remove --scope user pickforge-lanes; then
-    printf '%s\n' 'error: mismatched user-scoped pickforge-lanes MCP could not be removed' >&2
+    printf '%s\n' 'error: user-scoped pickforge-lanes MCP could not be removed' >&2
     exit 1
   fi
 else
   get_status=$?
   if [ "$get_status" -eq 124 ]; then
     printf '%s\n' 'warning: pickforge-lanes MCP inspection timed out; configuration was not changed' >&2
-    exit 0
   fi
-  if ! grep -Eiq "^[[:space:]]*(No MCP server found with name:[[:space:]]*pickforge-lanes|No MCP server named[[:space:]]+['\"]?pickforge-lanes['\"]?|MCP server[[:space:]]+['\"]?pickforge-lanes['\"]?[[:space:]]+(was[[:space:]]+)?(not found|does not exist))([[:space:].]|$)" "$details"; then
-    printf '%s\n' 'warning: pickforge-lanes MCP inspection failed; configuration was not changed' >&2
-    exit 0
-  fi
-fi
-
-if ! run_capture "$private_dir/add" claude mcp add --scope user pickforge-lanes -- pickforge-lanes-mcp; then
-  printf '%s\n' 'error: pickforge-lanes MCP could not be configured' >&2
-  exit 1
 fi

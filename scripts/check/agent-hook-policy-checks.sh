@@ -48,7 +48,7 @@ check_absent_hook_tools() {
       err "$template keeps hooks for absent tools or renders invalid JSON"
     fi
   done
-  for template in dot_claude/settings.json.tmpl dot_codex/hooks.json.tmpl; do
+  for template in dot_codex/hooks.json.tmpl; do
     if chezmoi "${SRC[@]}" execute-template "${AGENT_TOOLS_OFF[@]}" --file "$ROOT/$template" >"$rendered" \
       && grep -Fq 'pickforge-lanes hook' "$rendered"; then
       pass "$template keeps lanes hooks without optional tools"
@@ -68,7 +68,7 @@ check_agent_hook_policy() {
 
   if chezmoi "${SRC[@]}" execute-template "${AGENT_TOOLS_ON[@]}" --file "$ROOT/dot_claude/settings.json.tmpl" >"$claude"; then
     check_hook_document_policy 'Claude settings' "$claude" \
-      'pickforge-lanes hook claude' 'ai-attribution-gate.sh' 'codegraph prompt-hook' \
+      'ai-attribution-gate.sh' 'codegraph prompt-hook' \
       '--event stop --agent claude-code' 'herdr-agent-state.sh'
   else
     err 'Claude settings render failed'
@@ -190,14 +190,11 @@ check_managed_workflow_mode() {
 
   if chezmoi "${SRC[@]}" execute-template --file "$ROOT/dot_claude/settings.json.tmpl" \
       >"$claude_settings" \
-    && jq -e '
-      any(.hooks.PreToolUse[];
-        (.matcher | contains("Edit") and contains("Write"))
-        and (.hooks | any(.type == "command" and .command == "pickforge-lanes hook claude")))
-    ' "$claude_settings" >/dev/null; then
-    pass 'Claude settings register the workflow mutation gate on PreToolUse'
+    && jq -e '[.. | objects | .command? | strings] | all(contains("pickforge-lanes") | not)' \
+      "$claude_settings" >/dev/null; then
+    pass 'Claude settings register no Lanes hooks; Claude Code does not use Lanes'
   else
-    err 'Claude settings do not register the workflow mutation gate on PreToolUse'
+    err 'Claude settings still register a Lanes hook'
   fi
 
   if chezmoi "${SRC[@]}" execute-template --file "$ROOT/dot_codex/hooks.json.tmpl" \

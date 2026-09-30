@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Run one Codex task from Claude Code. Usage:
+#   codex-run <author|review|investigate> --repo DIR [--rev REV] [--model sol|astra]
+#             [--effort LEVEL] [--out DIR] [--resume SESSION_ID] < prompt
+# author runs in DIR itself. review and investigate run in a throwaway worktree at REV,
+# record any files the model changed, and always remove that worktree.
+set -euo pipefail
+
+usage() { sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 64; }
+
+mode=${1:-}
+case "$mode" in author|review|investigate) shift ;; *) usage ;; esac
+
+repo='' rev=HEAD model='' effort=medium out='' resume=''
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --repo) repo=$2; shift 2 ;;
+    --rev) rev=$2; shift 2 ;;
+    --model) model=$2; shift 2 ;;
+    --effort) effort=$2; shift 2 ;;
+    --out) out=$2; shift 2 ;;
+    --resume) resume=$2; shift 2 ;;
+    *) usage ;;
+  esac
+done
+[[ -n "$repo" ]] || usage
+[[ -n "$model" ]] || { [[ "$mode" == review ]] && model=astra || model=sol; }
+case "$model" in
+  sol) slug=gpt-6.1-sol ;;
+  astra) slug=gpt-6-astra ;;
+  *) echo "codex-run: model must be sol or astra" >&2; exit 64 ;;
+esac
+case "$effort" in low|medium|high|xhigh) ;; *) echo "codex-run: effort must be low, medium, high, or xhigh" >&2; exit 64 ;; esac
+
+repo=$(git -C "$repo" rev-parse --show-toplevel)
+sha=$(git -C "$repo" rev-parse --verify "$rev^{commit}")
+common=$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)
+name=$(basename "$(dirname "$common")")
+stamp=$(date +%Y%m%d-%H%M%S)
+out=${out:-$HOME/.pickforge/codex-runs/$name/$mode-${sha:0:12}-$stamp}
+mkdir -p "$out"
+
+prompt=$(cat)
+[[ -n "$prompt" ]] || { echo "codex-run: empty prompt on stdin" >&2; exit 64; }
+
+rules="You have full shell access. Never run gh workflow run, gh release, npm publish, git tag, git push, or sudo, and never publish, deploy, or change accounts or remote state. Do not delegate to other agents or start lanes."
+if [[ "$mode" == author ]]; then
+  workdir=$repo
+  rules="$rules Edit only inside $workdir. Do not commit unless the brief asks."
+else
+  workdir="$HOME/Projects/.worktrees/$name/codex-$mode-${sha:0:12}-$stamp"
+  mkdir -p "$(dirname "$workdir")"
+  git -C "$repo" worktree add --quiet --detach "$workdir" "$sha"
+  cleanup() {
+    if [[ -n "$(git -C "$workdir" status --porcelain 2>/dev/null)" ]]; then
+      { git -C "$workdir" status --porcelain; git -C "$workdir" diff; } >"$out/stray-changes.txt" 2>&1 || true
+    fi
+    git -C "$repo" worktree remove --force "$workdir" 2>/dev/null || rm -rf "$workdir"
+    git -C "$repo" worktree prune
+  }
+  trap cleanup EXIT
+  trap 'exit 130' INT TERM
+  rules="$rules This is an assessment of revision $sha, checked out at $workdir. Run tests and tools freely, but do not edit, create, or delete files in the repository and do not commit. Put scratch files under ${TMPDIR:-/tmp}."
+fi
+
+args=(--json -m "$slug" -c "model_reasoning_effort=$effort" -c mcp_servers.pickforge-lanes.enabled=false
+  --dangerously-bypass-approvals-and-sandbox -o "$out/last-message.md")
+printf '%s\n' "$sha" >"$out/revision"
+cd "$workdir"
+status=0
+if [[ -n "$resume" ]]; then
+  printf '%s\n\n%s\n' "$rules" "$prompt" | codex exec resume "$resume" "${args[@]}" - >"$out/events.jsonl" 2>"$out/stderr.log" || status=$?
+else
+  printf '%s\n\n%s\n' "$rules" "$prompt" | codex exec "${args[@]}" - >"$out/events.jsonl" 2>"$out/stderr.log" || status=$?
+fi
+
+cd /
+if [[ "$mode" != author ]]; then
+  cleanup
+  trap - EXIT
+fi
+
+session=$(jq -r 'select(.type == "thread.started") | .thread_id' "$out/events.jsonl" 2>/dev/null | head -n1)
+session=${session:-$resume}
+printf '%s\n' "$session" >"$out/session-id"
+failure=$(jq -r 'select(.type == "turn.failed") | .error.message' "$out/events.jsonl" 2>/dev/null | tail -n1)
+
+echo "mode=$mode model=$slug effort=$effort revision=$sha session=$session exit=$status"
+echo "result=$out/last-message.md"
+[[ -z "$failure" ]] || echo "failed=$failure"
+[[ "$mode" == author || ! -f "$out/stray-changes.txt" ]] || echo "stray-changes=$out/stray-changes.txt"
+[[ -z "$failure" ]] || exit 1
+exit "$status"
