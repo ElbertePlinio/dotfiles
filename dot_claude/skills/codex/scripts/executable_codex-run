@@ -36,9 +36,10 @@ repo=$(git -C "$repo" rev-parse --show-toplevel)
 sha=$(git -C "$repo" rev-parse --verify "$rev^{commit}")
 common=$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)
 name=$(basename "$(dirname "$common")")
-stamp=$(date +%Y%m%d-%H%M%S)
+stamp=$(date +%Y%m%d-%H%M%S)-$$
 out=${out:-$HOME/.pickforge/codex-runs/$name/$mode-${sha:0:12}-$stamp}
 mkdir -p "$out"
+out=$(cd "$out" && pwd)
 
 prompt=$(cat)
 [[ -n "$prompt" ]] || { echo "codex-run: empty prompt on stdin" >&2; exit 64; }
@@ -59,20 +60,36 @@ else
     git -C "$repo" worktree prune
   }
   trap cleanup EXIT
-  trap 'exit 130' INT TERM
   rules="$rules This is an assessment of revision $sha, checked out at $workdir. Run tests and tools freely, but do not edit, create, or delete files in the repository and do not commit. Put scratch files under ${TMPDIR:-/tmp}."
 fi
 
 args=(--json -m "$slug" -c "model_reasoning_effort=$effort" -c mcp_servers.pickforge-lanes.enabled=false
   --dangerously-bypass-approvals-and-sandbox -o "$out/last-message.md")
 printf '%s\n' "$sha" >"$out/revision"
+printf '%s\n\n%s\n' "$rules" "$prompt" >"$out/prompt.md"
+command=(codex exec "${args[@]}" -)
+[[ -z "$resume" ]] || command=(codex exec resume "$resume" "${args[@]}" -)
+
+# Codex runs in its own process group so a signal to this script stops it and every
+# child it started before the worktree is removed.
 cd "$workdir"
+setsid "${command[@]}" <"$out/prompt.md" >"$out/events.jsonl" 2>"$out/stderr.log" &
+child=$!
+stop_child() {
+  kill -TERM -- "-$child" 2>/dev/null || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    kill -0 -- "-$child" 2>/dev/null || break
+    sleep 0.5
+  done
+  kill -KILL -- "-$child" 2>/dev/null || true
+  wait "$child" 2>/dev/null || true
+  cd /
+  exit 130
+}
+trap stop_child INT TERM HUP
 status=0
-if [[ -n "$resume" ]]; then
-  printf '%s\n\n%s\n' "$rules" "$prompt" | codex exec resume "$resume" "${args[@]}" - >"$out/events.jsonl" 2>"$out/stderr.log" || status=$?
-else
-  printf '%s\n\n%s\n' "$rules" "$prompt" | codex exec "${args[@]}" - >"$out/events.jsonl" 2>"$out/stderr.log" || status=$?
-fi
+wait "$child" || status=$?
+trap - INT TERM HUP
 
 cd /
 if [[ "$mode" != author ]]; then
