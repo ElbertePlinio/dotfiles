@@ -269,6 +269,7 @@ check_live_primary_global_targets() {
     "${target_root}/.claude/CLAUDE.md"
     "${target_root}/.claude/agents/final-reviewer.md"
     "${target_root}/.claude/agents/final-reviewer-high.md"
+    "${target_root}/.claude/agents/final-reviewer-xhigh.md"
     "${target_root}/.claude/settings.json"
     "${target_root}/.claude/skills"
     "${target_root}/.zshrc"

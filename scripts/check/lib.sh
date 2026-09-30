@@ -86,7 +86,6 @@ RETIRED_SOURCE_PATHS=(
   dot_agents/skills/find-skills
   dot_agents/skills/audit-report
   dot_codex/skills/ship-pr
-  dot_claude/skills/kickoff
   dot_claude/skills/pickgauge-usage
   dot_claude/hooks/executable_kickoff-delegation-gate.sh.tmpl
   .chezmoitemplates/kickoff-delegation-gate.sh
@@ -141,7 +140,6 @@ RETIRED_TARGET_PATHS=(
   .claude/skills/context7-mcp
   .claude/skills/find-skills
   .claude/skills/audit-report
-  .claude/skills/kickoff
   .claude/skills/pickgauge-usage
   .claude/hooks/kickoff-delegation-gate.sh
   .pi/agent/skills/model-runners

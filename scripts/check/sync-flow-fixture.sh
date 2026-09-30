@@ -34,6 +34,8 @@ check_sync_command_flow() {
     dot_claude/CLAUDE.md
     dot_claude/agents/final-reviewer.md
     dot_claude/agents/final-reviewer-high.md
+    dot_claude/agents/final-reviewer-xhigh.md
+    dot_claude/skills/kickoff/SKILL.md
     dot_claude/settings.json
     dot_claude/hooks/executable_ai-attribution-gate.sh
     dot_codex/AGENTS.md

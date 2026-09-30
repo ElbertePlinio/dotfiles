@@ -3,6 +3,8 @@ TARGETS=(
   "$DEST/.claude/CLAUDE.md"
   "$DEST/.claude/agents/final-reviewer.md"
   "$DEST/.claude/agents/final-reviewer-high.md"
+  "$DEST/.claude/agents/final-reviewer-xhigh.md"
+  "$DEST/.claude/skills/kickoff"
   "$DEST/.claude/settings.json"
   "$DEST/.codex/AGENTS.md"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"

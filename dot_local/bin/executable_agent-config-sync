@@ -59,6 +59,8 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.claude/CLAUDE.md"
   "${HOME}/.claude/agents/final-reviewer.md"
   "${HOME}/.claude/agents/final-reviewer-high.md"
+  "${HOME}/.claude/agents/final-reviewer-xhigh.md"
+  "${HOME}/.claude/skills/kickoff"
   "${HOME}/.codex/AGENTS.md"
   "${HOME}/.codex/agents"
   "${HOME}/.codex/hooks.json"
