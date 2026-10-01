@@ -45,11 +45,30 @@ def image_mime(data):
     return None
 
 
+def is_absolute_name(name, path):
+    return path.is_absolute() or Path(name).is_absolute()
+
+
+def has_unsafe_parts(name, path):
+    return '\\' in name or any(part in ('..', '') for part in path.parts)
+
+
+def check_component(info, last, filename):
+    """Reject symlinks, a non-regular final file, and non-directory parents."""
+    if stat.S_ISLNK(info.st_mode):
+        raise ValueError(f"Artifact must not be a symlink: {filename}")
+    if last:
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError(f"Artifact must be a regular file: {filename}")
+    elif not stat.S_ISDIR(info.st_mode):
+        raise ValueError(f"Missing evidence artifact: {filename}")
+
+
 def artifact_path(root, filename):
     """Return a confined, non-symlinked regular file path inside root."""
     name = str(filename)
     path = PurePosixPath(name)
-    if not name or path.is_absolute() or Path(name).is_absolute() or '\\' in name or any(part in ('..', '') for part in path.parts):
+    if not name or is_absolute_name(name, path) or has_unsafe_parts(name, path):
         raise ValueError(f"Artifact must stay inside the evidence folder: {filename}")
     current = root
     for index, part in enumerate(path.parts):
@@ -58,13 +77,7 @@ def artifact_path(root, filename):
             info = os.lstat(current)
         except FileNotFoundError:
             raise ValueError(f"Missing evidence artifact: {filename}") from None
-        if stat.S_ISLNK(info.st_mode):
-            raise ValueError(f"Artifact must not be a symlink: {filename}")
-        last = index == len(path.parts) - 1
-        if last and not stat.S_ISREG(info.st_mode):
-            raise ValueError(f"Artifact must be a regular file: {filename}")
-        if not last and not stat.S_ISDIR(info.st_mode):
-            raise ValueError(f"Missing evidence artifact: {filename}")
+        check_component(info, index == len(path.parts) - 1, filename)
     if not current.resolve().is_relative_to(root):
         raise ValueError(f"Artifact must stay inside the evidence folder: {filename}")
     return current, path
@@ -153,7 +166,7 @@ def scenario_html(images, scenario, omitted):
     findings = f'<div class="findings"><p class="eyebrow">Findings</p><ul>{findings}</ul></div>' if findings else ''
     video = ''
     if scenario.get('video'):
-        path, relative = artifact_path(images.root, scenario['video'])
+        _, relative = artifact_path(images.root, scenario['video'])
         if images.standalone:
             omitted.append(f"video {relative.as_posix()}")
             video = f'<p class="video-note">Video not included in this portable file: {text(relative.as_posix())}</p>'
