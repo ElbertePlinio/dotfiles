@@ -103,6 +103,12 @@ if python3 "$ROOT/scripts/test-lanes-hooks-config.py" >"$TMP/lanes-hooks-config.
 else
   err "Lanes notification hook configuration tests failed"
 fi
+if python3 "$ROOT/scripts/test-device-pass-report.py" >"$TMP/device-pass-report.log" 2>&1; then
+  pass "device-pass reports confine evidence, validate images, and export standalone HTML"
+else
+  err "device-pass report renderer tests failed"
+  cat "$TMP/device-pass-report.log" >&2
+fi
 check_agent_hook_policy
 check_managed_workflow_mode
 check_doctor_sources

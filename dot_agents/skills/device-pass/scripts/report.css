@@ -617,3 +617,29 @@ video {
 .viewer-stage.zoom img {
   margin: 0 auto;
 }
+.findings {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.findings ul,
+.context-body ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+.findings li,
+.context-body li {
+  margin: 6px 0;
+}
+.context-body .eyebrow {
+  margin: 16px 0 6px;
+}
+.video-note {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

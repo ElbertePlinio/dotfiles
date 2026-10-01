@@ -1,3 +1,19 @@
+const imageData = document.getElementById("images");
+if (imageData) {
+  const urls = {};
+  for (const [digest, image] of Object.entries(
+    JSON.parse(imageData.textContent),
+  )) {
+    const binary = atob(image.data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    urls[digest] = URL.createObjectURL(new Blob([bytes], { type: image.mime }));
+  }
+  imageData.remove();
+  document.querySelectorAll("img[data-img]").forEach((img) => {
+    if (urls[img.dataset.img]) img.src = urls[img.dataset.img];
+  });
+}
 const dialog = document.getElementById("viewer");
 const shots = [...document.querySelectorAll(".shot a")];
 let current = 0;
@@ -10,11 +26,14 @@ function visibleShots() {
 }
 function updateViewer() {
   const shot = shots[current];
+  const thumbnail = shot.querySelector("img");
   const img = document.getElementById("viewer-image");
-  img.src = shot.href;
-  img.alt = shot.querySelector("img").alt;
+  img.src = thumbnail.src;
+  img.alt = thumbnail.alt;
   document.getElementById("viewer-title").textContent = img.alt;
-  document.getElementById("original").href = shot.href;
+  const original = document.getElementById("original");
+  original.hidden = Boolean(thumbnail.dataset.img);
+  if (!original.hidden) original.href = shot.href;
   const visible = visibleShots();
   const index = visible.indexOf(shot);
   document.getElementById("position").textContent =
