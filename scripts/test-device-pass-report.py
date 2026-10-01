@@ -36,6 +36,12 @@ JPEG = base64.b64decode(
     "AQAAAAAAAAAAAAAAAAAAAAT/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAABv/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhED"
     "EQA/ALgBcqf/2Q==")
 WEBP = base64.b64decode("UklGRjoAAABXRUJQVlA4IC4AAADwAQCdASoQABAAAoBCJaACdLoB+AAEyAAA/su3/9CT8TZ4mz4RX/kFpXLd2AAA")
+# 21x11 lossless WebP and 5x3 Adam7-interlaced PNG from ImageMagick.
+WEBP_LOSSLESS = base64.b64decode(
+    "UklGRm4AAABXRUJQVlA4TGIAAAAvFIACEFcQaiJJUvzbu+wyvmcW8GoiSVKjZ4DvnjH77AUCicA5jx4fhg9fdNmUmpYabqnDPQRVsW1T915vfyqooIIKKqigg"
+    "goqCLozRPQ/hRpoBxvgJvgFYUM8kC7kB+VDBQ==")
+PNG_INTERLACED = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAUAAAADCAIAAAGjU2I5AAAAGUlEQVQI12P4z8DAAMWM/xmgAMpiQuHBAQDf2AYAOX4a5QAAAABJRU5ErkJggg==")
 
 EVIL = '</script><script>alert(1)</script>"\'<img src=x onerror=alert(2)>'
 
@@ -215,16 +221,43 @@ class DevicePassReportTests(unittest.TestCase):
         self.assertTrue(result.stderr.startswith("error: Screenshot is not a complete WebP image"), result.stderr)
         self.assertFalse((self.root / "pass.html").exists())
 
+    def test_crafted_headers_that_cannot_decode_are_rejected(self):
+        def png_chunk(kind, body):
+            return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
+        header = struct.pack(">IIBBBBB", 8, 8, 8, 2, 0, 0, 0)
+        truncated_zlib = zlib.compress(b"\x00" + b"\x01\x02\x03" * 8 * 8)[:-6]
+        corrupt_start = bytearray(WEBP)
+        corrupt_start[23] ^= 0xFF
+        cases = {
+            "JPEG": b"\xff\xd8\xff\xc0\x00\x02\xff\xda\x00\x02\xff\xd9",
+            "WebP": [b"RIFF\x0c\x00\x00\x00WEBPVP8 \x00\x00\x00\x00", bytes(corrupt_start)],
+            "PNG": b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", header) + png_chunk(b"IDAT", truncated_zlib) + png_chunk(b"IEND", b""),
+        }
+        samples = [(label, data) for label, value in cases.items() for data in (value if isinstance(value, list) else [value])]
+        self.assertEqual(len(samples[0][1]), 12)
+        self.assertEqual(len(samples[1][1]), 20)
+        for index, (label, data) in enumerate(samples):
+            with self.subTest(label=label, index=index):
+                (self.root / f"crafted-{index}.img").write_bytes(data)
+                self.assert_rejected(f"crafted-{index}.img", f"not a complete {label} image")
+
+    def test_trailing_data_is_named_in_the_error(self):
+        with self.assertRaisesRegex(ValueError, r"truncated, corrupt, or has data after the image end"):
+            module.validate_image(JPEG + b"tail", "x")
+
     def test_valid_images_of_each_type_pass_validation(self):
-        for data, mime in ((png(3, 2, (1, 2, 3)), "image/png"), (JPEG, "image/jpeg"), (WEBP, "image/webp")):
+        valid = ((png(3, 2, (1, 2, 3)), "image/png"), (PNG_INTERLACED, "image/png"), (JPEG, "image/jpeg"),
+                 (WEBP, "image/webp"), (WEBP_LOSSLESS, "image/webp"))
+        for data, mime in valid:
             self.assertEqual(module.validate_image(data, "x"), mime)
 
     def test_size_caps_fail_clearly(self):
         original = module.MAX_IMAGE_BYTES, module.MAX_TOTAL_IMAGE_BYTES
         self.addCleanup(lambda: (setattr(module, "MAX_IMAGE_BYTES", original[0]), setattr(module, "MAX_TOTAL_IMAGE_BYTES", original[1])))
         module.MAX_IMAGE_BYTES = 100
-        with self.assertRaisesRegex(ValueError, "per-image limit"):
-            module.render(self.manifest)
+        for standalone in (True, False):
+            with self.assertRaisesRegex(ValueError, "exceeds the 0 MiB per-image limit: shots/desktop-home.png"):
+                module.render(self.manifest, standalone=standalone)
         module.MAX_IMAGE_BYTES = original[0]
         module.MAX_TOTAL_IMAGE_BYTES = 700
         with self.assertRaisesRegex(ValueError, "total limit"):
@@ -287,6 +320,16 @@ class DevicePassReportTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("inside the evidence folder", result.stderr)
         self.assertFalse((self.root / "pass.html").exists())
+
+    def test_cli_reports_unreadable_folder_without_traceback(self):
+        self.root.chmod(0o300)
+        self.addCleanup(self.root.chmod, 0o755)
+        for flags in ([], ["--linked"]):
+            result = subprocess.run([sys.executable, str(SOURCE), str(self.manifest), *flags], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertTrue(result.stderr.startswith("error: ") and "Permission denied" in result.stderr, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertFalse((self.root / "pass.html").exists())
 
     def test_linked_mode_keeps_relative_links(self):
         report, _ = module.render(self.manifest, standalone=False)

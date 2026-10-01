@@ -6,8 +6,8 @@ Each scenario: name, mode, browser, viewport, status (pass/fail/blocked),
 steps (strings), screenshots ({file, caption}); optional video (file) and
 findings (strings). Optional top-level findings and limitations are lists of
 strings. Artifact paths must be relative regular files inside the manifest
-directory, with no symlinks. Screenshots must be complete PNG, JPEG, or WebP
-images.
+directory, with no symlinks. Screenshots must be structurally complete PNG,
+JPEG, or WebP images.
 
 By default the report is a single self-contained HTML file with every
 screenshot embedded once. Use --linked for the older report that links to
@@ -48,24 +48,70 @@ def image_mime(data):
     return None
 
 
-def png_is_valid(data):
-    """IHDR first, every chunk CRC intact, at least one IDAT, IEND last."""
-    pos, kinds = 8, []
+PNG_CHANNELS = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
+PNG_DEPTHS = {0: (1, 2, 4, 8, 16), 2: (8, 16), 3: (1, 2, 4, 8), 4: (8, 16), 6: (8, 16)}
+ADAM7 = ((0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4), (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2))
+
+
+def png_raw_size(header):
+    """Expected decompressed IDAT size from IHDR, or None if IHDR is invalid."""
+    if len(header) != 13:
+        return None
+    width, height, depth, color, compression, filtering, interlace = struct.unpack('>IIBBBBB', header)
+    if 0 in (width, height) or (compression, filtering) != (0, 0):
+        return None
+    if depth not in PNG_DEPTHS.get(color, ()) or interlace > 1:
+        return None
+    bits = depth * PNG_CHANNELS[color]
+    passes = ADAM7 if interlace else ((0, 0, 1, 1),)
+    total = 0
+    for x, y, dx, dy in passes:
+        columns, rows = (width - x + dx - 1) // dx, (height - y + dy - 1) // dy
+        if columns and rows:
+            total += rows * (1 + (columns * bits + 7) // 8)
+    return total
+
+
+def png_stream_complete(compressed, expected):
+    """True if the IDAT data is one complete zlib stream of exactly the expected size."""
+    stream, produced = zlib.decompressobj(), 0
+    try:
+        while True:
+            out = stream.decompress(compressed, 1 << 20)
+            produced += len(out)
+            compressed = stream.unconsumed_tail
+            if produced > expected or stream.eof or not (out or compressed):
+                break
+    except zlib.error:
+        return False
+    return stream.eof and not stream.unused_data and produced == expected
+
+
+def png_chunks(data):
+    """Yield (kind, body) for each CRC-checked chunk through IEND, then (None, None) if anything is malformed or follows."""
+    pos = 8
     while pos + 12 <= len(data):
         length, kind = struct.unpack('>I4s', data[pos:pos + 8])
         end = pos + 12 + length
-        if end > len(data):
-            return False
         body = data[pos + 8:end - 4]
-        if zlib.crc32(kind + body) != struct.unpack('>I', data[end - 4:end])[0]:
-            return False
-        if not kinds and (kind != b'IHDR' or length != 13 or 0 in struct.unpack('>II', body[:8])):
-            return False
-        kinds.append(kind)
+        if end > len(data) or zlib.crc32(kind + body) != struct.unpack('>I', data[end - 4:end])[0]:
+            break
+        yield kind, body
         pos = end
         if kind == b'IEND':
             break
-    return pos == len(data) and kinds[-1:] == [b'IEND'] and b'IDAT' in kinds
+    if pos != len(data):
+        yield None, None
+
+
+def png_is_valid(data):
+    """IHDR first, every chunk CRC intact, IEND last, and IDAT data that inflates fully."""
+    chunks = list(png_chunks(data))
+    if not chunks or chunks[0][0] != b'IHDR' or chunks[-1][0] != b'IEND':
+        return False
+    expected = png_raw_size(chunks[0][1])
+    idat = b''.join(body for kind, body in chunks if kind == b'IDAT')
+    return expected is not None and bool(idat) and png_stream_complete(idat, expected)
 
 
 JPEG_FRAMES = set(range(0xC0, 0xD0)) - {0xC4, 0xC8, 0xCC}
@@ -86,27 +132,82 @@ def jpeg_segment(data, pos):
     return marker, pos + 2 + length
 
 
+def jpeg_frame_is_valid(segment):
+    """SOF: precision 8 or 12, nonzero size, 1 to 4 components, and room for each."""
+    if len(segment) < 6:
+        return False
+    precision, height, width, components = struct.unpack('>BHHB', segment[:6])
+    return precision in (8, 12) and 0 not in (height, width) and components in range(1, 5) and len(segment) >= 6 + 3 * components
+
+
+def jpeg_scan_is_valid(segment):
+    """SOS: 1 to 4 components and a length of exactly 6 + 2 per component."""
+    return len(segment) >= 1 and 1 <= segment[0] <= 4 and len(segment) == 4 + 2 * segment[0]
+
+
 def jpeg_is_valid(data):
-    """SOI, a frame header before the first scan, and EOI at the end."""
+    """SOI, a valid frame header, a valid scan header with entropy data, and EOI at the end."""
     if len(data) < 4 or data[:2] != b'\xff\xd8' or data[-2:] != b'\xff\xd9':
         return False
     pos, frame = 2, False
     while pos + 4 <= len(data) - 2:
+        start = pos
         marker, pos = jpeg_segment(data, pos)
         if marker is None or marker in (0xD8, 0xD9):
             return False
+        segment = data[start + 4:pos]
         if marker == 0xDA:
-            return frame
-        frame = frame or marker in JPEG_FRAMES
+            return frame and jpeg_scan_is_valid(segment) and pos < len(data) - 2
+        if marker in JPEG_FRAMES:
+            if not jpeg_frame_is_valid(segment):
+                return False
+            frame = True
+    return False
+
+
+def riff_chunks(data, pos, end):
+    """Yield (fourcc, payload) for each chunk that fits; stop at the first that does not."""
+    while pos + 8 <= end:
+        size = int.from_bytes(data[pos + 4:pos + 8], 'little')
+        if pos + 8 + size > end:
+            yield None, None
+            return
+        yield data[pos:pos + 4], data[pos + 8:pos + 8 + size]
+        pos += 8 + size + (size & 1)
+
+
+def webp_bitstream_is_valid(kind, payload):
+    """VP8 needs its frame start code and a nonzero size; VP8L needs its signature."""
+    if kind == b'VP8 ':
+        if len(payload) < 10 or payload[3:6] != b'\x9d\x01\x2a':
+            return False
+        width, height = struct.unpack('<HH', payload[6:10])
+        return bool(width & 0x3FFF and height & 0x3FFF)
+    return kind == b'VP8L' and len(payload) >= 5 and payload[0] == 0x2F
+
+
+def webp_frame_is_valid(data, pos, end, animated):
+    """The first image chunk after VP8X is a valid VP8, VP8L, or animation frame."""
+    for kind, payload in riff_chunks(data, pos, end):
+        if kind in (b'VP8 ', b'VP8L'):
+            return webp_bitstream_is_valid(kind, payload)
+        if kind == b'ANMF' and animated:
+            return len(payload) >= 16 and webp_frame_is_valid(payload, 16, len(payload), False)
+        if kind is None:
+            return False
     return False
 
 
 def webp_is_valid(data):
-    """RIFF size matches the file and the first chunk is VP8, VP8L, or VP8X and fits."""
+    """RIFF size matches the file, and the image chunks carry a plausible bitstream header."""
     if len(data) < 20 or int.from_bytes(data[4:8], 'little') + 8 != len(data):
         return False
-    size = int.from_bytes(data[16:20], 'little')
-    return data[12:16] in (b'VP8 ', b'VP8L', b'VP8X') and 20 + size <= len(data)
+    kind, payload = next(riff_chunks(data, 12, len(data)), (None, None))
+    if kind in (b'VP8 ', b'VP8L'):
+        return webp_bitstream_is_valid(kind, payload)
+    if kind != b'VP8X' or len(payload) != 10:
+        return False
+    return webp_frame_is_valid(data, 30, len(data), bool(payload[0] & 0x02))
 
 
 IMAGE_CHECKS = {'image/png': ('PNG', png_is_valid), 'image/jpeg': ('JPEG', jpeg_is_valid), 'image/webp': ('WebP', webp_is_valid)}
@@ -119,7 +220,7 @@ def validate_image(data, filename):
         raise ValueError(f"Unsupported screenshot type (use PNG, JPEG, or WebP): {filename}")
     label, check = IMAGE_CHECKS[mime]
     if not check(data):
-        raise ValueError(f"Screenshot is not a complete {label} image (truncated or corrupt): {filename}")
+        raise ValueError(f"Screenshot is not a complete {label} image (truncated, corrupt, or has data after the image end): {filename}")
     return mime
 
 
@@ -185,15 +286,13 @@ def check_artifact(root, filename):
     return path
 
 
-def read_artifact(fd, filename, limit):
+def read_artifact(fd, filename):
     with os.fdopen(fd, 'rb') as handle:
-        if limit is None:
-            return handle.read()
-        data = handle.read(limit + 1)
-    if len(data) > limit:
+        data = handle.read(MAX_IMAGE_BYTES + 1)
+    if len(data) > MAX_IMAGE_BYTES:
         raise ValueError(
-            f"Screenshot exceeds the {limit // (1024 * 1024)} MiB per-image limit: {filename}. "
-            "Use --linked to keep it as a separate file; images are never downscaled.")
+            f"Screenshot exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB per-image limit: {filename}. "
+            "Images are never downscaled; split or recapture it.")
     return data
 
 
@@ -208,7 +307,7 @@ class Images:
 
     def add(self, filename):
         fd, relative = open_artifact(self.root, filename)
-        data = read_artifact(fd, filename, MAX_IMAGE_BYTES if self.standalone else None)
+        data = read_artifact(fd, filename)
         mime = validate_image(data, filename)
         if not self.standalone:
             return quote(relative.as_posix(), safe='/')
@@ -357,7 +456,7 @@ def main():
     args = parser.parse_args()
     try:
         report, images = render(args.manifest, standalone=not args.linked)
-    except ValueError as error:
+    except (ValueError, OSError) as error:
         print(f'error: {error}', file=sys.stderr)
         return 1
     output = args.manifest.with_suffix('.html')
