@@ -6,7 +6,8 @@ Each scenario: name, mode, browser, viewport, status (pass/fail/blocked),
 steps (strings), screenshots ({file, caption}); optional video (file) and
 findings (strings). Optional top-level findings and limitations are lists of
 strings. Artifact paths must be relative regular files inside the manifest
-directory, with no symlinks. Screenshots must be PNG, JPEG, or WebP.
+directory, with no symlinks. Screenshots must be complete PNG, JPEG, or WebP
+images.
 
 By default the report is a single self-contained HTML file with every
 screenshot embedded once. Use --linked for the older report that links to
@@ -21,7 +22,9 @@ import json
 import os
 import re
 import stat
+import struct
 import sys
+import zlib
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
@@ -45,12 +48,92 @@ def image_mime(data):
     return None
 
 
-def is_absolute_name(name, path):
-    return path.is_absolute() or Path(name).is_absolute()
+def png_is_valid(data):
+    """IHDR first, every chunk CRC intact, at least one IDAT, IEND last."""
+    pos, kinds = 8, []
+    while pos + 12 <= len(data):
+        length, kind = struct.unpack('>I4s', data[pos:pos + 8])
+        end = pos + 12 + length
+        if end > len(data):
+            return False
+        body = data[pos + 8:end - 4]
+        if zlib.crc32(kind + body) != struct.unpack('>I', data[end - 4:end])[0]:
+            return False
+        if not kinds and (kind != b'IHDR' or length != 13 or 0 in struct.unpack('>II', body[:8])):
+            return False
+        kinds.append(kind)
+        pos = end
+        if kind == b'IEND':
+            break
+    return pos == len(data) and kinds[-1:] == [b'IEND'] and b'IDAT' in kinds
+
+
+JPEG_FRAMES = set(range(0xC0, 0xD0)) - {0xC4, 0xC8, 0xCC}
+
+
+def jpeg_segment(data, pos):
+    """Return the marker at pos and the next position, or (None, None) if malformed."""
+    if data[pos] != 0xFF:
+        return None, None
+    marker = data[pos + 1]
+    if marker == 0xFF:
+        return marker, pos + 1
+    if 0xD0 <= marker <= 0xD7 or marker == 0x01:
+        return marker, pos + 2
+    length = int.from_bytes(data[pos + 2:pos + 4], 'big')
+    if length < 2 or pos + 2 + length > len(data) - 2:
+        return None, None
+    return marker, pos + 2 + length
+
+
+def jpeg_is_valid(data):
+    """SOI, a frame header before the first scan, and EOI at the end."""
+    if len(data) < 4 or data[:2] != b'\xff\xd8' or data[-2:] != b'\xff\xd9':
+        return False
+    pos, frame = 2, False
+    while pos + 4 <= len(data) - 2:
+        marker, pos = jpeg_segment(data, pos)
+        if marker is None or marker in (0xD8, 0xD9):
+            return False
+        if marker == 0xDA:
+            return frame
+        frame = frame or marker in JPEG_FRAMES
+    return False
+
+
+def webp_is_valid(data):
+    """RIFF size matches the file and the first chunk is VP8, VP8L, or VP8X and fits."""
+    if len(data) < 20 or int.from_bytes(data[4:8], 'little') + 8 != len(data):
+        return False
+    size = int.from_bytes(data[16:20], 'little')
+    return data[12:16] in (b'VP8 ', b'VP8L', b'VP8X') and 20 + size <= len(data)
+
+
+IMAGE_CHECKS = {'image/png': ('PNG', png_is_valid), 'image/jpeg': ('JPEG', jpeg_is_valid), 'image/webp': ('WebP', webp_is_valid)}
+
+
+def validate_image(data, filename):
+    """Return the MIME type of a structurally complete PNG, JPEG, or WebP."""
+    mime = image_mime(data)
+    if not mime:
+        raise ValueError(f"Unsupported screenshot type (use PNG, JPEG, or WebP): {filename}")
+    label, check = IMAGE_CHECKS[mime]
+    if not check(data):
+        raise ValueError(f"Screenshot is not a complete {label} image (truncated or corrupt): {filename}")
+    return mime
 
 
 def has_unsafe_parts(name, path):
-    return '\\' in name or any(part in ('..', '') for part in path.parts)
+    return '\\' in name or not path.parts or '..' in path.parts
+
+
+def artifact_name(filename):
+    """Return the relative path if it is a plain path inside the evidence folder."""
+    name = str(filename)
+    path = PurePosixPath(name)
+    if path.is_absolute() or has_unsafe_parts(name, path):
+        raise ValueError(f"Artifact must stay inside the evidence folder: {filename}")
+    return path
 
 
 def check_component(info, last, filename):
@@ -64,30 +147,48 @@ def check_component(info, last, filename):
         raise ValueError(f"Missing evidence artifact: {filename}")
 
 
-def artifact_path(root, filename):
-    """Return a confined, non-symlinked regular file path inside root."""
-    name = str(filename)
-    path = PurePosixPath(name)
-    if not name or is_absolute_name(name, path) or has_unsafe_parts(name, path):
-        raise ValueError(f"Artifact must stay inside the evidence folder: {filename}")
-    current = root
-    for index, part in enumerate(path.parts):
-        current = current / part
-        try:
-            info = os.lstat(current)
-        except FileNotFoundError:
-            raise ValueError(f"Missing evidence artifact: {filename}") from None
-        check_component(info, index == len(path.parts) - 1, filename)
-    if not current.resolve().is_relative_to(root):
-        raise ValueError(f"Artifact must stay inside the evidence folder: {filename}")
-    return current, path
+def open_artifact(root, filename):
+    """Open a regular file inside root, walking pinned directory descriptors.
 
-
-def read_artifact(path, filename, limit):
-    fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
-    with os.fdopen(fd, 'rb') as handle:
-        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+    Every component is opened relative to its parent's descriptor with
+    O_NOFOLLOW, so swapping any directory for a symlink after it was checked
+    cannot redirect the read outside the evidence folder.
+    """
+    path = artifact_name(filename)
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for index, part in enumerate(path.parts):
+            last = index == len(path.parts) - 1
+            try:
+                info = os.stat(part, dir_fd=fd, follow_symlinks=False)
+            except FileNotFoundError:
+                raise ValueError(f"Missing evidence artifact: {filename}") from None
+            check_component(info, last, filename)
+            flags = os.O_RDONLY | os.O_NOFOLLOW | (os.O_NONBLOCK if last else os.O_DIRECTORY)
+            try:
+                child = os.open(part, flags, dir_fd=fd)
+            except OSError:
+                raise ValueError(f"Evidence artifact changed while rendering: {filename}") from None
+            os.close(fd)
+            fd = child
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise ValueError(f"Artifact must be a regular file: {filename}")
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd, path
+
+
+def check_artifact(root, filename):
+    fd, path = open_artifact(root, filename)
+    os.close(fd)
+    return path
+
+
+def read_artifact(fd, filename, limit):
+    with os.fdopen(fd, 'rb') as handle:
+        if limit is None:
+            return handle.read()
         data = handle.read(limit + 1)
     if len(data) > limit:
         raise ValueError(
@@ -106,16 +207,11 @@ class Images:
         self.total = 0
 
     def add(self, filename):
-        path, relative = artifact_path(self.root, filename)
+        fd, relative = open_artifact(self.root, filename)
+        data = read_artifact(fd, filename, MAX_IMAGE_BYTES if self.standalone else None)
+        mime = validate_image(data, filename)
         if not self.standalone:
-            with open(path, 'rb') as handle:
-                if not image_mime(handle.read(16)):
-                    raise ValueError(f"Unsupported screenshot type (use PNG, JPEG, or WebP): {filename}")
             return quote(relative.as_posix(), safe='/')
-        data = read_artifact(path, filename, MAX_IMAGE_BYTES)
-        mime = image_mime(data)
-        if not mime:
-            raise ValueError(f"Unsupported screenshot type (use PNG, JPEG, or WebP): {filename}")
         digest = hashlib.sha256(data).hexdigest()
         if digest not in self.payloads:
             self.total += len(data)
@@ -166,15 +262,14 @@ def scenario_html(images, scenario, omitted):
     findings = f'<div class="findings"><p class="eyebrow">Findings</p><ul>{findings}</ul></div>' if findings else ''
     video = ''
     if scenario.get('video'):
-        _, relative = artifact_path(images.root, scenario['video'])
+        relative = check_artifact(images.root, scenario['video'])
         if images.standalone:
             omitted.append(f"video {relative.as_posix()}")
             video = f'<p class="video-note">Video not included in this portable file: {text(relative.as_posix())}</p>'
         else:
             video = f'<video controls preload="metadata" src="{quote(relative.as_posix(), safe="/")}"></video>'
     mode = 'mobile' if 'mobile' in scenario['mode'].lower() else 'desktop'
-    open_steps = ' open' if images.standalone else ''
-    return f'<section class="scenario {mode}" data-mode="{mode}"><div class="scenario-head"><div><h3>{text(scenario["name"])}</h3><p class="scenario-meta">{details}</p></div><span class="badge {status}">{status}</span></div><details class="steps"{open_steps}><summary>Journey · {len(scenario["steps"])} recorded steps</summary><ol>{steps}</ol></details>{findings}<div class="images">{shots}</div>{video}</section>'
+    return f'<section class="scenario {mode}" data-mode="{mode}"><div class="scenario-head"><div><h3>{text(scenario["name"])}</h3><p class="scenario-meta">{details}</p></div><span class="badge {status}">{status}</span></div><details class="steps"><summary>Journey · {len(scenario["steps"])} recorded steps</summary><ol>{steps}</ol></details>{findings}<div class="images">{shots}</div>{video}</section>'
 
 
 def outcome_summary(scenarios):
@@ -234,11 +329,11 @@ def render(manifest, standalone=True):
     head = ''
     noscript = ''
     if standalone:
-        policy = f"default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src '{script_hash(script)}'; base-uri 'none'; form-action 'none'"
+        policy = f"default-src 'none'; img-src blob:; style-src 'unsafe-inline'; script-src '{script_hash(script)}'; base-uri 'none'; form-action 'none'"
         head = f'<meta http-equiv="Content-Security-Policy" content="{text(policy)}">'
         noscript = '<noscript><p class="empty">Screenshots in this file need JavaScript to display. Allow scripts for this local file, or ask for the linked evidence folder.</p></noscript>'
     values = {
-        'HEAD': head, 'TITLE': text(data['title']), 'STATS': report_stats(data, standalone),
+        'HEAD': head, 'WORKSPACE': 'Self-contained evidence file' if standalone else 'Local evidence workspace', 'TITLE': text(data['title']), 'STATS': report_stats(data, standalone),
         'SUBTITLE': text(data.get('subtitle', DEFAULT_SUBTITLE)),
         'CONTEXT': report_context(data, standalone, omitted), 'SCENARIOS': scenarios,
         'NOSCRIPT': noscript, 'FOOTER': footer(standalone, omitted),

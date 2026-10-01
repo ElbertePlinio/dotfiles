@@ -8,7 +8,7 @@ Embedding is capped at 32 MiB per image and 256 MiB in total. Exceeding a cap fa
 
 The manifest requires `title`, `revision`, `target`, and `scenarios`. Each scenario records `name`, `mode`, `browser`, `viewport`, `status` (`pass`, `fail`, or `blocked`), `steps` as strings, and `screenshots` as objects with `file` and `caption`. Optional `video` is a file path. Optional `findings` lists strings, at the top level or per scenario. Optional top-level `limitations` is a list of strings. Include device scale and touch settings in the environment description, since the standalone file must carry all the context a recipient needs.
 
-Artifact paths must be relative to the manifest directory, stay inside it, contain no symlinks or `..`, and name regular files. Screenshots must be PNG, JPEG, or WebP, checked by their content. Passing scenarios require screenshots. Correct missing evidence, unsupported images, and invalid status errors rather than weakening validation. Open the report and images to verify the rendered evidence.
+Artifact paths must be relative to the manifest directory, stay inside it, contain no symlinks or `..`, and name regular files. Screenshots must be complete PNG, JPEG, or WebP images, checked by their content and structure; truncated or corrupt files fail with an error. Passing scenarios require screenshots. Correct missing evidence, unsupported images, and invalid status errors rather than weakening validation. Open the report and images to verify the rendered evidence.
 
 To share a standalone report, send the single HTML file. The recipient downloads it and opens it in a browser. If an email or chat channel blocks HTML attachments or previews, ZIP the HTML file and send the ZIP. No hosted service is needed.
 

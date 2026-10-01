@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import unittest
 import zlib
+from unittest import mock
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1] / "dot_agents/skills/device-pass/scripts/render_report.py"
@@ -28,6 +29,14 @@ def png(width, height, rgb):
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
 
 
+# 16x16 baseline JPEG and lossy WebP from ImageMagick; both render in Chromium.
+JPEG = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//"
+    "2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAQABADASIAAhEBAxEB/8QAFQAB"
+    "AQAAAAAAAAAAAAAAAAAAAAT/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAABv/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhED"
+    "EQA/ALgBcqf/2Q==")
+WEBP = base64.b64decode("UklGRjoAAABXRUJQVlA4IC4AAADwAQCdASoQABAAAoBCJaACdLoB+AAEyAAA/su3/9CT8TZ4mz4RX/kFpXLd2AAA")
+
 EVIL = '</script><script>alert(1)</script>"\'<img src=x onerror=alert(2)>'
 
 
@@ -38,7 +47,8 @@ def write_fixture(root):
     (root / "shots/desktop-form.png").write_bytes(png(320, 200, (255, 122, 26)))
     (root / "shots/mobile-menu.png").write_bytes(png(90, 190, (85, 201, 147)))
     (root / "shots/mobile-copy.png").write_bytes((root / "shots/mobile-menu.png").read_bytes())
-    (root / "shots/error.webp").write_bytes(b"RIFF\x1a\x00\x00\x00WEBPVP8L\x0d\x00\x00\x00\x2f\x00\x00\x00\x00\x07\x10\x11\x11\x88\x88\xfe\x07\x00")
+    (root / "shots/error.webp").write_bytes(WEBP)
+    (root / "shots/receipt.jpg").write_bytes(JPEG)
     (root / "shots/run.webm").write_bytes(b"\x1aE\xdf\xa3 fake video")
     manifest = {
         "title": "Checkout pass ✓ — café 日本語",
@@ -56,7 +66,8 @@ def write_fixture(root):
              "status": "fail", "steps": ["Open menu"], "findings": ["Menu overlaps footer"],
              "screenshots": [{"file": "shots/mobile-menu.png", "caption": "Menu open"},
                              {"file": "shots/mobile-copy.png", "caption": "Identical bytes, other file"},
-                             {"file": "shots/error.webp", "caption": "Error state (WebP)"}],
+                             {"file": "shots/error.webp", "caption": "Error state (WebP)"},
+                             {"file": "shots/receipt.jpg", "caption": "Receipt (JPEG)"}],
              "video": "shots/run.webm"},
             {"name": "Payment provider", "mode": "desktop", "browser": "Chromium 140", "viewport": "1440x1000",
              "status": "blocked", "steps": ["Sandbox credentials unavailable"], "screenshots": []},
@@ -109,6 +120,14 @@ class DevicePassReportTests(unittest.TestCase):
         self.assertIn("390x844", report)
         self.assertIn('<details class="context" open>', report)
         self.assertIn("Self-contained file", report)
+        self.assertIn("<span>Self-contained evidence file</span></header>", report)
+        self.assertNotIn("Local evidence workspace", report)
+
+    def test_both_modes_keep_steps_collapsed(self):
+        for standalone in (True, False):
+            report, _ = module.render(self.manifest, standalone=standalone)
+            self.assertEqual(report.count('<details class="steps">'), 3)
+            self.assertNotIn('<details class="steps" open', report)
 
     def test_malicious_text_is_inert(self):
         report, _ = module.render(self.manifest)
@@ -130,6 +149,41 @@ class DevicePassReportTests(unittest.TestCase):
         self.assert_rejected("link-in.png", "symlink")
         self.assert_rejected("dirlink/desktop-home.png", "symlink")
         self.assert_rejected("shots", "regular file")
+        self.assert_rejected(".", "inside the evidence folder")
+        self.assert_rejected("./", "inside the evidence folder")
+
+    def test_directory_swapped_for_symlink_cannot_redirect_the_read(self):
+        outside = self.base / "outside"
+        outside.mkdir()
+        evil = png(4, 4, (9, 9, 9))
+        (outside / "desktop-home.png").write_bytes(evil)
+        original = (self.root / "shots/desktop-home.png").read_bytes()
+        self.edit(lambda data: data.update(scenarios=[{**data["scenarios"][0], "screenshots": [data["scenarios"][0]["screenshots"][0]]}]))
+        real_open = module.os.open
+
+        def run(trigger):
+            fired = []
+
+            def swap_then_open(path, *args, **kwargs):
+                if not fired and Path(module.os.fspath(path)).name == trigger:
+                    fired.append(True)
+                    (self.root / "shots").rename(self.root / "shots-real")
+                    (self.root / "shots").symlink_to(outside, target_is_directory=True)
+                return real_open(path, *args, **kwargs)
+
+            try:
+                with mock.patch.object(module.os, "open", swap_then_open):
+                    return module.render(self.manifest)[0]
+            finally:
+                self.assertTrue(fired)
+                (self.root / "shots").unlink()
+                (self.root / "shots-real").rename(self.root / "shots")
+
+        report = run("desktop-home.png")
+        self.assertFalse(base64.b64encode(evil).decode() in report, "an image outside the evidence folder was embedded")
+        self.assertEqual([base64.b64decode(item["data"]) for item in embedded(report).values()], [original])
+        with self.assertRaisesRegex(ValueError, "changed while rendering"):
+            run("shots")
 
     def test_missing_and_unsupported_files_are_rejected(self):
         (self.root / "notes.png").write_text("not an image")
@@ -139,6 +193,31 @@ class DevicePassReportTests(unittest.TestCase):
         self.edit(lambda data: data["scenarios"][1].update(video="../outside.webm"))
         with self.assertRaisesRegex(ValueError, "inside the evidence folder"):
             module.render(self.manifest)
+
+    def test_incomplete_images_are_rejected(self):
+        sample = png(8, 8, (1, 2, 3))
+        tampered = bytearray(sample)
+        tampered[-20] ^= 0xFF
+        no_idat = sample[:33] + sample[-12:]
+        cases = {
+            "PNG": [sample[:8], sample[:-12], sample[:len(sample) // 2], bytes(tampered), no_idat, sample + b"extra"],
+            "JPEG": [JPEG[:3], JPEG[:-2], JPEG[:len(JPEG) // 2], JPEG[:2] + JPEG[-2:]],
+            "WebP": [WEBP[:12], WEBP[:-4], WEBP[:len(WEBP) // 2], WEBP[:12] + b"ABCD" + WEBP[16:]],
+        }
+        for label, samples in cases.items():
+            for index, data in enumerate(samples):
+                with self.subTest(label=label, index=index):
+                    (self.root / f"bad-{index}.img").write_bytes(data)
+                    self.assert_rejected(f"bad-{index}.img", f"not a complete {label} image")
+        self.set_first_file("bad-0.img")
+        result = subprocess.run([sys.executable, str(SOURCE), str(self.manifest)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue(result.stderr.startswith("error: Screenshot is not a complete WebP image"), result.stderr)
+        self.assertFalse((self.root / "pass.html").exists())
+
+    def test_valid_images_of_each_type_pass_validation(self):
+        for data, mime in ((png(3, 2, (1, 2, 3)), "image/png"), (JPEG, "image/jpeg"), (WEBP, "image/webp")):
+            self.assertEqual(module.validate_image(data, "x"), mime)
 
     def test_size_caps_fail_clearly(self):
         original = module.MAX_IMAGE_BYTES, module.MAX_TOTAL_IMAGE_BYTES
@@ -154,20 +233,21 @@ class DevicePassReportTests(unittest.TestCase):
     def test_each_payload_is_embedded_once_with_original_bytes(self):
         report, images = module.render(self.manifest)
         payloads = embedded(report)
-        files = ["desktop-home.png", "desktop-form.png", "mobile-menu.png", "error.webp"]
+        files = ["desktop-home.png", "desktop-form.png", "mobile-menu.png", "error.webp", "receipt.jpg"]
         originals = {hashlib.sha256((self.root / "shots" / f).read_bytes()).hexdigest(): (self.root / "shots" / f).read_bytes() for f in files}
         self.assertEqual(set(payloads), set(originals))
-        self.assertEqual(len(payloads), 4)
+        self.assertEqual(len(payloads), 5)
         for digest, item in payloads.items():
             self.assertEqual(base64.b64decode(item["data"]), originals[digest])
             self.assertEqual(report.count(item["data"]), 1)
         self.assertEqual(payloads[next(d for d, b in originals.items() if b.startswith(b"RIFF"))]["mime"], "image/webp")
         self.assertEqual(images.total, sum(len(b) for b in originals.values()))
-        self.assertEqual(len(re.findall(r'<img data-img="[0-9a-f]{64}"', report)), 6)
+        self.assertEqual(len(re.findall(r'<img data-img="[0-9a-f]{64}"', report)), 7)
 
     def test_standalone_has_no_external_or_relative_references(self):
         report, _ = module.render(self.manifest)
-        self.assertIsNone(re.search(r"https?:|//[a-z]", report.replace("http://localhost:3000", ""), re.I))
+        markup = re.sub(r'<script type="application/json" id="images">.*?</script>', "", report, flags=re.S)
+        self.assertIsNone(re.search(r"https?:|//[a-z]", markup.replace("http://localhost:3000", ""), re.I))
         for attr, value in re.findall(r'\b(src|href)="([^"]*)"', report):
             self.assertTrue(value.startswith("#"), f"{attr}={value}")
         self.assertNotIn("<video", report)
@@ -182,7 +262,8 @@ class DevicePassReportTests(unittest.TestCase):
         self.assertEqual(len(scripts), 1)
         digest = base64.b64encode(hashlib.sha256(scripts[0].encode()).digest()).decode()
         self.assertIn(f"script-src 'sha256-{digest}'", csp)
-        for directive in ("default-src 'none'", "img-src data:", "style-src 'unsafe-inline'", "base-uri 'none'", "form-action 'none'"):
+        self.assertNotIn("data:", csp)
+        for directive in ("default-src 'none'", "img-src blob:", "style-src 'unsafe-inline'", "base-uri 'none'", "form-action 'none'"):
             self.assertIn(directive, csp)
 
     def test_cli_writes_only_report_and_keeps_evidence_unchanged(self):
@@ -192,13 +273,13 @@ class DevicePassReportTests(unittest.TestCase):
         self.assertEqual(snapshot(self.root), {**before, str(output): (output.read_bytes(), output.stat().st_mtime_ns)})
         self.assertIn(str(output), result.stdout)
         self.assertIn("size:", result.stdout)
-        self.assertIn("embedded images: 4 unique", result.stdout)
+        self.assertIn("embedded images: 5 unique", result.stdout)
         elsewhere = self.base / "unrelated"
         elsewhere.mkdir()
         shutil.copy(output, elsewhere / "report.html")
         copied = (elsewhere / "report.html").read_text(encoding="utf-8")
         self.assertNotIn("shots/desktop", re.sub(r'<script type="application/json".*?</script>', "", copied, flags=re.S).replace("shots/run.webm", ""))
-        self.assertEqual(len(embedded(copied)), 4)
+        self.assertEqual(len(embedded(copied)), 5)
 
     def test_cli_reports_errors_without_writing(self):
         self.set_first_file("../x.png")
@@ -215,6 +296,7 @@ class DevicePassReportTests(unittest.TestCase):
         self.assertNotIn('id="images"', report)
         self.assertNotIn("Content-Security-Policy", report)
         self.assertIn("Saved evidence, outside the application repository", report)
+        self.assertIn("<span>Local evidence workspace</span></header>", report)
 
 
 if __name__ == "__main__":
