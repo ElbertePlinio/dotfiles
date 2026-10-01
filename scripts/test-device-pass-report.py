@@ -5,6 +5,7 @@ import base64
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import shutil
 import struct
@@ -241,6 +242,18 @@ class DevicePassReportTests(unittest.TestCase):
                 (self.root / f"crafted-{index}.img").write_bytes(data)
                 self.assert_rejected(f"crafted-{index}.img", f"not a complete {label} image")
 
+    def test_huge_png_dimensions_are_rejected_before_inflating(self):
+        def png_chunk(kind, body):
+            return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
+        header = struct.pack(">IIBBBBB", 2**31 - 1, 2**31 - 1, 8, 6, 0, 0, 0)
+        self.assertIsNone(module.png_raw_size(header))
+        bomb = zlib.compress(bytes(8 * 1024 * 1024), 9)
+        data = b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", header) + png_chunk(b"IDAT", bomb) + png_chunk(b"IEND", b"")
+        (self.root / "huge.png").write_bytes(data)
+        with mock.patch.object(module, "png_stream_complete") as inflate:
+            self.assert_rejected("huge.png", "not a complete PNG image")
+        inflate.assert_not_called()
+
     def test_trailing_data_is_named_in_the_error(self):
         with self.assertRaisesRegex(ValueError, r"truncated, corrupt, or has data after the image end"):
             module.validate_image(JPEG + b"tail", "x")
@@ -321,6 +334,7 @@ class DevicePassReportTests(unittest.TestCase):
         self.assertIn("inside the evidence folder", result.stderr)
         self.assertFalse((self.root / "pass.html").exists())
 
+    @unittest.skipIf(os.geteuid() == 0, "root ignores directory permissions")
     def test_cli_reports_unreadable_folder_without_traceback(self):
         self.root.chmod(0o300)
         self.addCleanup(self.root.chmod, 0o755)

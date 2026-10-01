@@ -30,6 +30,7 @@ from urllib.parse import quote
 
 MAX_IMAGE_BYTES = 32 * 1024 * 1024
 MAX_TOTAL_IMAGE_BYTES = 256 * 1024 * 1024
+MAX_PNG_RAW_BYTES = 1024 * 1024 * 1024
 STATUSES = ('pass', 'fail', 'blocked')
 DEFAULT_SUBTITLE = 'A visual record of the tested journeys. Open any capture for a closer look.'
 
@@ -69,7 +70,7 @@ def png_raw_size(header):
         columns, rows = (width - x + dx - 1) // dx, (height - y + dy - 1) // dy
         if columns and rows:
             total += rows * (1 + (columns * bits + 7) // 8)
-    return total
+    return total if total <= MAX_PNG_RAW_BYTES else None
 
 
 def png_stream_complete(compressed, expected):
