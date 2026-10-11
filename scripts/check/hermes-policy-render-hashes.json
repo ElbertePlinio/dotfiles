@@ -1,7 +1,7 @@
 {
-  "dot_claude/CLAUDE.md.tmpl": "1451318206f7838db44077a6cc8c956b4d511af8cdeadbad471dcea473fae7e6",
-  "dot_codex/AGENTS.md.tmpl": "7d0d0b442e120dc5edbd429dd40d01d1c49c00d6e5e18663ab1c9d734c7d4f9e",
-  "dot_grok/AGENTS.md.tmpl": "8d9770b5e33ab89b6393de48ce81e0c7b5ea8cc7edb3d239e7a5866e820b40d7",
-  "dot_pi/agent/AGENTS.md.tmpl": "6c32eabbd7aaaacd08ec9b1a45f340638fffc4b0f868f92d0ed5868092b2af7a",
-  "dot_omp/agent/AGENTS.md.tmpl": "d3fe891245b724feb675eb3dafc279d5b1eb32c2a5f125cd843d7559c674ff6a"
+  "dot_claude/CLAUDE.md.tmpl": "c9aad949d6f02e241ac54a14fe238322487eba80eeacefd50eefd4ff4026c2f8",
+  "dot_codex/AGENTS.md.tmpl": "4783e34a1a5a7f8799ef0084bbcb9a8dac547da1974eb6624678d6a2bde46b27",
+  "dot_grok/AGENTS.md.tmpl": "76f8bcff4d0874db283d2f2528f0df1019a7db6a749414f49f5a3310a7d95762",
+  "dot_pi/agent/AGENTS.md.tmpl": "d6d5b207428bdeb998eb0e7427bc33f7f9f04cd51dc4a6317e15ffca821ea5f8",
+  "dot_omp/agent/AGENTS.md.tmpl": "f170f7fbd250f6e8cf9023190e9fa3f5efb6f899c3b8c4dbb3d01d11b28cedd6"
 }

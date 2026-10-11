@@ -97,6 +97,16 @@
       "pi",
       "omp",
       "hermes"
+    ],
+    "kickoff-codex": [
+      "codex"
+    ],
+    "zen-browser": [
+      "claude",
+      "codex",
+      "grok",
+      "pi",
+      "omp"
     ]
   }
 }

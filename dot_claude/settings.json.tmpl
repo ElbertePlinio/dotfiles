@@ -1,6 +1,7 @@
 {{- $tools := includeTemplate "agent-tools.json" . | fromJson -}}
 {
   "theme": "dark",
+  "cleanupPeriodDays": 3650,
   "permissions": {
     "allow": [
       "Read",
@@ -201,12 +202,23 @@
     "context7@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": true,
+    "stripe@claude-plugins-official": true,
+    "hyperframes@hyperframes": true
+  },
+  "extraKnownMarketplaces": {
+    "hyperframes": {
+      "source": {
+        "source": "github",
+        "repo": "heygen-com/hyperframes"
+      }
+    }
   },
   "effortLevel": "medium",
+  "autoCompactWindow": 400000,
   "modelSettings": {
     "claude-opus-5-5": {
-      "effortLevel": "medium"
+      "effortLevel": "low"
     },
     "claude-fable-5-1": {
       "effortLevel": "medium"
