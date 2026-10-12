@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+# Read-only Sentry MCP for the pickforge org. The token comes from the
+# agent-read internal integration (event, org and project read only).
+for tool in bun gcloud; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    printf 'error: %s is required for sentry-mcp\n' "$tool" >&2
+    exit 127
+  fi
+done
+
+if ! SENTRY_ACCESS_TOKEN="$(gcloud secrets versions access latest --secret sentry-read-token --project pickforge 2>/dev/null)"; then
+  printf '%s\n' 'error: cannot read Secret Manager sentry-read-token in project pickforge' >&2
+  exit 1
+fi
+export SENTRY_ACCESS_TOKEN
+
+exec bunx --bun @sentry/mcp-server@0.42.0 --organization-slug=pickforge --skills=inspect,docs "$@"
