@@ -49,6 +49,7 @@ fi
 CHECK="$SOURCE/scripts/check-agent-config-sync.sh"
 PICKFORGE_LANES_CONFIGURE="$SOURCE/run_onchange_after_configure_pickforge_lanes_mcp.sh"
 CODEX_LANES_CONFIGURE="$SOURCE/run_onchange_after_configure_codex_lanes_mcp.py"
+SENTRY_MCP_CONFIGURE="$SOURCE/run_onchange_after_configure_claude_sentry_mcp.sh"
 MANIFEST="$SOURCE/dot_agents/skill-targets.json"
 RETIREMENT_LIST="$SOURCE/.chezmoiremove"
 SRC=(--source "$SOURCE")
@@ -95,6 +96,7 @@ AGENT_ACTIVE_TARGETS=(
   "${HOME}/.agents/stripe.env"
   "${HOME}/.agents/skills"
   "${HOME}/.local/bin/pickforge-lanes-mcp"
+  "${HOME}/.local/bin/sentry-mcp"
   "${HOME}/.local/bin/agent-harness-preflight"
   "${HOME}/.local/bin/sudo-askpass"
   "${HOME}/.config/agent-config-sync/doctor.json"
@@ -495,6 +497,11 @@ cmd_apply() {
   fi
   if ! python3 "$CODEX_LANES_CONFIGURE"; then
     echo "agent-config-sync: Codex lanes MCP registration failed" >&2
+    rm -rf "$work_dir"
+    return 1
+  fi
+  if ! sh "$SENTRY_MCP_CONFIGURE"; then
+    echo "agent-config-sync: Sentry MCP registration for Claude failed" >&2
     rm -rf "$work_dir"
     return 1
   fi

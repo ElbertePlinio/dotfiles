@@ -79,6 +79,7 @@ check_sync_command_flow() {
     dot_local/bin/executable_sudo-askpass
     dot_local/bin/executable_agent-harness-preflight
     dot_local/bin/executable_pickforge-lanes-mcp
+    dot_local/bin/executable_sentry-mcp
     dot_config/environment.d/50-sudo-askpass.conf.tmpl
     dot_config/environment.d/60-omp.conf
     dot_config/environment.d/70-pi-caffeinate.conf
@@ -149,6 +150,13 @@ printf '%s\n' configured >>"$SYNC_CONFIGURE_LOG"
 EOF
   chmod 0755 "$flow_source/run_onchange_after_configure_pickforge_lanes_mcp.sh"
   printf '%s\n' '# Codex registration is tested separately.' >"$flow_source/run_onchange_after_configure_codex_lanes_mcp.py"
+  cat >"$flow_source/run_onchange_after_configure_claude_sentry_mcp.sh" <<'EOF'
+#!/bin/sh
+set -eu
+[ -x "$HOME/.local/bin/sentry-mcp" ]
+printf '%s\n' sentry-configured >>"$SYNC_CONFIGURE_LOG"
+EOF
+  chmod 0755 "$flow_source/run_onchange_after_configure_claude_sentry_mcp.sh"
   printf '%s\n' changed-unrelated >"$flow_source/dot_unrelated-agent-config-probe"
   printf '%s\n' retired >"$flow_home/.retired-agent-config-probe/sentinel"
   printf '%s\n' retired >"$divergent_home/.retired-agent-config-probe/sentinel"
@@ -181,6 +189,7 @@ EOF
       && grep -Fxq original-unrelated "$flow_home/.unrelated-agent-config-probe" \
       && [[ ! -e "$script_marker" ]] \
       && [[ "$(grep -Fxc configured "$configure_log")" -eq 1 ]] \
+      && [[ "$(grep -Fxc sentry-configured "$configure_log")" -eq 1 ]] \
       && cmp -s "$expected_log" "$flow_log"; then
       pass 'temporary scoped sync updates skill-lock metadata target from source'
       pass 'temporary scoped sync applies browser-use policy target'
@@ -188,6 +197,7 @@ EOF
       pass 'temporary scoped sync removes present retirement and skips absent retirement'
       pass 'temporary sync applies only agent targets and retirements without implicit run scripts'
       pass 'temporary sync invokes managed pickforge-lanes registration once after target apply'
+      pass 'temporary sync installs sentry-mcp and invokes Sentry MCP registration once'
     else
       err 'temporary scoped sync changed an unrelated target, ran a script, or missed agent cleanup'
     fi
