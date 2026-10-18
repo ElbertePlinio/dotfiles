@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+# Keeps the tools I develop installed at their newest commit. A systemd path unit watches each
+# project's git ref; every new commit is built in a clean worktree, installed, and restarted,
+# and a notification says what changed. A failed build keeps the previous install.
+#
+#   devloop status [NAME] [--json]  show what is installed and what the ref points at
+#   devloop build NAME              build and install now if the ref moved (--force: always)
+#   devloop enable NAME | --all     watch the project's ref, then build once
+#   devloop disable NAME            stop watching
+#   devloop fetch                   fetch remotes for projects that track one (timer runs it)
+#   devloop log NAME                show the last build log
+#
+# Projects live in ~/.config/devloop/NAME.conf, a shell file with:
+#   repo=PATH       the main checkout
+#   ref=REF         a local branch (main) or a remote one (origin/main)
+#   build='...'     run in the build worktree; DEVLOOP_CACHE is a persistent cache dir
+#   install='...'   run in the build worktree after a good build; swap files here
+#   idle='...'      optional; install waits until this command succeeds (up to 10 minutes)
+#   label=NAME      optional display name
+set -euo pipefail
+
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/devloop"
+state_root="${XDG_STATE_HOME:-$HOME/.local/state}/devloop"
+cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/devloop"
+unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+self=$(readlink -f "$0")
+
+die() { printf 'devloop: %s\n' "$*" >&2; exit 1; }
+
+load() {
+  local name="$1" file="$config_dir/$1.conf"
+  [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "invalid project name: $name"
+  [ -f "$file" ] || die "no project $name (expected $file)"
+  repo='' ref='' build='' install='' idle='' label="$name"
+  # shellcheck source=/dev/null
+  . "$file"
+  [ -n "$repo" ] && [ -n "$ref" ] && [ -n "$build" ] && [ -n "$install" ] \
+    || die "$file needs repo, ref, build, and install"
+  repo="${repo/#\~/$HOME}"
+  state="$state_root/$name"
+  cache="$cache_root/$name"
+  worktree="$HOME/Projects/.worktrees/$(basename "$repo")/devloop"
+}
+
+common_dir() { git -C "$repo" rev-parse --path-format=absolute --git-common-dir; }
+
+# A ref like origin/main is a remote-tracking branch; anything else is a local branch.
+ref_path() {
+  local remote="${ref%%/*}"
+  if git -C "$repo" remote | grep -qx "$remote" && [ "$remote" != "$ref" ]; then
+    printf 'refs/remotes/%s\n' "$ref"
+  else
+    printf 'refs/heads/%s\n' "$ref"
+  fi
+}
+
+remote_of() {
+  case "$(ref_path)" in
+    refs/remotes/*) printf '%s\n' "${ref%%/*}" ;;
+  esac
+}
+
+target_sha() { git -C "$repo" rev-parse --verify --quiet "$(ref_path)^{commit}"; }
+
+field() { [ -f "$state/$1" ] && cat "$state/$1" || true; }
+
+set_field() { mkdir -p "$state"; printf '%s\n' "$2" > "$state/$1.tmp"; mv "$state/$1.tmp" "$state/$1"; }
+
+notify() {
+  command -v notify-send >/dev/null || return 0
+  notify-send -a devloop "$@" >/dev/null 2>&1 || true
+}
+
+prepare_worktree() {
+  local sha="$1"
+  if [ ! -e "$worktree/.git" ]; then
+    mkdir -p "$(dirname "$worktree")"
+    git -C "$repo" worktree add --detach --force "$worktree" "$sha" >/dev/null
+  else
+    git -C "$worktree" checkout --detach --force "$sha" >/dev/null 2>&1
+  fi
+  # Keep ignored files (node_modules, build caches); drop anything else left behind.
+  git -C "$worktree" clean -fdq
+}
+
+wait_idle() {
+  [ -n "$idle" ] || return 0
+  local waited=0
+  until (cd "$worktree" && bash -c "$idle") >/dev/null 2>&1; do
+    [ "$waited" -ge 600 ] && return 0
+    sleep 5
+    waited=$((waited + 5))
+  done
+}
+
+run_step() {
+  local step="$1" commands="$2"
+  printf '\n== %s (%s)\n' "$step" "$(date -Is)" >>"$state/build.log"
+  (cd "$worktree" && DEVLOOP_CACHE="$cache" DEVLOOP_SHA="$sha" bash -euo pipefail -c "$commands") \
+    >>"$state/build.log" 2>&1
+}
+
+build_once() {
+  local force="$1"
+  sha=$(target_sha) || die "$label: ref $ref does not exist in $repo"
+  if [ "$force" = 0 ] && [ "$sha" = "$(field installed)" ]; then
+    return 1
+  fi
+  local short subject
+  short=$(git -C "$repo" rev-parse --short "$sha")
+  subject=$(git -C "$repo" log -1 --format=%s "$sha")
+  mkdir -p "$state" "$cache"
+  : >"$state/build.log"
+  set_field building "$sha"
+  set_field state building
+  prepare_worktree "$sha"
+  if run_step build "$build" && wait_idle && run_step install "$install"; then
+    set_field installed "$sha"
+    set_field state ok
+    set_field updated_at "$(date +%s)"
+    notify "$label updated" "$short · $subject"
+  else
+    set_field failed "$sha"
+    set_field state failed
+    notify -u critical "$label build failed" "$short · $subject — devloop log ${name}"
+  fi
+  rm -f "$state/building"
+  return 0
+}
+
+cmd_build() {
+  local force=0 name=""
+  for arg in "$@"; do
+    case "$arg" in --force) force=1 ;; *) name="$arg" ;; esac
+  done
+  [ -n "$name" ] || die "usage: devloop build NAME [--force]"
+  load "$name"
+  mkdir -p "$state"
+  exec 9>"$state/lock"
+  flock -n 9 || { echo "$label: a build is already running" >&2; exit 0; }
+  # Commits that land during a build are picked up by the next pass.
+  build_once "$force" || true
+  while [ "$(target_sha)" != "$(field installed)" ] && [ "$(target_sha)" != "$(field failed)" ]; do
+    build_once 0 || break
+  done
+}
+
+status_json() {
+  local target installed
+  target=$(target_sha || true)
+  installed=$(field installed)
+  local current; current=$(field state)
+  if [ "$current" = ok ] && [ -n "$target" ] && [ "$target" != "$installed" ]; then
+    current=behind
+  fi
+  jq -cn --arg name "$name" --arg label "$label" --arg ref "$ref" \
+    --arg state "${current:-never}" \
+    --arg installed "${installed:0:7}" --arg target "${target:0:7}" \
+    --arg building "$(field building | cut -c1-7)" \
+    --arg subject "$( [ -n "$installed" ] && git -C "$repo" log -1 --format=%s "$installed" 2>/dev/null || true)" \
+    --arg updated "$(field updated_at)" \
+    --arg watching "$(systemctl --user is-active "devloop-$name.path" 2>/dev/null || true)" \
+    '{name: $name, label: $label, ref: $ref, state: $state,
+      installed: ($installed | select(. != "") // null), target: ($target | select(. != "") // null),
+      building: ($building | select(. != "") // null), subject: $subject,
+      updated_at: ($updated | tonumber? // null), watching: ($watching == "active")}'
+}
+
+cmd_status() {
+  local json=0 names=()
+  for arg in "$@"; do
+    case "$arg" in --json) json=1 ;; *) names+=("$arg") ;; esac
+  done
+  if [ ${#names[@]} -eq 0 ]; then
+    for file in "$config_dir"/*.conf; do [ -e "$file" ] && names+=("$(basename "$file" .conf)"); done
+  fi
+  for name in "${names[@]}"; do
+    load "$name"
+    if [ "$json" = 1 ]; then
+      status_json
+    else
+      status_json | jq -r '"\(.label): \(.state), installed \(.installed // "-"), \(.ref) at \(.target)\(if .watching then "" else " (not watching)" end)"'
+    fi
+  done
+}
+
+cmd_enable() {
+  local names=()
+  if [ "${1:-}" = --all ]; then
+    for file in "$config_dir"/*.conf; do [ -e "$file" ] && names+=("$(basename "$file" .conf)"); done
+  else
+    names=("${1:?usage: devloop enable NAME | --all}")
+  fi
+  mkdir -p "$unit_dir"
+  for name in "${names[@]}"; do
+    load "$name"
+    [ -d "$repo" ] || { echo "devloop: skipping $name, $repo is missing" >&2; continue; }
+    local common; common=$(common_dir)
+    cat >"$unit_dir/devloop-$name.path" <<EOF
+[Unit]
+Description=Rebuild $label when $ref moves
+
+[Path]
+PathChanged=$common/$(ref_path)
+PathChanged=$common/packed-refs
+Unit=devloop@$name.service
+
+[Install]
+WantedBy=default.target
+EOF
+    systemctl --user daemon-reload
+    systemctl --user enable --now "devloop-$name.path" >/dev/null
+    systemctl --user start --no-block "devloop@$name.service"
+    echo "devloop: watching $label ($ref)"
+  done
+}
+
+cmd_disable() {
+  local name="${1:?usage: devloop disable NAME}"
+  load "$name"
+  systemctl --user disable --now "devloop-$name.path" >/dev/null 2>&1 || true
+  rm -f "$unit_dir/devloop-$name.path"
+  systemctl --user daemon-reload
+}
+
+cmd_fetch() {
+  for file in "$config_dir"/*.conf; do
+    [ -e "$file" ] || continue
+    load "$(basename "$file" .conf)"
+    [ -d "$repo" ] || continue
+    local remote; remote=$(remote_of)
+    [ -n "$remote" ] || continue
+    # Updating the remote-tracking ref triggers the path unit.
+    GIT_TERMINAL_PROMPT=0 timeout 120 git -C "$repo" fetch --quiet "$remote" "${ref#*/}" || true
+  done
+}
+
+case "${1:-}" in
+  status) shift; cmd_status "$@" ;;
+  build) shift; cmd_build "$@" ;;
+  enable) shift; cmd_enable "$@" ;;
+  disable) shift; cmd_disable "$@" ;;
+  fetch) cmd_fetch ;;
+  log) load "${2:?usage: devloop log NAME}"; cat "$state/build.log" ;;
+  *) sed -n '2,20p' "$self" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

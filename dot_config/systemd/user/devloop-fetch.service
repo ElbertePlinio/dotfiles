@@ -1,0 +1,7 @@
+[Unit]
+Description=Fetch remotes for projects devloop tracks
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+ExecStart=%h/.local/bin/devloop fetch

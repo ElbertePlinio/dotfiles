@@ -1,0 +1,8 @@
+[Unit]
+Description=Build and install %i at its newest commit (devloop)
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:%h/.bun/bin:%h/.cargo/bin:/usr/local/bin:/usr/bin
+Nice=10
+ExecStart=%h/.local/bin/devloop build %i
