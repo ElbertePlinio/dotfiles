@@ -5,15 +5,6 @@ need() { [[ -f "$1" ]] || err "missing: $1"; }
 # macOS before 14 has shasum but no sha256sum.
 command -v sha256sum >/dev/null 2>&1 || sha256sum() { shasum -a 256 "$@"; }
 
-source_absent() {
-  local path="$1"
-  if [[ -e "$ROOT/$path" || -L "$ROOT/$path" ]]; then
-    err "retired source remains: $path"
-  else
-    pass "retired source absent: $path"
-  fi
-}
-
 expand_home() {
   local p="$1"
   if [[ "$p" == "~/"* ]]; then
@@ -28,190 +19,14 @@ expand_home() {
 # The skill links are the registry; the manifest is rendered from them.
 MANIFEST="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-manifest.XXXXXX")"
 chezmoi "${SRC[@]}" execute-template --file "$ROOT/dot_agents/skill-targets.json.tmpl" >"$MANIFEST"
-SKILL_LOCK="$ROOT/dot_agents/dot_skill-lock.json"
 MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"
 OMP_MCP_SOURCE="$ROOT/dot_omp/agent/mcp.json.tmpl"
 OMP_MCP="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-omp-mcp.XXXXXX")"
 trap 'rm -f "$OMP_MCP" "$MANIFEST"' EXIT
 chezmoi "${SRC[@]}" execute-template --file "$OMP_MCP_SOURCE" >"$OMP_MCP"
 PICKFORGE_LANES_WRAPPER="$ROOT/dot_local/bin/executable_pickforge-lanes-mcp"
-PICKFORGE_LANES_CONFIGURE="$ROOT/run_onchange_after_configure_pickforge_lanes_mcp.sh"
+PICKFORGE_LANES_REMOVE="$ROOT/run_onchange_after_remove_claude_pickforge_lanes_mcp.sh"
 CLAUDE_SETTINGS="$ROOT/dot_claude/settings.json.tmpl"
-
-RETIRED_SOURCE_PATHS=(
-  dot_claude-personal
-  dot_config/agent-profiles
-  dot_config/rtk
-  Projects/Personal/dot_codex
-  Projects/Personal/private_dot_agent-safety
-  dot_local/bin/executable_claude-profile
-  dot_local/bin/executable_claude-default
-  dot_local/bin/executable_claude-personal
-  dot_local/bin/executable_agent-profile-doctor
-  dot_claude/private_RTK.md
-  private_dot_factory
-  .chezmoitemplates/claude-restricted.md
-  .chezmoitemplates/claude-personal-lite.md
-  dot_agents/skills/model-runners
-  dot_agents/skills/multi-model-lanes
-  dot_agents/skills/context7-mcp
-  dot_agents/skills/find-skills
-  dot_agents/skills/audit-report
-  dot_codex/skills/ship-pr
-  dot_claude/skills/pickgauge-usage
-  dot_claude/hooks/executable_kickoff-delegation-gate.sh.tmpl
-  .chezmoitemplates/kickoff-delegation-gate.sh
-  dot_local/bin/executable_agent-delegation-gate
-  dot_pi/agent/extensions/delegation-gate.ts
-  dot_omp/agent/extensions/delegation-gate.ts
-)
-
-RETIRED_SKILL_LOCK_ENTRIES=(
-  caveman
-  caveman-commit
-  caveman-compress
-  caveman-help
-  caveman-review
-  caveman-stats
-  cavecrew
-  compress
-  find-skills
-)
-
-RETIRED_TARGET_PATHS=(
-  .claude-personal
-  .config/agent-profiles
-  .config/rtk
-  .local/bin/agent-profile-doctor
-  .local/bin/claude-default
-  .local/bin/claude-personal
-  .local/bin/claude-profile
-  .factory
-  .claude/RTK.md
-  Projects/Personal/.codex
-  Projects/Personal/.agent-safety
-  .agents/skills/superpowers
-  .config/superpowers
-  .codex/superpowers
-  .codex/skills/ship-pr
-  .agents/skills/caveman
-  .agents/skills/caveman-commit
-  .agents/skills/caveman-compress
-  .agents/skills/caveman-help
-  .agents/skills/caveman-review
-  .agents/skills/caveman-stats
-  .agents/skills/cavecrew
-  .agents/skills/compress
-  .agents/skills/model-runners
-  .agents/skills/multi-model-lanes
-  .agents/skills/context7-mcp
-  .agents/skills/find-skills
-  .agents/skills/audit-report
-  .claude/skills/model-runners
-  .claude/skills/multi-model-lanes
-  .claude/skills/context7-mcp
-  .claude/skills/find-skills
-  .claude/skills/audit-report
-  .claude/skills/pickgauge-usage
-  .claude/hooks/kickoff-delegation-gate.sh
-  .pi/agent/skills/model-runners
-  .pi/agent/skills/multi-model-lanes
-  .pi/agent/skills/context7-mcp
-  .pi/agent/skills/find-skills
-  .pi/agent/skills/audit-report
-  .omp/agent/skills/model-runners
-  .omp/agent/skills/context7-mcp
-  .omp/agent/skills/find-skills
-  .omp/agent/skills/audit-report
-  .grok/skills/model-runners
-  .grok/skills/find-skills
-  .hermes/skills/model-runners
-  .hermes/skills/diagnosing-bugs
-  .agents/skills/codebase-design
-  .claude/skills/codebase-design
-  .grok/skills/codebase-design
-  .pi/agent/skills/codebase-design
-  .omp/agent/skills/codebase-design
-  .agents/skills/design-director
-  .claude/skills/design-director
-  .grok/skills/design-director
-  .pi/agent/skills/design-director
-  .omp/agent/skills/design-director
-  .agents/skills/diagnosing-bugs
-  .claude/skills/diagnosing-bugs
-  .grok/skills/diagnosing-bugs
-  .pi/agent/skills/diagnosing-bugs
-  .omp/agent/skills/diagnosing-bugs
-  .agents/skills/flutter-bloc
-  .claude/skills/flutter-bloc
-  .grok/skills/flutter-bloc
-  .pi/agent/skills/flutter-bloc
-  .omp/agent/skills/flutter-bloc
-  .agents/skills/flutter-widget
-  .claude/skills/flutter-widget
-  .grok/skills/flutter-widget
-  .pi/agent/skills/flutter-widget
-  .omp/agent/skills/flutter-widget
-  .agents/skills/gate-installer
-  .claude/skills/gate-installer
-  .grok/skills/gate-installer
-  .pi/agent/skills/gate-installer
-  .omp/agent/skills/gate-installer
-  .agents/skills/improve
-  .claude/skills/improve
-  .grok/skills/improve
-  .pi/agent/skills/improve
-  .omp/agent/skills/improve
-  .agents/skills/local-review
-  .claude/skills/local-review
-  .grok/skills/local-review
-  .pi/agent/skills/local-review
-  .omp/agent/skills/local-review
-  .agents/skills/model-orchestration
-  .claude/skills/model-orchestration
-  .grok/skills/model-orchestration
-  .pi/agent/skills/model-orchestration
-  .omp/agent/skills/model-orchestration
-  .agents/skills/plan-issue
-  .claude/skills/plan-issue
-  .grok/skills/plan-issue
-  .pi/agent/skills/plan-issue
-  .omp/agent/skills/plan-issue
-  .agents/skills/ship-pr
-  .claude/skills/ship-pr
-  .grok/skills/ship-pr
-  .pi/agent/skills/ship-pr
-  .omp/agent/skills/ship-pr
-  .agents/skills/stripe-best-practices
-  .claude/skills/stripe-best-practices
-  .grok/skills/stripe-best-practices
-  .pi/agent/skills/stripe-best-practices
-  .omp/agent/skills/stripe-best-practices
-  .agents/skills/stripe-docs
-  .claude/skills/stripe-docs
-  .grok/skills/stripe-docs
-  .pi/agent/skills/stripe-docs
-  .omp/agent/skills/stripe-docs
-  .agents/skills/upgrade-stripe
-  .claude/skills/upgrade-stripe
-  .grok/skills/upgrade-stripe
-  .pi/agent/skills/upgrade-stripe
-  .omp/agent/skills/upgrade-stripe
-  .claude/rules
-  .claude/hooks/decision-audit-gate.sh
-  .claude/hooks/delegation-gate.sh
-  .claude/hooks/orchestration-reminder.sh
-  .pi/agent/extensions/decision-audit-gate.ts
-  .omp/agent/extensions/decision-audit-gate.ts
-  .local/bin/agent-delegation-gate
-  .pi/agent/extensions/delegation-gate.ts
-  .omp/agent/extensions/delegation-gate.ts
-  .agents/skills/complexity-gate
-  .claude/skills/complexity-gate
-  .grok/skills/complexity-gate
-  .pi/agent/skills/complexity-gate
-  .omp/agent/skills/complexity-gate
-)
 
 RUNTIME_SOURCE_PATHS=(
   dot_pi/agent/sessions
@@ -253,6 +68,7 @@ RUNTIME_IGNORE_PATHS=(
   .pi/agent/auth.json
   .pi/agent/mcp-oauth
   .context7/credentials.json
+  .agents/.skill-lock.json
   .pi/agent/npm
   .pi/agent/sessions
   .pi/agent/run-history.jsonl

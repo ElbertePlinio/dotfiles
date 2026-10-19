@@ -15,7 +15,7 @@ check_pickforge_lanes_deployment() {
   local mode status started elapsed descendant_pid
 
   need "$PICKFORGE_LANES_WRAPPER"
-  need "$PICKFORGE_LANES_CONFIGURE"
+  need "$PICKFORGE_LANES_REMOVE"
   need "$CLAUDE_SETTINGS"
 
   if [[ -f "$PICKFORGE_LANES_WRAPPER" ]] \
@@ -58,21 +58,21 @@ EOF
     pass 'pickforge lanes wrapper rejects a missing bun runtime'
   fi
 
-  if [[ -f "$PICKFORGE_LANES_CONFIGURE" ]] \
-    && sh -n "$PICKFORGE_LANES_CONFIGURE" \
-    && grep -Fq 'umask 077' "$PICKFORGE_LANES_CONFIGURE" \
-    && grep -Fq 'command -v python3' "$PICKFORGE_LANES_CONFIGURE" \
-    && grep -Fq 'start_new_session=True' "$PICKFORGE_LANES_CONFIGURE" \
-    && grep -Fq 'os.open(output_path, flags, 0o600)' "$PICKFORGE_LANES_CONFIGURE" \
-    && grep -Fq 'os.killpg(process.pid, signal.SIGTERM)' "$PICKFORGE_LANES_CONFIGURE" \
-    && grep -Fq 'os.killpg(process.pid, signal.SIGKILL)' "$PICKFORGE_LANES_CONFIGURE" \
-    && grep -Fq 'claude mcp get pickforge-lanes' "$PICKFORGE_LANES_CONFIGURE" \
-    && grep -Fq 'claude mcp remove --scope user pickforge-lanes' "$PICKFORGE_LANES_CONFIGURE" \
-    && ! grep -Fq 'claude mcp add' "$PICKFORGE_LANES_CONFIGURE" \
-    && ! grep -Fqi 'context7' "$PICKFORGE_LANES_CONFIGURE"; then
+  if [[ -f "$PICKFORGE_LANES_REMOVE" ]] \
+    && sh -n "$PICKFORGE_LANES_REMOVE" \
+    && grep -Fq 'umask 077' "$PICKFORGE_LANES_REMOVE" \
+    && grep -Fq 'command -v python3' "$PICKFORGE_LANES_REMOVE" \
+    && grep -Fq 'start_new_session=True' "$PICKFORGE_LANES_REMOVE" \
+    && grep -Fq 'os.open(output_path, flags, 0o600)' "$PICKFORGE_LANES_REMOVE" \
+    && grep -Fq 'os.killpg(process.pid, signal.SIGTERM)' "$PICKFORGE_LANES_REMOVE" \
+    && grep -Fq 'os.killpg(process.pid, signal.SIGKILL)' "$PICKFORGE_LANES_REMOVE" \
+    && grep -Fq 'claude mcp get pickforge-lanes' "$PICKFORGE_LANES_REMOVE" \
+    && grep -Fq 'claude mcp remove --scope user pickforge-lanes' "$PICKFORGE_LANES_REMOVE" \
+    && ! grep -Fq 'claude mcp add' "$PICKFORGE_LANES_REMOVE" \
+    && ! grep -Fqi 'context7' "$PICKFORGE_LANES_REMOVE"; then
     pass 'pickforge lanes Claude removal uses the required private Python process-group boundary'
   else
-    err 'pickforge lanes configure source contract invalid'
+    err 'pickforge lanes removal script source contract invalid'
   fi
 
   cat >"$fake_bin/claude" <<'EOF'
@@ -130,7 +130,7 @@ EOF
     if HOME="$fake_home" PATH="$fake_bin:/usr/bin:/bin" TMPDIR="$fake_private_root" \
       PICKFORGE_CLAUDE_LOG="$fake_log" PICKFORGE_CLAUDE_MODE="$mode" \
       PICKFORGE_DESCENDANT_PID_FILE="$descendant_pid_file" PICKFORGE_LANES_MCP_TIMEOUT=1 \
-      "$PICKFORGE_LANES_CONFIGURE" >"$run_log" 2>&1; then
+      "$PICKFORGE_LANES_REMOVE" >"$run_log" 2>&1; then
       status=0
     else
       status=$?
@@ -139,8 +139,8 @@ EOF
     case "$mode" in
       remove_failure)
         [[ "$status" -ne 0 ]] \
-          && pass "pickforge lanes configure reports mutation failure: $mode" \
-          || err "pickforge lanes configure hid mutation failure: $mode"
+          && pass "pickforge lanes removal script reports mutation failure: $mode" \
+          || err "pickforge lanes removal script hid mutation failure: $mode"
         ;;
       *)
         [[ "$status" -eq 0 ]] \
@@ -148,69 +148,69 @@ EOF
         ;;
     esac
     if grep -Eiq 'secret-|authorization:|x-api-key:|token=' "$run_log"; then
-      err "pickforge lanes configure leaked private output: $mode"
+      err "pickforge lanes removal script leaked private output: $mode"
     else
-      pass "pickforge lanes configure keeps command output private: $mode"
+      pass "pickforge lanes removal script keeps command output private: $mode"
     fi
     if find "$fake_private_root" -mindepth 1 -print -quit | grep -q .; then
-      err "pickforge lanes configure retained plaintext output: $mode"
+      err "pickforge lanes removal script retained plaintext output: $mode"
     else
-      pass "pickforge lanes configure removes private output: $mode"
+      pass "pickforge lanes removal script removes private output: $mode"
     fi
     if grep -Fqi context7 "$fake_log"; then
-      err "pickforge lanes configure touched Context7: $mode"
+      err "pickforge lanes removal script touched Context7: $mode"
     else
-      pass "pickforge lanes configure leaves Context7 untouched: $mode"
+      pass "pickforge lanes removal script leaves Context7 untouched: $mode"
     fi
     case "$mode" in
       matching|mismatch)
         if grep -Fxq 'mcp remove --scope user pickforge-lanes' "$fake_log" \
           && ! grep -Fq 'mcp add' "$fake_log" \
           && [[ "$(wc -l <"$fake_log" | tr -d ' ')" == 2 ]]; then
-          pass "pickforge lanes configure removes the user-scoped Claude registration: $mode"
+          pass "pickforge lanes removal script removes the user-scoped Claude registration: $mode"
         else
-          err "pickforge lanes configure removal contract failed: $mode"
+          err "pickforge lanes removal script removal contract failed: $mode"
         fi
         ;;
       project_scope|missing)
         if [[ "$(wc -l <"$fake_log" | tr -d ' ')" == 1 ]] \
           && grep -Fxq 'mcp get pickforge-lanes' "$fake_log"; then
-          pass "pickforge lanes configure leaves Claude registration alone: $mode"
+          pass "pickforge lanes removal script leaves Claude registration alone: $mode"
         else
-          err "pickforge lanes configure changed a registration it does not own: $mode"
+          err "pickforge lanes removal script changed a registration it does not own: $mode"
         fi
         ;;
       generic_get_error|private_get_error)
         if grep -Fxq 'mcp get pickforge-lanes' "$fake_log" \
           && ! grep -Eq 'mcp (add|remove)' "$fake_log"; then
-          pass "pickforge lanes configure leaves registration unchanged after ambiguous get error: $mode"
+          pass "pickforge lanes removal script leaves registration unchanged after ambiguous get error: $mode"
         else
-          err "pickforge lanes configure mutated registration after ambiguous get error: $mode"
+          err "pickforge lanes removal script mutated registration after ambiguous get error: $mode"
         fi
         ;;
       remove_failure)
         if grep -Fxq 'mcp remove --scope user pickforge-lanes' "$fake_log" \
           && ! grep -Fq 'mcp add' "$fake_log"; then
-          pass 'pickforge lanes configure propagates user-scoped removal failure without add'
+          pass 'pickforge lanes removal script propagates user-scoped removal failure without add'
         else
-          err 'pickforge lanes configure removal-failure contract failed'
+          err 'pickforge lanes removal script removal-failure contract failed'
         fi
         ;;
       timeout_descendant)
         if grep -Fxq 'mcp get pickforge-lanes' "$fake_log" \
           && ! grep -Eq 'mcp (add|remove)' "$fake_log" \
           && python3 -c 'import sys; raise SystemExit(float(sys.argv[1]) > 4)' "$elapsed"; then
-          pass 'pickforge lanes configure bounds timeout and avoids mutation'
+          pass 'pickforge lanes removal script bounds timeout and avoids mutation'
         else
-          err "pickforge lanes configure timeout contract failed after ${elapsed}s"
+          err "pickforge lanes removal script timeout contract failed after ${elapsed}s"
         fi
         if [[ -s "$descendant_pid_file" ]]; then
           descendant_pid="$(<"$descendant_pid_file")"
           if kill -0 "$descendant_pid" 2>/dev/null; then
-            err 'pickforge lanes configure left a timeout descendant running'
+            err 'pickforge lanes removal script left a timeout descendant running'
             kill -KILL "$descendant_pid" 2>/dev/null || true
           else
-            pass 'pickforge lanes configure reaps timeout descendants'
+            pass 'pickforge lanes removal script reaps timeout descendants'
           fi
         else
           err 'pickforge lanes timeout probe did not record its descendant'

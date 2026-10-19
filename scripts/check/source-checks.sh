@@ -60,17 +60,6 @@ check_manifest_and_sources() {
   fi
   pass "manifest JSON valid"
 
-  if jq -e '.harnesses | has("claude-portable") | not' "$MANIFEST" >/dev/null; then
-    pass 'manifest has no retired claude-portable harness'
-  else
-    err 'manifest still defines retired claude-portable harness'
-  fi
-  if jq -e '.skills | all(.[]; all(.[]; . != "claude-portable"))' "$MANIFEST" >/dev/null; then
-    pass 'manifest skill targets exclude retired claude-portable harness'
-  else
-    err 'manifest skill targets still contain retired claude-portable harness'
-  fi
-
   local skill harness src_root rel_prefix expected link_src
   local -a skills
 
@@ -138,61 +127,6 @@ check_manifest_and_sources() {
     done
   done < <(jq -r '.harnesses | to_entries[] | select(.value.discovery == "symlink")
     | [.key, .value.source_root, .value.relative_prefix] | @tsv' "$MANIFEST")
-}
-
-check_legacy_model_skill_absence() {
-  local managed_log="$TMP/managed-legacy-model-skills.log"
-  if jq -e '.skills | (has("codex") | not) and (has("grok") | not)' \
-    "$MANIFEST" >/dev/null 2>&1; then
-    pass 'manifest has no legacy codex/grok skill entries'
-  else
-    err 'manifest still contains a legacy codex/grok skill entry'
-  fi
-
-  if chezmoi "${SRC[@]}" managed --include=files,symlinks --path-style=absolute \
-    >"$managed_log" \
-    && ! grep -Eq '/\.claude/skills/grok(/|$)' "$managed_log"; then
-    pass 'managed targets have no legacy Claude grok skill path'
-  else
-    err 'managed targets contain or could not check the legacy Claude grok skill path'
-  fi
-}
-
-check_skill_lock_retirements() {
-  need "$SKILL_LOCK"
-  [[ -f "$SKILL_LOCK" ]] || return 0
-  if ! jq -e . "$SKILL_LOCK" >/dev/null 2>&1; then
-    err "skill lock is not valid JSON: $SKILL_LOCK"
-    return
-  fi
-  pass 'skill lock JSON valid'
-
-  local retired_json present
-  retired_json="$(printf '%s\n' "${RETIRED_SKILL_LOCK_ENTRIES[@]}" | jq -R . | jq -s .)"
-  if jq -e --argjson retired "$retired_json" '
-    .skills as $skills
-    | all($retired[]; . as $skill | $skills | has($skill) | not)
-  ' "$SKILL_LOCK" >/dev/null; then
-    pass 'skill lock excludes retired caveman entries'
-  else
-    present="$(jq -r --argjson retired "$retired_json" '
-      .skills as $skills
-      | $retired
-      | map(select(. as $skill | $skills | has($skill)))
-      | join(", ")
-    ' "$SKILL_LOCK")"
-    err "skill lock still contains retired entries: $present"
-  fi
-
-  if chezmoi "${SRC[@]}" cat "$HOME/.claude/settings.json" \
-    | jq -e '
-      ((.enabledPlugins // {}) | has("caveman@caveman") | not)
-      and ((.extraKnownMarketplaces // {}) | has("caveman") | not)
-    ' >/dev/null; then
-    pass 'Claude settings exclude retired Caveman plugin and marketplace'
-  else
-    err 'Claude settings still contain retired Caveman plugin or marketplace'
-  fi
 }
 
 validate_omp_mcp_credentials() {

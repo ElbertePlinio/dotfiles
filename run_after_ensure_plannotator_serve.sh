@@ -35,4 +35,4 @@ if [ "$backend_state" != Running ]; then
   exit 0
 fi
 
-tailscale serve --bg --yes --https="$port" "http://127.0.0.1:$port"
+tailscale serve --bg --yes --https="$port" "http://127.0.0.1:$port" >/dev/null

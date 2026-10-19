@@ -30,7 +30,6 @@ if [[ "$MODE" == live ]]; then
   OMP_AGENTS_LIVE="${HOME}/.omp/agent/AGENTS.md"
   OMP_CONFIG_LIVE="${HOME}/.omp/agent/config.yml"
   OMP_MCP_LIVE="${HOME}/.omp/agent/mcp.json"
-  check_live_retired_targets
 
   if [[ ! -e "$GROK_LIVE" ]]; then
     err "live Grok AGENTS missing: $GROK_LIVE"

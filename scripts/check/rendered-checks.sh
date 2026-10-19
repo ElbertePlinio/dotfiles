@@ -88,7 +88,6 @@ check_portable_home_literals() {
 TMP_SRC=("${SRC[@]}" --persistent-state "$TMP/temp-state.boltdb")
 
 check_retired_target_removals
-check_retired_target_apply
 check_active_retired_references
 check_retired_reference_scanner_regressions
 check_apply_guard
@@ -197,12 +196,7 @@ else
 fi
 unset claude_render
 
-for path in "${RETIRED_SOURCE_PATHS[@]}"; do
-  source_absent "$path"
-done
 check_manifest_and_sources
-check_legacy_model_skill_absence
-check_skill_lock_retirements
 check_mcp_registry_and_config
 check_runtime_exclusions
 

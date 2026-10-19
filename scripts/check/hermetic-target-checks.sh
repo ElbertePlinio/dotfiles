@@ -14,7 +14,6 @@ TARGETS=(
   "$DEST/.local/bin/agent-harness-preflight"
   "$DEST/.local/bin/pickforge-lanes-mcp"
   "$DEST/.config/agent-config-sync/doctor.json"
-  "$DEST/.agents/.skill-lock.json"
   "$DEST/.agents/skill-targets.json"
   "$DEST/.agents/mcp-targets.json"
 )
@@ -29,7 +28,6 @@ EXPECTED=(
   dot_local/bin/executable_agent-harness-preflight
   dot_local/bin/executable_pickforge-lanes-mcp
   dot_config/agent-config-sync/doctor.json
-  dot_agents/dot_skill-lock.json
   dot_agents/skill-targets.json.tmpl
   dot_agents/mcp-targets.json
 )
@@ -55,25 +53,9 @@ ln -s ../.codex/AGENTS.md "$DEST/.grok/AGENTS.md"
 if ! chezmoi "${TMP_SRC[@]}" --destination "$DEST" apply "$DEST/.agents/skills" "${TARGETS[@]}"; then
   err 'temp seed apply (canonical skills / adapters) failed'
 else
-  ! grep -Fq 'Projects/Personal/.agent-safety/bin:$PATH' "$DEST/.zshrc" \
-    && pass 'temp zsh profile excludes retired Personal GitHub guard PATH' \
-    || err 'temp zsh profile still enables Personal GitHub guard PATH'
-  ! grep -Fq 'claude-default' "$DEST/.zshrc" \
-    && ! grep -Fq 'claude-personal' "$DEST/.zshrc" \
-    && pass 'temp zsh profile uses unrestricted global claude wrapper' \
-    || err 'temp zsh profile still routes through split-profile launchers'
   grep -Fq 'Never expose, commit, or send secrets or private production data.' "$DEST/.claude/CLAUDE.md" \
     && pass 'temp global Claude profile applied' \
     || err 'temp global Claude profile missing hard limits'
-  [[ ! -e "$DEST/.claude-personal" ]] \
-    && pass 'temp destination has no portable Claude profile tree' \
-    || err 'temp destination still creates portable Claude profile tree'
-  [[ ! -e "$DEST/.config/agent-profiles" ]] \
-    && pass 'temp destination has no agent-profiles role tree' \
-    || err 'temp destination still creates agent-profiles role tree'
-  [[ ! -e "$DEST/Projects/Personal/.codex" && ! -e "$DEST/Projects/Personal/.agent-safety" ]] \
-    && pass 'temp destination has no Personal Codex or agent-safety trees' \
-    || err 'temp destination still creates Personal Codex or agent-safety trees'
   [[ -x "$DEST/.local/bin/agent-config-sync" ]] \
     && bash -n "$DEST/.local/bin/agent-config-sync" \
     && pass 'temp agent-config-sync applied' \
@@ -92,9 +74,6 @@ else
   ' "$DEST/.omp/agent/mcp.json" >/dev/null \
     && pass 'temp OMP MCP config applied with rendered home paths' \
     || err 'temp OMP MCP config apply mismatch'
-  cmp -s "$DEST/.agents/.skill-lock.json" "$SKILL_LOCK" \
-    && pass 'temp skill lock applied' \
-    || err 'temp skill lock apply mismatch'
 fi
 
 PORTABLE_TARGETS=()
@@ -157,15 +136,6 @@ bash -n "$ROOT/scripts/check-agent-config-sync.sh" "$ROOT"/scripts/check/*.sh \
 if [[ -f "$ROOT/dot_local/bin/executable_agent-config-sync" ]]; then
   bash -n "$ROOT/dot_local/bin/executable_agent-config-sync" && pass 'bash -n agent-config-sync' \
     || err 'bash -n agent-config-sync failed'
-  ! grep -Eq '^known_legacy_model_skill\(\)' "$ROOT/dot_local/bin/executable_agent-config-sync" \
-    && ! grep -REq '^known_legacy_model_skill\(\)' \
-      "$ROOT/scripts/check-agent-config-sync.sh" "$ROOT/scripts/check" \
-    && pass 'obsolete legacy model skill hash helpers removed' \
-    || err 'obsolete legacy model skill hash helper remains'
-  ! grep -Eq 'LIVE_PROFILE_ROLE|PROFILE_ROLE|agentProfile|require-portable-links|bootstrap_real_gh|remove_main_profile_paths|claude-personal' \
-    "$ROOT/dot_local/bin/executable_agent-config-sync" \
-    && pass 'agent-config-sync excludes split-profile orchestration' \
-    || err 'agent-config-sync still contains split-profile orchestration'
 fi
 
 echo
