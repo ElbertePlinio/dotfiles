@@ -89,10 +89,9 @@ TMP_SRC=("${SRC[@]}" --persistent-state "$TMP/temp-state.boltdb")
 
 check_retired_target_removals
 check_retired_target_apply
-check_live_retired_target_regressions
 check_active_retired_references
 check_retired_reference_scanner_regressions
-check_active_target_completeness
+check_apply_guard
 check_sync_command_flow
 check_pickforge_lanes_deployment
 if python3 "$ROOT/scripts/test-lanes-hooks-config.py" >"$TMP/lanes-hooks-config.log" 2>&1; then

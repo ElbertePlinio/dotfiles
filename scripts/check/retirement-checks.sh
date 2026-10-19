@@ -117,32 +117,10 @@ check_live_retired_targets() {
     live="$HOME/$path"
     if [[ ! -e "$live" && ! -L "$live" ]]; then
       pass "live retired target absent: $live"
-    elif [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-      pass "live retired target pending removal: $live"
     else
       err "live retired target remains: $live"
     fi
   done
-}
-
-check_live_retired_target_regressions() {
-  local seeded_home="$TMP/live-retirement-home"
-  local seeded_path="${RETIRED_TARGET_PATHS[0]}"
-  mkdir -p "$seeded_home/$seeded_path"
-  printf '%s\n' retired >"$seeded_home/$seeded_path/sentinel"
-
-  if (HOME="$seeded_home"; STRICT_PREFLIGHT=1; fail=0; \
-    check_live_retired_targets >/dev/null 2>&1; [[ "$fail" -eq 0 ]]); then
-    pass 'strict live preflight permits seeded pending retirement'
-  else
-    err 'strict live preflight rejected seeded pending retirement'
-  fi
-  if (HOME="$seeded_home"; STRICT_PREFLIGHT=0; fail=0; \
-    check_live_retired_targets >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
-    pass 'normal live check rejects seeded stable retired target'
-  else
-    err 'normal live check accepted seeded stable retired target'
-  fi
 }
 
 check_active_retired_references() {
@@ -190,49 +168,4 @@ check_retired_reference_scanner_regressions() {
   else
     err 'retired-reference scanner treated an execution error as clean'
   fi
-}
-
-check_active_target_completeness() {
-  local sync_command="$ROOT/dot_local/bin/executable_agent-config-sync"
-  local source_path target entry
-  local -a metadata_targets=(
-    'dot_agents/dot_skill-lock.json|.agents/.skill-lock.json'
-    'dot_agents/skill-targets.json|.agents/skill-targets.json'
-    'dot_agents/mcp-targets.json|.agents/mcp-targets.json'
-    'dot_agents/private_deepseek.env.tmpl|.agents/deepseek.env'
-    'dot_local/bin/executable_pickforge-lanes-mcp|.local/bin/pickforge-lanes-mcp'
-    'dot_pi/agent/settings.json|.pi/agent/settings.json'
-    'dot_pi/agent/extensions/btw.ts|.pi/agent/extensions/btw.ts'
-    'dot_pi/agent/extensions/fast-mode.ts|.pi/agent/extensions/fast-mode.ts'
-    'dot_pi/agent/extensions/model-compaction-threshold.ts|.pi/agent/extensions/model-compaction-threshold.ts'
-    'dot_config/pickforge-lanes/workflow.json|.config/pickforge-lanes/workflow.json'
-    'dot_config/opencode/private_opencode.jsonc|.config/opencode/opencode.jsonc'
-  )
-
-  need "$sync_command"
-  [[ -f "$sync_command" ]] || return
-
-  for source_path in "$ROOT"/dot_agents/*.md "$ROOT"/dot_agents/*.md.tmpl; do
-    [[ -f "$source_path" ]] || continue
-    target=".agents/${source_path##*/}"
-    target="${target%.tmpl}"
-    if grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
-      pass "active target includes top-level agent policy: $target"
-    else
-      err "active target missing top-level agent policy: $target"
-    fi
-  done
-
-  for entry in "${metadata_targets[@]}"; do
-    source_path="${entry%%|*}"
-    target="${entry#*|}"
-    need "$ROOT/$source_path"
-    if [[ -f "$ROOT/$source_path" ]] \
-      && grep -Fq '"${HOME}/'"$target"'"' "$sync_command"; then
-      pass "active target includes agent metadata registry: $target"
-    else
-      err "active target missing agent metadata registry: $target"
-    fi
-  done
-
 }

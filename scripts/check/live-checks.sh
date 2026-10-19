@@ -1,34 +1,6 @@
-pi_settings_have_expected_pending_migration() {
-  local settings="$1"
-  jq -s -e --slurpfile target "$ROOT/dot_pi/agent/settings.json" '
-    (length == 1) and ($target | length == 1) and
-    (.[0] as $live | $target[0] as $desired |
-      $live.defaultThinkingLevel == "high" and
-      $live.enabledModels == [
-        "anthropic/claude-fable-5",
-        "anthropic/claude-opus-4-8",
-        "anthropic/claude-sonnet-5",
-        "ollama/glm-5.2:cloud",
-        "openai-codex/gpt-6-astra",
-        "xai/grok-4.5"
-      ] and
-      (($live
-        | .defaultThinkingLevel = $desired.defaultThinkingLevel
-        | .enabledModels = $desired.enabledModels) == $desired))
-  ' "$settings" >/dev/null 2>&1
-}
-
 check_live_pi_enabled_models() {
   local settings="$HOME/.pi/agent/settings.json"
-  if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-    if cmp -s "$settings" "$ROOT/dot_pi/agent/settings.json"; then
-      pass 'live Pi settings match canonical source'
-    elif managed_regular_file_unchanged "$settings" || pi_settings_have_expected_pending_migration "$settings"; then
-      pass 'live Pi settings have managed model migration drift pending the authorized cutover'
-    else
-      err 'live Pi settings contain unmanaged drift'
-    fi
-  elif jq -e '(.enabledModels | all(. != "openai-codex/gpt-5.6-luna"))
+  if jq -e '(.enabledModels | all(. != "openai-codex/gpt-5.6-luna"))
     and (.enabledModels | any(. == "openai-codex/gpt-6.1-sol"))
     and (.enabledModels | any(. == "xai/grok-4.7"))
     and (.enabledModels | all(. != "xai/grok-4.5" and . != "xai/grok-4.6"))' "$settings" >/dev/null 2>&1; then
@@ -38,9 +10,6 @@ check_live_pi_enabled_models() {
   fi
 }
 
-# The managed OpenCode config shares its file with user-added MCP servers and
-# plugins. Apply may replace it only when it already matches source or is still
-# exactly what chezmoi last applied; anything else fails closed before apply.
 check_live_opencode_config() {
   local config="$HOME/.config/opencode/opencode.jsonc"
   if [[ ! -e "$config" && ! -L "$config" ]]; then
@@ -49,19 +18,13 @@ check_live_opencode_config() {
     err "live OpenCode config must be a managed regular file: $config"
   elif cmp -s "$config" "$ROOT/dot_config/opencode/private_opencode.jsonc"; then
     pass 'live OpenCode config matches canonical source'
-  elif [[ "$STRICT_PREFLIGHT" -eq 1 ]] && managed_regular_file_unchanged "$config"; then
-    pass 'live OpenCode config has managed pending drift'
   else
-    err 'live OpenCode config has edits beyond the last applied state, or that state is missing or invalid; refusing an implicit overwrite'
+    err 'live OpenCode config differs from canonical source'
   fi
 }
 
 if [[ "$MODE" == live ]]; then
-  if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-    echo "== agent-config-sync strict live preflight (read-only) =="
-  else
-    echo "== agent-config-sync live migration (read-only) =="
-  fi
+  echo "== agent-config-sync live checks (read-only) =="
   GROK_LIVE="${HOME}/.grok/AGENTS.md"
   GROK_CONFIG_LIVE="${HOME}/.grok/config.toml"
   OMP_AGENTS_LIVE="${HOME}/.omp/agent/AGENTS.md"
@@ -89,8 +52,6 @@ if [[ "$MODE" == live ]]; then
   elif grep -Fxq 'default = "grok-4.6"' "$GROK_CONFIG_LIVE" \
     && ! grep -Fq 'grok-4.5' "$GROK_CONFIG_LIVE"; then
     pass 'live Grok config defaults to Grok 4.6'
-  elif [[ "$STRICT_PREFLIGHT" -eq 1 ]] && managed_regular_file_unchanged "$GROK_CONFIG_LIVE"; then
-    pass 'live Grok config has managed pending drift'
   else
     err 'live Grok config default or effort is stale'
   fi
@@ -113,8 +74,6 @@ if [[ "$MODE" == live ]]; then
     pass 'live OMP config matches canonical source'
   elif ! grep -q '^providers:' "$OMP_CONFIG_LIVE" || ! grep -q '^modelRoles:' "$OMP_CONFIG_LIVE"; then
     err 'live OMP config is not a recognized managed file'
-  elif [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-    pass 'live OMP config has managed runtime drift pending the authorized cutover'
   else
     err 'live OMP config differs from canonical source'
   fi
@@ -127,15 +86,11 @@ if [[ "$MODE" == live ]]; then
     err 'live OMP MCP config is not valid JSON'
   elif cmp -s "$OMP_MCP_LIVE" "$OMP_MCP"; then
     pass 'live OMP MCP config matches canonical source'
-  elif [[ "$STRICT_PREFLIGHT" -eq 1 ]] && managed_regular_file_unchanged "$OMP_MCP_LIVE"; then
-    pass 'live OMP MCP config has managed pending drift'
   else
-    err 'live OMP MCP config differs from canonical source; refusing an implicit overwrite'
+    err 'live OMP MCP config differs from canonical source'
   fi
-  if [[ "$STRICT_PREFLIGHT" -eq 0 ]]; then
-    check_live_primary_global_targets
-    check_live_agent_hook_policy
-  fi
+  check_live_primary_global_targets
+  check_live_agent_hook_policy
 
   check_mcp_registry_and_config
 
@@ -149,6 +104,6 @@ if [[ "$MODE" == live ]]; then
   check_live_opencode_config
 
   echo
-  [[ "$fail" -eq 0 ]] && { echo "PASSED: live migration checks"; exit 0; }
-  echo "FAILED: live migration checks"; exit 1
+  [[ "$fail" -eq 0 ]] && { echo "PASSED: live checks"; exit 0; }
+  echo "FAILED: live checks"; exit 1
 fi

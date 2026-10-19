@@ -6,11 +6,9 @@ cd "$ROOT"
 SRC=(--source "$ROOT")
 fail=0
 MODE=default
-STRICT_PREFLIGHT=0
 for arg in "$@"; do
   case "$arg" in
     --check-live-migration) MODE=live ;;
-    --strict-preflight) STRICT_PREFLIGHT=1 ;;
   esac
 done
 
@@ -30,7 +28,6 @@ for module in \
   rendered-checks.sh \
   ai-memory-capture-checks.sh \
   source-policy-checks.sh \
-  sync-coverage-checks.sh \
   encryption-policy-checks.sh \
   hermetic-target-checks.sh; do
   # shellcheck source=/dev/null

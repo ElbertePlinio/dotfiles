@@ -1,473 +1,309 @@
-check_sync_command_flow() {
-  local flow_source="$TMP/sync-flow-source"
-  local flow_home="$TMP/sync-flow home"
-  local divergent_home="$TMP/sync-flow-divergent-home"
-  local malformed_home="$TMP/sync-flow-malformed-home"
-  local failure_home="$TMP/sync-flow-failure-home"
-  local flow_log="$TMP/sync-flow.log"
-  local flow_stdout="$TMP/sync-flow.out"
-  local flow_error="$TMP/sync-flow.err"
-  local all_absent_log="$TMP/sync-flow-all-absent.log"
-  local all_absent_error="$TMP/sync-flow-all-absent.err"
-  local divergent_log="$TMP/sync-flow-divergent.log"
-  local malformed_log="$TMP/sync-flow-malformed.log"
-  local malformed_error="$TMP/sync-flow-malformed.err"
-  local self_update_log="$TMP/sync-flow-self-update.log"
-  local self_update_output="$TMP/sync-flow-self-update.out"
-  local self_update_error="$TMP/sync-flow-self-update.err"
-  local failure_log="$TMP/sync-flow-failure.log"
-  local failure_output="$TMP/sync-flow-failure.out"
-  local failure_error="$TMP/sync-flow-failure.err"
-  local script_marker="$TMP/sync-flow-script-marker"
-  local configure_log="$TMP/sync-flow-configure.log"
-  local expected_log="$TMP/sync-flow-expected.log"
-  local source_path self_update_status second_run_status failure_status
-  local dotfiles_origin="$TMP/sync-flow-dotfiles-origin.git"
-  local dotfiles_updater="$TMP/sync-flow-dotfiles-updater"
-  local memory_origin="$TMP/sync-flow-memory-origin.git"
-  local sync_output="$TMP/sync-command.out"
-  local sync_error="$TMP/sync-command.err"
-  local sync_status before_sync_head after_sync_head origin_head memory_head
-  local -a active_source_files=(
-    dot_zshrc
-    dot_bashrc
-    dot_claude/CLAUDE.md
-    dot_claude/agents/final-reviewer.md
-    dot_claude/agents/final-reviewer-high.md
-    dot_claude/agents/final-reviewer-xhigh.md
-    dot_claude/skills/kickoff/SKILL.md
-    dot_claude/skills/codex/SKILL.md
-    dot_claude/skills/codex/scripts/executable_codex-run
-    dot_claude/settings.json
-    dot_claude/hooks/executable_ai-attribution-gate.sh
-    dot_codex/AGENTS.md
-    dot_codex/agents/architecture-reviewer.toml
-    dot_codex/hooks.json
-    dot_codex/model.json
-    dot_codex/ollama-launch.config.toml
-    dot_grok/AGENTS.md
-    dot_grok/config.toml
-    dot_cursor/hooks.json
-    dot_pi/agent/AGENTS.md
-    dot_pi/agent/settings.json
-    dot_pi/agent/private_mcp.json.tmpl
-    dot_pi/agent/models.json
-    dot_pi/agent/extensions/btw.ts
-    dot_pi/agent/extensions/fast-mode.ts
-    dot_pi/agent/extensions/model-compaction-threshold.ts
-    dot_pi/agent/extensions/ai-memory-pi.ts
-    dot_omp/agent/extensions/ai-memory-omp.ts
-    dot_grok/hooks/ai-memory.json.tmpl
-    dot_pi/agent/skills/symlink_probe
-    dot_omp/agent/AGENTS.md
-    dot_omp/agent/config.yml
-    dot_omp/agent/mcp.json.tmpl
-    dot_agents/dot_skill-lock.json
-    dot_agents/mcp-targets.json
-    dot_agents/skill-targets.json
-    dot_agents/doctor-targets.json
-    dot_config/agent-config-sync/doctor.json
-    dot_config/pickforge-lanes/workflow.json
-    dot_config/opencode/opencode.jsonc
-    dot_agents/desktop-capture.md
-    dot_agents/browser-use.md
-    dot_agents/hermes-system-prompt.md
-    dot_agents/codex-lane-override.md
-    dot_agents/private_deepseek.env.tmpl
-    dot_agents/private_stripe.env.tmpl
-    dot_agents/skills/probe/SKILL.md
-    dot_local/bin/executable_sudo-askpass
-    dot_local/bin/executable_agent-harness-preflight
-    dot_local/bin/executable_pickforge-lanes-mcp
-    dot_local/bin/executable_sentry-mcp
-    dot_config/environment.d/50-sudo-askpass.conf.tmpl
-    dot_config/environment.d/60-omp.conf
-    dot_config/environment.d/70-pi-caffeinate.conf
-  )
+# Behavior fixtures for scripts/apply-guard.sh and the agent-config-sync CLI.
+# Each chezmoi run gets a scratch HOME and scratch XDG directories. HOME alone
+# is not enough: chezmoi follows XDG_CONFIG_HOME to its config and state file.
 
-  mkdir -p "$flow_source/scripts" \
-    "$flow_home/.local/bin" "$flow_home/.agents" \
-    "$flow_home/.retired-agent-config-probe" \
-    "$divergent_home/.local/bin" "$divergent_home/.retired-agent-config-probe" \
-    "$divergent_home/.agents" "$malformed_home/.local/bin" \
-    "$failure_home/.local/bin"
-  cat >"$flow_source/scripts/check-agent-config-sync.sh" <<'EOF'
+fixture_env() {
+  local home="$1"
+  shift
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_CACHE_HOME="$home/.cache" \
+    XDG_DATA_HOME="$home/.local/share" XDG_STATE_HOME="$home/.local/state" "$@"
+}
+
+new_fixture_source() {
+  local src="$1"
+  mkdir -p "$src/scripts"
+  cp "$ROOT/scripts/apply-guard.sh" "$src/scripts/apply-guard.sh"
+  cp "$ROOT/run_before_00-apply-guard.sh" "$src/run_before_00-apply-guard.sh"
+  printf '%s\n' scripts >"$src/.chezmoiignore"
+}
+
+check_apply_guard() {
+  local src="$TMP/guard-source" home="$TMP/guard home" log="$TMP/guard.log"
+  local -a cz=(chezmoi --source "$src" --destination "$home")
+
+  new_fixture_source "$src"
+  mkdir -p "$src/dot_skills" "$src/private_dot_box" "$home"
+  printf '%s\n' one >"$src/dot_edited"
+  printf '%s\n' one >"$src/dot_other"
+  printf '%s\n' '../.agents/kick' >"$src/dot_skills/symlink_kick"
+
+  if fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fxq one "$home/.edited" && [[ -L "$home/.skills/kick" ]]; then
+    pass 'apply guard allows a first apply into an empty home'
+  else
+    err "apply guard blocked a first apply: $(tr '\n' ' ' <"$log")"
+    return
+  fi
+
+  printf '%s\n' local >"$home/.edited"
+  printf '%s\n' two >"$src/dot_edited"
+  printf '%s\n' two >"$src/dot_other"
+  if ! fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fq "edited since the last apply: $home/.edited" "$log" \
+    && grep -Fxq local "$home/.edited" && grep -Fxq one "$home/.other"; then
+    pass 'apply guard blocks a live edit before any target is written'
+  else
+    err "apply guard missed a live edit: $(tr '\n' ' ' <"$log")"
+  fi
+
+  if fixture_env "$home" "${cz[@]}" apply --force --no-tty "$home/.edited" >"$log" 2>&1 \
+    && grep -Fxq two "$home/.edited" \
+    && fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fxq two "$home/.other"; then
+    pass 'a scoped apply resolves a blocked path and the next full apply proceeds'
+  else
+    err "scoped resolution or the following full apply failed: $(tr '\n' ' ' <"$log")"
+  fi
+
+  printf '%s\n' three >"$src/dot_edited"
+  printf '%s\n' three >"$home/.edited"
+  if fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1; then
+    pass 'apply guard allows a live edit that already matches the source'
+  else
+    err "apply guard blocked a converged live edit: $(tr '\n' ' ' <"$log")"
+  fi
+
+  printf '%s\n' source >"$src/dot_unowned"
+  printf '%s\n' mine >"$home/.unowned"
+  if ! fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fq "existed before chezmoi managed it: $home/.unowned" "$log" \
+    && grep -Fxq mine "$home/.unowned"; then
+    pass 'apply guard blocks a pre-existing file that chezmoi never wrote'
+  else
+    err "apply guard missed a pre-existing file: $(tr '\n' ' ' <"$log")"
+  fi
+  rm -f "$src/dot_unowned" "$home/.unowned"
+
+  printf '%s\n' '../.agents/new' >"$src/dot_skills/symlink_new"
+  mkdir -p "$home/.skills/new"
+  printf '%s\n' keep >"$home/.skills/new/SKILL.md"
+  if ! fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fq "live directory would be replaced: $home/.skills/new" "$log" \
+    && grep -Fxq keep "$home/.skills/new/SKILL.md"; then
+    pass 'apply guard blocks a live skill directory where the source declares a link'
+  else
+    err "apply guard missed a live skill directory: $(tr '\n' ' ' <"$log")"
+  fi
+  rm -rf "$src/dot_skills/symlink_new" "$home/.skills/new"
+
+  mkdir -p "$src/dot_skills/owned"
+  printf '%s\n' one >"$src/dot_skills/owned/SKILL.md"
+  fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 || true
+  printf '%s\n' keep >"$home/.skills/owned/notes"
+  rm -rf "$src/dot_skills/owned"
+  printf '%s\n' '../.agents/owned' >"$src/dot_skills/symlink_owned"
+  if ! fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fq "live directory would be replaced: $home/.skills/owned" "$log" \
+    && grep -Fxq keep "$home/.skills/owned/notes"; then
+    pass 'apply guard blocks a link that would replace a directory chezmoi wrote'
+  else
+    err "apply guard let a link replace a directory: $(tr '\n' ' ' <"$log")"
+  fi
+  rm -rf "$src/dot_skills/symlink_owned" "$home/.skills/owned"
+
+  rm -f "$home/.other"
+  if fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fxq two "$home/.other"; then
+    pass 'apply guard lets apply recreate a deleted target'
+  else
+    err "apply guard blocked a deleted target: $(tr '\n' ' ' <"$log")"
+  fi
+
+  # Without the default state, only the named state file shows .other as owned.
+  mv "$home/.config/chezmoi/chezmoistate.boltdb" "$TMP/guard-state.boltdb"
+  printf '%s\n' four >"$src/dot_other"
+  if (cd "$TMP" && fixture_env "$home" "${cz[@]}" --persistent-state guard-state.boltdb \
+    apply --force --no-tty) >"$log" 2>&1; then
+    err 'apply guard accepted a relative --persistent-state path'
+  elif grep -Fq 'cannot read the state file' "$log" && grep -Fxq two "$home/.other"; then
+    pass 'apply guard rejects a relative --persistent-state path'
+  else
+    err "apply guard failed a relative state path oddly: $(tr '\n' ' ' <"$log")"
+  fi
+  if fixture_env "$home" "${cz[@]}" --persistent-state "$TMP/guard-state.boltdb" \
+    apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fxq four "$home/.other"; then
+    pass 'apply guard reads the state file named by --persistent-state'
+  else
+    err "apply guard ignored --persistent-state: $(tr '\n' ' ' <"$log")"
+  fi
+  mv "$TMP/guard-state.boltdb" "$home/.config/chezmoi/chezmoistate.boltdb"
+  fixture_env "$home" "${cz[@]}" apply --force --no-tty "$home/.other" >"$log" 2>&1 || true
+
+  printf '%s\n' x >"$src/dot_new"$'\n'"line"
+  if ! fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fq 'a source path contains a newline' "$log"; then
+    pass 'apply guard rejects a source name with a newline'
+  else
+    err "apply guard accepted a source name with a newline: $(tr '\n' ' ' <"$log")"
+  fi
+  rm -f "$src/dot_new"$'\n'"line"
+
+  chmod 0755 "$home/.box"
+  if fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && [[ "$(ls -ld "$home/.box")" == drwx------* ]]; then
+    pass 'apply guard lets a managed directory change only its mode'
+  else
+    err "apply guard blocked a directory mode change: $(tr '\n' ' ' <"$log")"
+  fi
+
+  printf '%s\n' retired >"$home/.retired"
+  printf '%s\n' .retired >"$src/.chezmoiremove"
+  if fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && [[ ! -e "$home/.retired" ]]; then
+    pass 'apply guard lets .chezmoiremove delete a retired target'
+  else
+    err "apply guard blocked a retirement: $(tr '\n' ' ' <"$log")"
+  fi
+
+  # The removal leaves a remove entry in the state. A file recreated at that
+  # path later is still not content chezmoi wrote.
+  : >"$src/.chezmoiremove"
+  printf '%s\n' mine >"$home/.retired"
+  printf '%s\n' source >"$src/dot_retired"
+  if ! fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fq "$home/.retired" "$log" && grep -Fxq mine "$home/.retired"; then
+    pass 'apply guard blocks a file recreated at a removed path'
+  else
+    err "apply guard missed a file recreated at a removed path: $(tr '\n' ' ' <"$log")"
+  fi
+}
+
+check_sync_command_flow() {
+  local src="$TMP/flow-source" home="$TMP/flow home" log="$TMP/flow.log"
+  local out="$TMP/flow.out" errs="$TMP/flow.err" fail_flag="$TMP/flow-fail-source"
+  local origin="$TMP/flow-origin.git" updater="$TMP/flow-updater"
+  local memory="$TMP/flow home/AgentMemory" memory_origin="$TMP/flow-memory.git"
+  local status before after origin_head memory_head
+
+  run_cli() {
+    : >"$log"
+    if fixture_env "$home" env CHEZMOI_SOURCE_DIR="$src" FLOW_LOG="$log" \
+      FLOW_FAIL_SOURCE="$fail_flag" \
+      bash "$ROOT/dot_local/bin/executable_agent-config-sync" "$@" >"$out" 2>"$errs"; then
+      status=0
+    else
+      status=$?
+    fi
+  }
+  git_fixture() {
+    git -c user.name='Fixture User' -c user.email=fixture@example.invalid \
+      -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
+  }
+
+  new_fixture_source "$src"
+  cat >"$src/scripts/check-agent-config-sync.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-live=0
-strict=0
-for arg in "$@"; do
-  case "$arg" in
-    --check-live-migration) live=1 ;;
-    --strict-preflight) strict=1 ;;
-    *) exit 64 ;;
-  esac
-done
-if [[ $# -eq 0 ]]; then
-  printf '%s\n' source
-elif [[ $# -eq 1 && "$live" -eq 1 ]]; then
-  printf '%s\n' live
-elif [[ $# -eq 2 && "$live" -eq 1 && "$strict" -eq 1 ]]; then
-  printf '%s\n' strict
-else
-  exit 64
-fi >>"$SYNC_FLOW_LOG"
+case "$*" in
+  '') printf '%s\n' source >>"$FLOW_LOG"; [[ ! -e "$FLOW_FAIL_SOURCE" ]] ;;
+  --check-live-migration) printf '%s\n' live >>"$FLOW_LOG" ;;
+  *) exit 64 ;;
+esac
 EOF
-  printf '%s\n' scripts '.config/environment.d/**' >"$flow_source/.chezmoiignore"
-  printf '%s\n' \
-    .retired-agent-config-probe \
-    .absent-retired-agent-config-probe \
-    >"$flow_source/.chezmoiremove"
-  for source_path in "${active_source_files[@]}"; do
-    if [[ "$source_path" == */* ]]; then
-      mkdir -p "$flow_source/${source_path%/*}"
-    fi
-    printf '%s\n' managed >"$flow_source/$source_path"
-  done
-  printf '%s\n' '../../../.agents/skills/probe' \
-    >"$flow_source/dot_pi/agent/skills/symlink_probe"
-  printf '%s\n' '{"canonical_root":"~/.agents/skills","harnesses":{"pi":{"skills_root":"~/.pi/agent/skills","source_root":"dot_pi/agent/skills","discovery":"symlink","relative_prefix":"../../../.agents/skills"}},"skills":{"probe":["pi"]}}' \
-    >"$flow_source/dot_agents/skill-targets.json"
-  printf '%s\n' intended-agent-probe >"$flow_source/dot_agents/mcp-targets.json"
-  printf '%s\n' original-unrelated >"$flow_source/dot_unrelated-agent-config-probe"
-  install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
-    "$flow_source/dot_local/bin/executable_agent-config-sync"
-  printf '%s\n' '{"state":"original"}' >"$flow_source/dot_agents/dot_skill-lock.json"
-  HOME="$flow_home" chezmoi --source "$flow_source" apply --force --no-tty \
-    "$flow_home/.unrelated-agent-config-probe" \
-    "$flow_home/.agents/.skill-lock.json"
-  printf '%s\n' '{"state":"intended"}' >"$flow_source/dot_agents/dot_skill-lock.json"
-  cat >"$flow_source/run_after_agent_config_probe.sh" <<'EOF'
-#!/usr/bin/env bash
-: >"$SYNC_SCRIPT_MARKER"
-EOF
-  chmod 0755 "$flow_source/run_after_agent_config_probe.sh"
-  cat >"$flow_source/run_onchange_after_configure_pickforge_lanes_mcp.sh" <<'EOF'
+  cat >"$src/run_after_flow-probe.sh" <<'EOF'
 #!/bin/sh
-set -eu
-[ -x "$HOME/.local/bin/pickforge-lanes-mcp" ]
-printf '%s\n' configured >>"$SYNC_CONFIGURE_LOG"
+printf '%s\n' script >>"$FLOW_LOG"
 EOF
-  chmod 0755 "$flow_source/run_onchange_after_configure_pickforge_lanes_mcp.sh"
-  printf '%s\n' '# Codex registration is tested separately.' >"$flow_source/run_onchange_after_configure_codex_lanes_mcp.py"
-  cat >"$flow_source/run_onchange_after_configure_claude_sentry_mcp.sh" <<'EOF'
-#!/bin/sh
-set -eu
-[ -x "$HOME/.local/bin/sentry-mcp" ]
-printf '%s\n' sentry-configured >>"$SYNC_CONFIGURE_LOG"
-EOF
-  chmod 0755 "$flow_source/run_onchange_after_configure_claude_sentry_mcp.sh"
-  printf '%s\n' changed-unrelated >"$flow_source/dot_unrelated-agent-config-probe"
-  printf '%s\n' retired >"$flow_home/.retired-agent-config-probe/sentinel"
-  printf '%s\n' retired >"$divergent_home/.retired-agent-config-probe/sentinel"
-  printf '%s\n' divergent >"$divergent_home/.agents/mcp-targets.json"
-  for target_home in "$flow_home" "$divergent_home" "$malformed_home" "$failure_home"; do
-    install -m 0755 "$ROOT/dot_local/bin/executable_agent-config-sync" \
-      "$target_home/.local/bin/agent-config-sync"
-  done
+  printf '%s\n' agent >"$src/dot_agent-probe"
+  printf '%s\n' desktop >"$src/dot_desktop-probe"
+  printf '%s\n' .retired-probe >"$src/.chezmoiremove"
+  mkdir -p "$home/.retired-probe"
+  printf '%s\n' retired >"$home/.retired-probe/sentinel"
 
-  : >"$configure_log"
-  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
-    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
-    "$flow_home/.local/bin/agent-config-sync" apply >"$flow_stdout" 2>"$flow_error" \
-    && HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
-      "$flow_home/.local/bin/agent-config-sync" check-live >/dev/null 2>&1; then
-    printf '%s\n' source strict live live >"$expected_log"
-    if grep -Fxq intended-agent-probe "$flow_home/.agents/mcp-targets.json" \
-      && grep -Fxq '{"state":"intended"}' "$flow_home/.agents/.skill-lock.json" \
-      && grep -Fxq managed "$flow_home/.agents/browser-use.md" \
-      && grep -Fxq managed "$flow_home/.pi/agent/settings.json" \
-      && grep -Fxq managed "$flow_home/.pi/agent/extensions/btw.ts" \
-      && grep -Fxq managed "$flow_home/.pi/agent/extensions/fast-mode.ts" \
-      && grep -Fxq managed "$flow_home/.pi/agent/extensions/model-compaction-threshold.ts" \
-      && [[ -L "$flow_home/.pi/agent/skills/probe" ]] \
-      && [[ "$(readlink "$flow_home/.pi/agent/skills/probe")" == '../../../.agents/skills/probe' ]] \
-      && [[ ! -e "$flow_home/.retired-agent-config-probe" \
-        && ! -L "$flow_home/.retired-agent-config-probe" ]] \
-      && [[ ! -e "$flow_home/.absent-retired-agent-config-probe" \
-        && ! -L "$flow_home/.absent-retired-agent-config-probe" ]] \
-      && grep -Fxq original-unrelated "$flow_home/.unrelated-agent-config-probe" \
-      && [[ ! -e "$script_marker" ]] \
-      && [[ "$(grep -Fxc configured "$configure_log")" -eq 1 ]] \
-      && [[ "$(grep -Fxc sentry-configured "$configure_log")" -eq 1 ]] \
-      && cmp -s "$expected_log" "$flow_log"; then
-      pass 'temporary scoped sync updates skill-lock metadata target from source'
-      pass 'temporary scoped sync applies browser-use policy target'
-      pass 'temporary scoped sync applies curated Pi settings and extension targets'
-      pass 'temporary scoped sync removes present retirement and skips absent retirement'
-      pass 'temporary sync applies only agent targets and retirements without implicit run scripts'
-      pass 'temporary sync invokes managed pickforge-lanes registration once after target apply'
-      pass 'temporary sync installs sentry-mcp and invokes Sentry MCP registration once'
-    else
-      err 'temporary scoped sync changed an unrelated target, ran a script, or missed agent cleanup'
-    fi
-    if grep -Eq '^applied: [1-9][0-9]* targets$' "$flow_stdout" \
-      && grep -Fq "applied: $flow_home/.agents/mcp-targets.json" "$flow_stdout" \
-      && ! grep -Fq 'PASSED:' "$flow_stdout"; then
-      pass 'temporary sync reports the nonzero applied target count and written target paths'
-    else
-      err 'temporary sync apply observability output is missing or misleading'
-    fi
-    # Only OS-gated targets may be skipped. Naming the unexpected ones turns a
-    # policy/fixture drift into a diagnostic instead of a bare count mismatch.
-    local unexpected_skips
-    unexpected_skips="$(grep -F 'skipping target not managed on this machine' "$flow_error" \
-      | grep -Fv '/.config/environment.d/' || true)"
-    if [[ ! -e "$flow_home/.config/environment.d/50-sudo-askpass.conf" ]] \
-      && [[ "$(grep -Fc '/.config/environment.d/' <<<"$(grep -F 'skipping target not managed on this machine' "$flow_error")")" -eq 3 ]] \
-      && [[ -z "$unexpected_skips" ]]; then
-      pass 'temporary sync skips chezmoiignore-gated targets instead of aborting apply'
-    elif [[ -n "$unexpected_skips" ]]; then
-      err "temporary sync skipped non-OS-gated targets absent from the flow fixture: $(sed -E 's/.*machine: //' <<<"$unexpected_skips" | tr '\n' ' ')"
-    else
-      err 'temporary sync applied or aborted on chezmoiignore-gated environment.d targets'
-    fi
+  run_cli apply
+  if [[ "$status" -eq 0 && "$(tr '\n' ' ' <"$log")" == 'source script live ' ]] \
+    && grep -Fxq agent "$home/.agent-probe" \
+    && grep -Fxq desktop "$home/.desktop-probe" \
+    && [[ ! -e "$home/.retired-probe" ]] \
+    && grep -Fxq 'applied: 3 targets' "$out" \
+    && grep -Fxq "applied: $home/.desktop-probe" "$out"; then
+    pass 'apply checks the source, applies every target and script, then checks live state'
   else
-    err "temporary scoped sync command apply/check-live flow failed: $(tr '\n' ' ' <"$flow_error")"
+    err "apply flow is wrong (status $status): $(tr '\n' ' ' <"$log") $(tr '\n' ' ' <"$errs")"
   fi
 
-  printf '%s\n' intended-agent-probe-all-retirements-absent \
-    >"$flow_source/dot_agents/mcp-targets.json"
-  : >"$configure_log"
-  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$all_absent_log" \
-    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
-    "$flow_home/.local/bin/agent-config-sync" apply >/dev/null 2>"$all_absent_error" \
-    && HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$all_absent_log" \
-      "$flow_home/.local/bin/agent-config-sync" check-live >/dev/null 2>&1; then
-    printf '%s\n' source strict live live >"$expected_log"
-    if grep -Fxq intended-agent-probe-all-retirements-absent \
-      "$flow_home/.agents/mcp-targets.json" \
-      && [[ ! -e "$flow_home/.retired-agent-config-probe" \
-        && ! -L "$flow_home/.retired-agent-config-probe" ]] \
-      && [[ ! -e "$flow_home/.absent-retired-agent-config-probe" \
-        && ! -L "$flow_home/.absent-retired-agent-config-probe" ]] \
-      && [[ ! -e "$script_marker" ]] \
-      && [[ "$(grep -Fxc configured "$configure_log")" -eq 1 ]] \
-      && cmp -s "$expected_log" "$all_absent_log"; then
-      pass 'temporary scoped sync applies active targets when all retirements are absent'
-      pass 'temporary scoped sync live check succeeds when all retirements are absent'
-    else
-      err 'temporary scoped sync missed active apply or live check with all retirements absent'
-    fi
+  touch "$fail_flag"
+  printf '%s\n' agent-2 >"$src/dot_agent-probe"
+  run_cli apply
+  if [[ "$status" -ne 0 && "$(tr '\n' ' ' <"$log")" == 'source ' ]] \
+    && grep -Fxq agent "$home/.agent-probe" \
+    && grep -Fq 'source check failed' "$errs"; then
+    pass 'apply stops before writing when the source check fails'
   else
-    err "temporary scoped sync all-absent retirement flow failed: $(tr '\n' ' ' <"$all_absent_error")"
+    err "apply continued after a failed source check (status $status)"
+  fi
+  rm -f "$fail_flag"
+
+  printf '%s\n' local >"$home/.agent-probe"
+  run_cli apply
+  if [[ "$status" -ne 0 && "$(tr '\n' ' ' <"$log")" == 'source ' ]] \
+    && grep -Fxq local "$home/.agent-probe" \
+    && grep -Fq "edited since the last apply: $home/.agent-probe" "$errs"; then
+    pass 'apply stops before writing when the guard finds a live edit'
+  else
+    err "apply overwrote a live edit or misreported it (status $status)"
+  fi
+  printf '%s\n' agent-2 >"$home/.agent-probe"
+
+  git_fixture -C "$src" init -q -b main
+  git_fixture -C "$src" add -A
+  git_fixture -C "$src" commit -q -m 'chore: initialize sync fixture'
+  git_fixture init -q --bare "$origin"
+  git_fixture -C "$src" remote add origin "$origin"
+  git_fixture -C "$src" push -q -u origin main
+  git_fixture -C "$origin" symbolic-ref HEAD refs/heads/main
+  git_fixture clone -q "$origin" "$updater"
+  mkdir -p "$memory"
+  git_fixture -C "$memory" init -q -b main
+  printf '%s\n' memory >"$memory/memory.txt"
+  git_fixture -C "$memory" add memory.txt
+  git_fixture -C "$memory" commit -q -m 'chore: initialize memory fixture'
+  git_fixture init -q --bare "$memory_origin"
+  git_fixture -C "$memory" remote add origin "$memory_origin"
+  git_fixture -C "$memory" push -q -u origin main
+
+  before="$(git -C "$src" rev-parse HEAD)"
+  printf '%s\n' upstream >"$updater/dot_upstream-probe"
+  git_fixture -C "$updater" add dot_upstream-probe
+  git_fixture -C "$updater" commit -q -m 'test: advance sync origin'
+  git_fixture -C "$updater" push -q origin main
+  origin_head="$(git -C "$origin" rev-parse refs/heads/main)"
+  run_cli sync
+  after="$(git -C "$src" rev-parse HEAD)"
+  memory_head="$(git -C "$memory" rev-parse --short HEAD)"
+  if [[ "$status" -eq 0 && "$before" != "$after" && "$after" == "$origin_head" \
+    && "$(tr '\n' ' ' <"$log")" == 'source script live ' ]] \
+    && grep -Fxq upstream "$home/.upstream-probe" \
+    && grep -Fq "sync: dotfiles=$(git -C "$src" rev-parse --short HEAD) AgentMemory=$memory_head apply=ok" "$out"; then
+    pass 'sync fast-forwards the source, applies it, and reports both commits'
+  else
+    err "sync did not fast-forward and apply (status $status): $(tr '\n' ' ' <"$errs")"
   fi
 
-  cp "$flow_source/dot_local/bin/executable_agent-config-sync" \
-    "$TMP/sync-flow-cli-source.backup"
-  printf '\n# fixture self-update marker\n' \
-    >>"$flow_source/dot_local/bin/executable_agent-config-sync"
-  : >"$configure_log"
-  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$self_update_log" \
-    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
-    "$flow_home/.local/bin/agent-config-sync" apply \
-    >"$self_update_output" 2>"$self_update_error"; then
-    self_update_status=0
+  printf '%s\n' dirty >>"$memory/memory.txt"
+  memory_head="$(git -C "$memory" rev-parse HEAD)"
+  run_cli sync
+  if [[ "$status" -eq 0 && "$(git -C "$memory" rev-parse HEAD)" == "$memory_head" \
+    && -n "$(git -C "$memory" status --porcelain)" ]] \
+    && grep -Fq 'AgentMemory has local changes; skipping pull' "$errs" \
+    && grep -Fq 'AgentMemory=dirty apply=ok' "$out"; then
+    pass 'sync keeps a dirty AgentMemory, warns, and still applies'
   else
-    self_update_status=$?
-  fi
-  if [[ "$self_update_status" -eq 75 ]] \
-    && grep -Fq 'agent-config-sync updated; re-run apply' "$self_update_error" \
-    && [[ ! -s "$self_update_log" ]] \
-    && [[ ! -s "$configure_log" ]]; then
-    pass 'temporary sync self-updates first and exits 75 before stale code continues'
-  else
-    err 'temporary sync did not stop after updating its running CLI'
-  fi
-  : >"$configure_log"
-  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$self_update_log" \
-    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
-    "$flow_home/.local/bin/agent-config-sync" apply \
-    >"$self_update_output" 2>"$self_update_error"; then
-    second_run_status=0
-  else
-    second_run_status=$?
-  fi
-  if [[ "$second_run_status" -eq 0 ]] \
-    && grep -Fxq 'applied: 0 targets' "$self_update_output" \
-    && ! grep -Fq 'agent-config-sync updated; re-run apply' "$self_update_error" \
-    && [[ "$(grep -Fxc configured "$configure_log")" -eq 1 ]]; then
-    pass 'temporary sync second run proceeds and reports a silent no-op explicitly'
-  else
-    err "temporary sync second run after self-update did not proceed cleanly (status $second_run_status)"
-  fi
-  cp "$TMP/sync-flow-cli-source.backup" \
-    "$flow_source/dot_local/bin/executable_agent-config-sync"
-
-  mv "$flow_source/dot_pi/agent/settings.json" \
-    "$flow_source/dot_pi/agent/settings.json.fixture-backup"
-  printf '{{ invalid template\n' >"$flow_source/dot_pi/agent/settings.json.tmpl"
-  : >"$configure_log"
-  if HOME="$failure_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$failure_log" \
-    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
-    "$failure_home/.local/bin/agent-config-sync" apply \
-    >"$failure_output" 2>"$failure_error"; then
-    failure_status=0
-  else
-    failure_status=$?
-  fi
-  rm -f "$flow_source/dot_pi/agent/settings.json.tmpl"
-  mv "$flow_source/dot_pi/agent/settings.json.fixture-backup" \
-    "$flow_source/dot_pi/agent/settings.json"
-  if [[ "$failure_status" -eq 74 ]] \
-    && grep -Fq 'agent-config-sync: batched chezmoi apply failed' "$failure_error" \
-    && ! grep -Fq 'PASSED:' "$failure_output" \
-    && ! grep -Fq 'PASSED:' "$failure_error" \
-    && [[ ! -s "$configure_log" ]] \
-    && [[ "$(tr '\n' ' ' <"$failure_log")" == 'source strict ' ]]; then
-    pass 'temporary sync propagates batched apply failure as exit 74 without a false PASSED'
-  else
-    err "temporary sync masked or misreported a batched apply failure (status $failure_status)"
+    err "sync mishandled a dirty AgentMemory (status $status)"
   fi
 
-  : >"$configure_log"
-  if HOME="$divergent_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$divergent_log" \
-    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
-    "$divergent_home/.local/bin/agent-config-sync" apply >/dev/null 2>&1; then
-    err 'temporary scoped sync overwrote an unmanaged active target'
-  elif grep -Fxq divergent "$divergent_home/.agents/mcp-targets.json" \
-    && [[ -e "$divergent_home/.retired-agent-config-probe" ]] \
-    && [[ ! -e "$script_marker" ]] \
-    && [[ ! -s "$configure_log" ]] \
-    && [[ "$(tr '\n' ' ' <"$divergent_log")" == 'source strict ' ]]; then
-    pass 'temporary scoped sync blocks unmanaged active targets before retirement apply'
+  printf '%s\n' second-upstream >"$updater/dot_upstream-probe"
+  git_fixture -C "$updater" commit -q -am 'test: advance origin past dirty source'
+  git_fixture -C "$updater" push -q origin main
+  before="$(git -C "$src" rev-parse HEAD)"
+  printf '%s\n' local-dirty >>"$src/dot_desktop-probe"
+  run_cli sync
+  if [[ "$status" -eq 76 && "$(git -C "$src" rev-parse HEAD)" == "$before" && ! -s "$log" ]] \
+    && grep -Fq 'dotfiles source has local changes' "$errs"; then
+    pass 'sync rejects a dirty dotfiles source with exit 76 before pull or apply'
   else
-    err 'temporary scoped sync unmanaged-target preflight was not atomic'
-  fi
-
-  for malformed in '' '/absolute-retirement' '.retired-agent-config-probe'; do
-    printf '%s\n%s\n' .retired-agent-config-probe "$malformed" >"$flow_source/.chezmoiremove"
-    rm -f "$malformed_log" "$malformed_error" "$script_marker"
-    mkdir -p "$malformed_home/.retired-agent-config-probe"
-    printf '%s\n' retired >"$malformed_home/.retired-agent-config-probe/sentinel"
-    : >"$configure_log"
-    if HOME="$malformed_home" CHEZMOI_SOURCE_DIR="$flow_source" \
-      SYNC_FLOW_LOG="$malformed_log" SYNC_SCRIPT_MARKER="$script_marker" \
-      SYNC_CONFIGURE_LOG="$configure_log" \
-      "$malformed_home/.local/bin/agent-config-sync" apply \
-      >/dev/null 2>"$malformed_error"; then
-      err "temporary scoped sync accepted malformed retirement entry: ${malformed:-empty}"
-    elif [[ ! -e "$script_marker" ]] \
-      && [[ ! -s "$configure_log" ]] \
-      && [[ ! -e "$malformed_log" ]] \
-      && [[ -e "$malformed_home/.retired-agent-config-probe/sentinel" ]] \
-      && grep -Fq 'retirement list' "$malformed_error"; then
-      pass "temporary scoped sync rejects malformed retirement entry before self-update: ${malformed:-empty}"
-    else
-      err "temporary scoped sync did not fail closed on malformed retirement entry: ${malformed:-empty}"
-    fi
-  done
-  printf '%s\n' \
-    .retired-agent-config-probe \
-    .absent-retired-agent-config-probe \
-    >"$flow_source/.chezmoiremove"
-
-  git -C "$flow_source" init -b main >/dev/null
-  git -C "$flow_source" config user.name 'Fixture User'
-  git -C "$flow_source" config user.email fixture@example.invalid
-  git -C "$flow_source" add .
-  git -C "$flow_source" commit -m 'chore: initialize sync fixture' >/dev/null
-  git init --bare "$dotfiles_origin" >/dev/null
-  git -C "$flow_source" remote add origin "$dotfiles_origin"
-  git -C "$flow_source" push -u origin main >/dev/null
-  git -C "$dotfiles_origin" symbolic-ref HEAD refs/heads/main
-  install -m 0755 "$flow_source/dot_local/bin/executable_agent-config-sync" \
-    "$flow_home/.local/bin/agent-config-sync"
-  git clone "$dotfiles_origin" "$dotfiles_updater" >/dev/null 2>&1
-  git -C "$dotfiles_updater" config user.name 'Fixture User'
-  git -C "$dotfiles_updater" config user.email fixture@example.invalid
-
-  mkdir -p "$flow_home/AgentMemory"
-  git -C "$flow_home/AgentMemory" init -b main >/dev/null
-  git -C "$flow_home/AgentMemory" config user.name 'Fixture User'
-  git -C "$flow_home/AgentMemory" config user.email fixture@example.invalid
-  printf '%s\n' memory >"$flow_home/AgentMemory/memory.txt"
-  git -C "$flow_home/AgentMemory" add memory.txt
-  git -C "$flow_home/AgentMemory" commit -m 'chore: initialize memory fixture' >/dev/null
-  git init --bare "$memory_origin" >/dev/null
-  git -C "$flow_home/AgentMemory" remote add origin "$memory_origin"
-  git -C "$flow_home/AgentMemory" push -u origin main >/dev/null
-  git -C "$memory_origin" symbolic-ref HEAD refs/heads/main
-
-  before_sync_head="$(git -C "$flow_source" rev-parse HEAD)"
-  printf '%s\n' upstream >"$dotfiles_updater/sync-origin-marker"
-  git -C "$dotfiles_updater" add sync-origin-marker
-  git -C "$dotfiles_updater" commit -m 'test: advance sync origin' >/dev/null
-  git -C "$dotfiles_updater" push origin main >/dev/null
-  origin_head="$(git -C "$dotfiles_origin" rev-parse refs/heads/main)"
-  : >"$flow_log"
-  : >"$configure_log"
-  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
-    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
-    "$flow_home/.local/bin/agent-config-sync" sync >"$sync_output" 2>"$sync_error"; then
-    sync_status=0
-  else
-    sync_status=$?
-  fi
-  after_sync_head="$(git -C "$flow_source" rev-parse HEAD)"
-  memory_head="$(git -C "$flow_home/AgentMemory" rev-parse --short HEAD)"
-  if [[ "$sync_status" -eq 0 && "$before_sync_head" != "$after_sync_head" \
-    && "$after_sync_head" == "$origin_head" \
-    && -f "$flow_source/sync-origin-marker" ]]; then
-    pass 'sync fast-forwards the dotfiles source to a new origin commit'
-  else
-    err "sync did not fast-forward the dotfiles source (status $sync_status)"
-  fi
-  if [[ "$(tr '\n' ' ' <"$flow_log")" == 'source strict live ' \
-    && "$(grep -Fxc configured "$configure_log")" -eq 1 ]] \
-    && grep -Fq "sync: dotfiles=$(git -C "$flow_source" rev-parse --short HEAD) AgentMemory=$memory_head apply=ok" "$sync_output"; then
-    pass 'sync runs apply and reports pulled commits with a successful result'
-  else
-    err 'sync did not run apply or emit its commit/result summary'
-  fi
-
-  printf '%s\n' dirty >>"$flow_home/AgentMemory/memory.txt"
-  memory_head="$(git -C "$flow_home/AgentMemory" rev-parse HEAD)"
-  : >"$flow_log"
-  : >"$configure_log"
-  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
-    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
-    "$flow_home/.local/bin/agent-config-sync" sync >"$sync_output" 2>"$sync_error"; then
-    sync_status=0
-  else
-    sync_status=$?
-  fi
-  if [[ "$sync_status" -eq 0 \
-    && "$(git -C "$flow_home/AgentMemory" rev-parse HEAD)" == "$memory_head" \
-    && -n "$(git -C "$flow_home/AgentMemory" status --porcelain)" \
-    && "$(tr '\n' ' ' <"$flow_log")" == 'source strict live ' \
-    && "$(grep -Fxc configured "$configure_log")" -eq 1 ]] \
-    && grep -Fq 'AgentMemory has local changes; skipping pull' "$sync_error" \
-    && grep -Fq 'AgentMemory=dirty apply=ok' "$sync_output"; then
-    pass 'sync preserves dirty AgentMemory, warns, and still applies successfully'
-  else
-    err "sync mishandled dirty AgentMemory (status $sync_status)"
-  fi
-
-  printf '%s\n' second-upstream >"$dotfiles_updater/sync-origin-marker-2"
-  git -C "$dotfiles_updater" add sync-origin-marker-2
-  git -C "$dotfiles_updater" commit -m 'test: advance origin past dirty source' >/dev/null
-  git -C "$dotfiles_updater" push origin main >/dev/null
-  origin_head="$(git -C "$dotfiles_origin" rev-parse refs/heads/main)"
-  before_sync_head="$(git -C "$flow_source" rev-parse HEAD)"
-  printf '%s\n' local-dirty >>"$flow_source/dot_unrelated-agent-config-probe"
-  : >"$flow_log"
-  : >"$configure_log"
-  if HOME="$flow_home" CHEZMOI_SOURCE_DIR="$flow_source" SYNC_FLOW_LOG="$flow_log" \
-    SYNC_SCRIPT_MARKER="$script_marker" SYNC_CONFIGURE_LOG="$configure_log" \
-    "$flow_home/.local/bin/agent-config-sync" sync >"$sync_output" 2>"$sync_error"; then
-    sync_status=0
-  else
-    sync_status=$?
-  fi
-  after_sync_head="$(git -C "$flow_source" rev-parse HEAD)"
-  if [[ "$sync_status" -eq 76 && "$after_sync_head" == "$before_sync_head" \
-    && "$after_sync_head" != "$origin_head" \
-    && ! -s "$flow_log" && ! -s "$configure_log" ]] \
-    && grep -Fq 'dotfiles source has local changes' "$sync_error"; then
-    pass 'sync rejects dirty dotfiles with exit 76 before pull or apply'
-  else
-    err "sync did not fail closed on dirty dotfiles (status $sync_status)"
+    err "sync did not fail closed on a dirty dotfiles source (status $status)"
   fi
 }
 
