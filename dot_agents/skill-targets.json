@@ -107,6 +107,14 @@
       "grok",
       "pi",
       "omp"
+    ],
+    "grill-me": [
+      "claude",
+      "codex"
+    ],
+    "grilling": [
+      "claude",
+      "codex"
     ]
   }
 }
