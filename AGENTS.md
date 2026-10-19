@@ -1,7 +1,8 @@
 This is Elberte's personal dotfiles source repository, managed with chezmoi.
 Shared agent policy lives in `.chezmoitemplates/agents-shared*.md`.
 Harness adapters compose that policy rather than duplicating it.
-`agent-config-sync` owns agent configuration validation and scoped apply.
+`agent-config-sync` validates the source, applies it through chezmoi, and
+checks live state. `scripts/apply-guard.sh` runs before every full apply.
 
 `dev-freshness` reports first-party tools on this machine that have fallen
 behind their repository or release channel, and a systemd user timer runs it

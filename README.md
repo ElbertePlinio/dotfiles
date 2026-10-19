@@ -26,8 +26,10 @@ chezmoi init git@github.com:ElbertePlinio/dotfiles.git
 # 5. Review source templates and target status. Diffs can expose keys.
 chezmoi status
 
-# 6. Apply interactively on a clean machine
-chezmoi apply --interactive
+# 6. Apply. The apply guard lists each existing file that chezmoi would
+#    replace. Merge it with `chezmoi merge <path>`, or take the source
+#    version with `chezmoi apply --force <path>`. Then apply again.
+chezmoi apply
 
 # 7. Start a new shell, then validate managed agent configuration
 exec zsh
@@ -47,7 +49,8 @@ Daily use:
 chezmoi edit ~/.zshrc               # edit the source copy
 chezmoi diff                         # review target drift
 chezmoi apply ~/.zshrc               # apply only the reviewed target
-agent-config-sync apply              # validated agent-config cutover
+chezmoi apply                        # full apply, behind the apply guard
+agent-config-sync apply              # source check, full apply, live check
 agent-config-sync sync               # fast-forward dotfiles and AgentMemory, then apply
 chezmoi cd                           # open the source repository
 ```
@@ -66,7 +69,7 @@ chezmoi cd                           # open the source repository
   - Global Codex adapter: `~/.codex/AGENTS.md` (unrestricted `codex` shell wrapper)
   - Other harness adapters: Grok, Pi, OMP
   - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`
-  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `sync` | `doctor` | `targets`)
+  - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `sync` | `doctor`)
   - Skills, prompts, and harness configuration are plaintext and meant to be read. See [Secrets](#secrets-age-encryption) for the encrypted key bundle.
   - Runtime state: credentials, sessions, histories, caches, plugins, and usage state remain machine-owned
 
@@ -84,11 +87,11 @@ Daily sync workflow:
 ```bash
 agent-config-sync check       # source templates + portable skill matrix
 agent-config-sync check-live  # read-only live validation against $HOME
-agent-config-sync apply       # source check, strict preflight, scoped agent apply, live check
+agent-config-sync apply       # source check, guarded full apply, live check
 agent-config-sync sync        # fast-forward dotfiles and AgentMemory, then run apply
 ```
 
-`apply` targets only the managed agent configuration and the stable paths listed in `.chezmoiremove`; it does not apply unrelated dotfiles or root run scripts. Do not sync credentials, sessions, histories, caches, or other machine-owned runtime state.
+Every full apply runs `scripts/apply-guard.sh` first, through `run_before_00-apply-guard.sh`. That covers `chezmoi apply`, `chezmoi update`, and `agent-config-sync apply`. The guard stops the apply when a target holds a live edit made since the last apply, a file that existed before chezmoi managed it, or a live directory that a file or link would replace. A scoped `chezmoi apply <path>` runs no scripts, so it skips the guard. Use it to resolve a path that the guard reported. Do not give a full apply `--keep-going`, or an `--include` or `--exclude` that leaves out scripts: the first ignores the guard's failure, and the others skip the guard. Do not sync credentials, sessions, histories, caches, or other machine-owned runtime state.
 
 ### Agent doctor
 

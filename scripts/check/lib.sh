@@ -25,36 +25,6 @@ expand_home() {
   fi
 }
 
-dirs_identical() {
-  local a="$1" b="$2"
-  [[ -d "$a" && -d "$b" ]] || return 1
-  diff -rq "$a" "$b" >/dev/null 2>&1
-}
-
-managed_regular_file_unchanged() {
-  local live="$1"
-  local state expected actual
-  [[ -f "$live" && ! -L "$live" ]] || return 1
-  state="$(chezmoi state get --bucket=entryState --key="$live" 2>/dev/null || true)"
-  expected="$(jq -r '.contentsSHA256 // empty' <<<"$state" 2>/dev/null || true)"
-  [[ -n "$expected" ]] || return 1
-  read -r actual _ < <(sha256sum "$live")
-  [[ "$actual" == "$expected" ]]
-}
-
-managed_directory_unchanged() {
-  local live="$1" file found=0
-  [[ -d "$live" && ! -L "$live" ]] || return 1
-  if [[ -n "$(find "$live" -mindepth 1 ! -type d ! -type f -print -quit)" ]]; then
-    return 1
-  fi
-  while IFS= read -r -d '' file; do
-    found=1
-    managed_regular_file_unchanged "$file" || return 1
-  done < <(find "$live" -type f -print0)
-  [[ "$found" -eq 1 ]]
-}
-
 MANIFEST="$ROOT/dot_agents/skill-targets.json"
 SKILL_LOCK="$ROOT/dot_agents/dot_skill-lock.json"
 MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"

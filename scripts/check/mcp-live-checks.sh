@@ -212,8 +212,7 @@ check_mcp_registry_and_config() {
 }
 
 check_live_portable_links() {
-  local skill harness root link target expected_prefix canon
-  canon_root="$(expand_home "$(jq -r '.canonical_root' "$MANIFEST")")"
+  local skill harness root link target expected_prefix
   while IFS=$'\t' read -r skill harness; do
     local discovery
     discovery="$(jq -r --arg h "$harness" '.harnesses[$h].discovery' "$MANIFEST")"
@@ -223,14 +222,9 @@ check_live_portable_links() {
     root="$(expand_home "$(jq -r --arg h "$harness" '.harnesses[$h].skills_root' "$MANIFEST")")"
     expected_prefix="$(jq -r --arg h "$harness" '.harnesses[$h].relative_prefix' "$MANIFEST")"
     link="${root}/${skill}"
-    canon="${canon_root}/${skill}"
 
     if [[ ! -e "$link" && ! -L "$link" ]]; then
-      if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-        pass "live link not yet applied: $harness/$skill"
-      else
-        err "live link missing: $link"
-      fi
+      err "live link missing: $link"
       continue
     fi
 
@@ -245,17 +239,6 @@ check_live_portable_links() {
         continue
       fi
       pass "live link ok: $harness/$skill"
-      continue
-    fi
-
-    if [[ "$STRICT_PREFLIGHT" -eq 1 ]]; then
-      if [[ -d "$canon" && -d "$link" ]] && dirs_identical "$link" "$canon"; then
-        pass "live path identical to canonical (migratable): $harness/$skill"
-      elif managed_directory_unchanged "$link"; then
-        pass "live managed path unchanged (migratable): $harness/$skill"
-      else
-        err "live non-symlink path has unmanaged or modified content: $link"
-      fi
       continue
     fi
 

@@ -13,13 +13,13 @@ After approval, from the chezmoi source:
 ```sh
 agent-config-sync check
 python3 scripts/check-hermes-policy.py "$HOME/.hermes/hermes-agent"
-bash scripts/check-agent-config-sync.sh --check-live-migration --strict-preflight
+bash scripts/check-agent-config-sync.sh --check-live-migration
 chezmoi diff --exclude scripts -- ~/.agents/hermes-system-prompt.md
 chezmoi apply --exclude scripts -- ~/.agents/hermes-system-prompt.md
 chezmoi verify --exclude scripts -- ~/.agents/hermes-system-prompt.md
 ```
 
-Do not run full `agent-config-sync apply`. Before applying, refuse any divergent existing policy target rather than overwriting it. Review unrelated preflight drift without expanding scope.
+Do not run full `agent-config-sync apply`. Before applying, refuse any divergent existing policy target rather than overwriting it. Run `bash "$(chezmoi source-path)/scripts/apply-guard.sh"` first, and stop if it lists the policy target. Report other listed paths without expanding scope.
 
 Profile activation is a separate approved operation, using the actual Hermes configuration command, not a new runtime feature. First privately back up each exact config, check that `agent.system_prompt` is empty or already equals the rendered adapter, and refuse divergent manual instructions. Confirm personality is neutral and no environment/channel prompt overrides are active. Do not dump configuration or credentials. Then use:
 
