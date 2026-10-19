@@ -22,6 +22,8 @@ ENCRYPTION_REQUIRED_BASENAMES=(
   credentials.json
   tokens.json
   key.txt
+  .secrets.json
+  secrets.json
   id_rsa
   id_ed25519
 )
@@ -38,6 +40,10 @@ UNVERSIONED_SOURCE_TREES=(
   'dot_config/chezmoi|holds the age identity that decrypts everything else'
   'dot_pi/agent/encrypted_private_auth.json.age|live Pi provider auth state'
   'dot_pi/agent/private_auth.json|live Pi provider auth state'
+  'dot_pi/agent/auth.json|live Pi provider auth state'
+  'dot_pi/agent/encrypted_auth.json.age|live Pi provider auth state'
+  'dot_pi/agent/mcp-oauth|live MCP OAuth token state'
+  'dot_context7|live Context7 OAuth token state'
   'dot_pi/agent/private_mcp-oauth|live MCP OAuth token state'
   'private_dot_context7|live Context7 OAuth token state'
 )
@@ -75,11 +81,13 @@ encryption_target_basename() {
   printf '%s\n' "$name"
 }
 
+# Ignored files count too. chezmoi does not read .gitignore, and a forced
+# `git add` commits an ignored file.
 encryption_source_files() {
   local rel
   while IFS= read -r rel; do
     [[ -f "$ROOT/$rel" ]] && printf '%s\n' "$rel"
-  done < <(cd "$ROOT" && git ls-files --cached --others --exclude-standard | sort -u)
+  done < <(cd "$ROOT" && git ls-files --cached --others | sort -u)
   return 0
 }
 
@@ -185,9 +193,26 @@ check_encryption_gitignore() {
     && pass 'gitignore covers plaintext and encrypted spellings of secret paths'
 }
 
+# A checker that never fails proves nothing: seed ignored plaintext
+# credentials in a scratch repository and require rejection.
+check_encryption_policy_detection() {
+  local seeded="$TMP/encryption-policy-seeded"
+  mkdir -p "$seeded/dot_pi/agent"
+  git -C "$seeded" init -q
+  printf '%s\n' '.secrets.json' 'dot_pi/agent/private_auth.json' >"$seeded/.gitignore"
+  printf '%s\n' '{"probe_key":"probe"}' >"$seeded/.secrets.json"
+  printf '%s\n' '{}' >"$seeded/dot_pi/agent/private_auth.json"
+  if (ROOT="$seeded"; fail=0; check_required_encryption >/dev/null 2>&1; [[ "$fail" -ne 0 ]]); then
+    pass 'encryption policy rejects ignored plaintext credential files'
+  else
+    err 'encryption policy missed ignored plaintext credential files'
+  fi
+}
+
 check_encryption_allowlist
 check_required_encryption
 check_unversioned_trees
 check_encryption_gitignore
+check_encryption_policy_detection
 
 check_secret_templates
