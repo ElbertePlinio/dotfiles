@@ -20,11 +20,11 @@ chmod 0600 ~/.config/chezmoi/key.txt
 #    the standalone pi-kit repository)
 ssh -T git@github.com
 
-# 4. Initialize from this repo
+# 4. Initialize from this repo. The template creates the age config.
 chezmoi init git@github.com:ElbertePlinio/dotfiles.git
 
-# 5. Preview every target before applying
-chezmoi diff
+# 5. Review source templates and target status. Diffs can expose keys.
+chezmoi status
 
 # 6. Apply interactively on a clean machine
 chezmoi apply --interactive
@@ -69,7 +69,7 @@ chezmoi cd                           # open the source repository
   - Other harness adapters: Grok, Pi, OMP
   - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`
   - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `sync` | `doctor` | `targets`)
-  - Skills, prompts, and harness configuration are plaintext and meant to be read — see [Secrets](#secrets-age-encryption) for the six files that are not
+  - Skills, prompts, and harness configuration are plaintext and meant to be read. See [Secrets](#secrets-age-encryption) for the encrypted key bundle.
   - Runtime state: credentials, sessions, histories, caches, plugins, and usage state remain machine-owned
 
 ## Agent configuration
@@ -178,79 +178,44 @@ hermetic validation explicitly with `bash scripts/check-agent-doctor.sh`.
 
 ## Secrets (age encryption)
 
-Chezmoi encrypts sensitive files with [age](https://github.com/FiloSottile/age) before committing. The repo only ever contains ciphertext (`encrypted_*.age`); the decrypt key lives at `~/.config/chezmoi/key.txt` on each machine and must never leave it in plaintext form.
+Exactly one file holds ciphertext: `.secrets.json.age` at the source root. It stores static API keys as an age-encrypted JSON object. Dot-prefixed source files are not managed targets. The age identity stays at `~/.config/chezmoi/key.txt` with mode 0600.
 
-### What is encrypted, and what deliberately is not
+The readable templates are `dot_pi/agent/private_mcp.json.tmpl`, `dot_agents/private_deepseek.env.tmpl`, and `dot_agents/private_stripe.env.tmpl`. Each uses `.chezmoitemplates/secret` to read a named value from the bundle. The Stripe MCP header reuses `stripe_restricted_key`. All three targets have mode 0600. Never print their rendered contents or include them in a diff.
 
-Encryption here is for credentials only. Exactly six files are encrypted:
+Pi provider auth, Pi MCP OAuth tokens, and Context7 OAuth credentials stay machine-owned. The source omits `.pi/agent/auth.json`, `.pi/agent/mcp-oauth`, and `.context7/credentials.json`. `.chezmoiignore` protects those paths. Log in again on a new machine.
 
-| Encrypted file | Why |
-|---|---|
-| `~/.pi/agent/mcp.json` | carries a literal Context7 API key in a request header |
-| `~/.pi/agent/auth.json` | Pi provider credentials |
-| `~/.pi/agent/mcp-oauth/**/tokens.json` | Pi MCP OAuth token state |
-| `~/.context7/credentials.json` | Context7 API credentials |
+Skills, prompts, rules, hooks, and harness configuration remain readable. `scripts/check/encryption-policy-checks.sh` checks both policy directions. It rejects ciphertext without a declared reason and plaintext credential files. It also renders all three secret templates without printing values.
 
-Everything else — every skill, prompt, rule, hook, and harness config — is plaintext on purpose, so the repo can actually be read and borrowed from.
-
-It did not start that way. `chezmoi add --encrypt` had been used on whole directories, which left 719 of 1148 tracked files as unreadable blobs even though only six held secrets. That cost more than legibility: several content checks skip `*.age`, so encryption was hiding a hardcoded Linux path that broke an MCP server on macOS and two references to harnesses retired months earlier.
-
-chezmoi has no `.chezmoiattributes`, so encryption cannot be declared by pattern — it is only ever a per-file `encrypted_` prefix. `scripts/check/encryption-policy-checks.sh` is therefore where the policy lives, and it fails the build in both directions: a credential-shaped file committed in plaintext, **or** an encrypted file with no declared justification. Adding encryption now requires saying why.
-
-### First-time setup (new key)
+For a new machine, restore the saved identity before initialization:
 
 ```bash
 mkdir -p ~/.config/chezmoi
-age-keygen -o ~/.config/chezmoi/key.txt
+# Copy the saved identity to ~/.config/chezmoi/key.txt securely.
 chmod 0600 ~/.config/chezmoi/key.txt
-
-PUBKEY=$(age-keygen -y ~/.config/chezmoi/key.txt)
-cat > ~/.config/chezmoi/chezmoi.toml <<EOF
-encryption = "age"
-
-[age]
-  identity = "~/.config/chezmoi/key.txt"
-  recipient = "$PUBKEY"
-EOF
+chezmoi init git@github.com:ElbertePlinio/dotfiles.git
 ```
 
-**Store `~/.config/chezmoi/key.txt` off-machine** — password manager attachment, printed QR on paper, offline USB. Without the identity file, encrypted entries cannot be decrypted on a new machine and you would have to rotate every credential.
+`.chezmoi.toml.tmpl` creates the age config during init. It sets encryption, the identity path, and the public recipient. Keep an encrypted backup of the identity off-machine. A new identity cannot decrypt the existing bundle.
 
-### New machine (restore identity)
+Edit the readable template when changing configuration or comments. Edit the bundle when adding or changing a static key. Use stable snake_case key names and reuse existing credentials. Keep plaintext only in a 0600 temporary file, then remove it:
 
 ```bash
-mkdir -p ~/.config/chezmoi
-# Paste or copy the saved key.txt into place
-chmod 0600 ~/.config/chezmoi/key.txt
-# chezmoi.toml is NOT in the repo; recreate it with the public recipient line
-cat > ~/.config/chezmoi/chezmoi.toml <<EOF
-encryption = "age"
-
-[age]
-  identity = "~/.config/chezmoi/key.txt"
-  recipient = "$(age-keygen -y ~/.config/chezmoi/key.txt)"
-EOF
+(
+  set -eu
+  umask 077
+  source_dir="$(chezmoi source-path)"
+  secret_tmp="$(mktemp "${TMPDIR:-/tmp}/chezmoi-secrets.XXXXXX")"
+  trap 'rm -f "$secret_tmp"' EXIT
+  chezmoi decrypt "$source_dir/.secrets.json.age" >"$secret_tmp"
+  # Use an editor that disables swap files, backups, and history.
+  vim -n -i NONE -u NONE -c 'set nobackup nowritebackup' "$secret_tmp"
+  chezmoi encrypt "$secret_tmp" --output "$source_dir/.secrets.json.age"
+)
 ```
 
-### Adding a new secret
+The trap removes the temporary file on exit. Do not copy plaintext into the source or print it during validation. Confirm that each template still renders with `chezmoi execute-template --file <source-template> >/dev/null`.
 
-```bash
-chezmoi add --encrypt ~/.some/secret-file
-```
-
-The source file will land as `encrypted_<name>.age`. Then add it to
-`ENCRYPTION_ALLOWED_SOURCES` in `scripts/check/encryption-policy-checks.sh` with
-the reason it must stay encrypted — the check suite rejects encrypted files that
-have no justification, which is what keeps blanket encryption from creeping back.
-Commit and push as usual.
-
-Prefer keeping the credential out of the file entirely. `~/.pi/agent/models.json`
-holds provider API keys as `$ENV` references, so it needs no encryption at all;
-`mcp.json` is encrypted only because its key is a literal.
-
-### Rotating the age key
-
-If the identity file leaks: generate a new pair, re-encrypt every `encrypted_*.age` against the new recipient, force-push. Treat every credential inside the repo as leaked in the meantime — rotate them too.
+If the identity leaks, treat every key in the bundle as leaked. Rotate each key with its provider, create a new identity, update the recipient in `.chezmoi.toml.tmpl`, and encrypt the bundle again.
 
 ## Manual backup (not managed by chezmoi)
 
@@ -344,7 +309,7 @@ xargs -r -a flatpaks.txt          flatpak install -y flathub
 
 ### AI tool state (optional)
 
-Credentials for Codex and Context7 live in the repo, age-encrypted (see [Secrets](#secrets-age-encryption)). Everything else is stateful runtime data — snapshot separately if you want it back:
+Static API keys live in the encrypted bundle (see [Secrets](#secrets-age-encryption)). Codex, Pi, and Context7 login state stays machine-owned. Back up runtime data separately if needed:
 
 | Path               | Contents                                  |
 |--------------------|-------------------------------------------|
@@ -385,8 +350,8 @@ Regenerable — don't back up, reinstall fresh:
 2. **Push** any pending chezmoi changes: `chezmoi cd && git push`.
 3. **Reinstall** the OS.
 4. **Packages** → pacman, AUR helper, flatpaks from the `.txt` lists.
-5. **Age identity** → restore `~/.config/chezmoi/key.txt` (0600) and recreate `~/.config/chezmoi/chezmoi.toml` — see [Secrets](#secrets-age-encryption).
-6. **Dotfiles** → initialize the repo, review `chezmoi diff`, apply interactively, then run `agent-config-sync apply`.
+5. **Age identity** → restore `~/.config/chezmoi/key.txt` (0600) before `chezmoi init` creates the config. See [Secrets](#secrets-age-encryption).
+6. **Dotfiles** → initialize the repo, review source and `chezmoi status`, apply interactively, then run `agent-config-sync apply`.
 7. **SSH/GPG** → decrypt `secrets.tar.age` into `$HOME`.
 8. **Browsers** → extract tarballs (browsers closed).
 9. **AI state** → decrypt and extract if kept.

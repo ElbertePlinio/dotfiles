@@ -56,3 +56,12 @@ dot_codex/shell_snapshots/
 dot_codex/sqlite/
 dot_codex/tmp/
 dot_codex/*.sqlite*
+
+# Live OAuth state stays out of source, with or without encryption.
+dot_pi/agent/*auth.json*
+dot_pi/agent/*mcp-oauth/
+private_dot_context7/
+dot_context7/
+
+# The static key bundle must never have a plaintext source copy.
+.secrets.json

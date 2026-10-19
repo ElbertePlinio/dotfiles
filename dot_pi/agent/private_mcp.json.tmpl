@@ -1,0 +1,49 @@
+{
+  "mcpServers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": {{ includeTemplate "secret" "context7_api_key" | toJson }}
+      },
+      "directTools": true
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--slim",
+        "--headless",
+        "--no-usage-statistics"
+      ],
+      "directTools": true
+    },
+    "codegraph": {
+      "type": "stdio",
+      "command": "codegraph",
+      "args": [
+        "serve",
+        "--mcp"
+      ],
+      "directTools": true
+    },
+    "agentmemory-vault": {
+      "toolPrefix": "none",
+      "type": "stdio",
+      "command": "python3",
+      "args": [
+        "{{ .chezmoi.homeDir }}/AgentMemory/scripts/agent_memory_mcp.py"
+      ],
+      "directTools": true
+    },
+    "stripe": {
+      "type": "http",
+      "url": "https://mcp.stripe.com",
+      "headers": {
+        "Authorization": {{ printf "Bearer %s" (includeTemplate "secret" "stripe_restricted_key") | toJson }}
+      },
+      "directTools": true
+    }
+  }
+}

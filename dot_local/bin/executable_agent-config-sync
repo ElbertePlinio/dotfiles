@@ -114,8 +114,6 @@ AGENT_ACTIVE_TARGETS=(
 # managed agent-config target is in neither list, when an entry is in both, and
 # when an exclusion goes stale — so this file cannot silently drift from the tree.
 AGENT_EXCLUDED_TARGETS=(
-  "${HOME}/.pi/agent/auth.json|live credential state, harness-owned"
-  "${HOME}/.pi/agent/mcp-oauth|live MCP OAuth token state, harness-owned"
   "${HOME}/.pi/agent/pi-hermes-memory|vestigial empty tree, nothing to push"
   "${HOME}/.pi/agent/projects-memory|vestigial empty tree, nothing to push"
 )

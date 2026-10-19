@@ -50,7 +50,7 @@ check_sync_command_flow() {
     dot_cursor/hooks.json
     dot_pi/agent/AGENTS.md
     dot_pi/agent/settings.json
-    dot_pi/agent/mcp.json
+    dot_pi/agent/private_mcp.json.tmpl
     dot_pi/agent/models.json
     dot_pi/agent/extensions/btw.ts
     dot_pi/agent/extensions/fast-mode.ts
@@ -73,8 +73,8 @@ check_sync_command_flow() {
     dot_agents/browser-use.md
     dot_agents/hermes-system-prompt.md
     dot_agents/codex-lane-override.md
-    dot_agents/private_deepseek.env
-    dot_agents/private_stripe.env
+    dot_agents/private_deepseek.env.tmpl
+    dot_agents/private_stripe.env.tmpl
     dot_agents/skills/probe/SKILL.md
     dot_local/bin/executable_sudo-askpass
     dot_local/bin/executable_agent-harness-preflight

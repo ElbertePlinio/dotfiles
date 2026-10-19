@@ -5,19 +5,14 @@
 # also cost real coverage: several content checks skip `*.age`, so an unportable
 # Linux path and two retired harness references sat unnoticed inside encrypted
 # files. chezmoi has no `.chezmoiattributes`, so encryption cannot be declared
-# by pattern — this gate is the only place the policy can be enforced.
+# by pattern, this gate is the only place the policy can be enforced.
 #
 # Both directions are checked. A policy that only catches an unencrypted secret
 # still lets the tree quietly re-close around readable content.
 
 # Source globs allowed to be encrypted, each with the reason it must stay so.
 ENCRYPTION_ALLOWED_SOURCES=(
-  'dot_pi/agent/encrypted_mcp.json.age|literal Context7 API key in an MCP header'
-  'dot_pi/agent/encrypted_private_auth.json.age|Pi provider credentials'
-  'dot_pi/agent/private_mcp-oauth/*/encrypted_private_tokens.json.age|Pi MCP OAuth token state'
-  'private_dot_context7/encrypted_private_credentials.json.age|Context7 API credentials'
-  'dot_agents/encrypted_private_deepseek.env.age|DeepSeek API credential'
-  'dot_agents/encrypted_private_stripe.env.age|Stripe API credentials'
+  '.secrets.json.age|static API keys shared by readable target templates'
 )
 
 # Rendered target basenames that must never be committed in plaintext.
@@ -41,6 +36,10 @@ ENCRYPTION_REQUIRED_SUFFIXES=(
 UNVERSIONED_SOURCE_TREES=(
   'dot_pi/agent/npm|Pi npm workspace is reconstructible with npm ci'
   'dot_config/chezmoi|holds the age identity that decrypts everything else'
+  'dot_pi/agent/encrypted_private_auth.json.age|live Pi provider auth state'
+  'dot_pi/agent/private_auth.json|live Pi provider auth state'
+  'dot_pi/agent/private_mcp-oauth|live MCP OAuth token state'
+  'private_dot_context7|live Context7 OAuth token state'
 )
 
 # .gitignore must cover the plaintext spelling too, not only the encrypted one.
@@ -52,6 +51,7 @@ ENCRYPTION_GITIGNORE_LINES=(
   dot_pi/agent/mcp-npx-cache.json
   dot_pi/agent/mcp-onboarding.json
   dot_config/chezmoi/
+  .secrets.json
 )
 
 # Strip chezmoi attribute prefixes and suffixes to get the rendered basename.
@@ -75,6 +75,26 @@ encryption_target_basename() {
   printf '%s\n' "$name"
 }
 
+encryption_source_files() {
+  local rel
+  while IFS= read -r rel; do
+    [[ -f "$ROOT/$rel" ]] && printf '%s\n' "$rel"
+  done < <(cd "$ROOT" && git ls-files --cached --others --exclude-standard | sort -u)
+  return 0
+}
+
+check_secret_templates() {
+  local source
+  for source in dot_pi/agent/private_mcp.json.tmpl \
+    dot_agents/private_deepseek.env.tmpl dot_agents/private_stripe.env.tmpl; do
+    if chezmoi "${SRC[@]}" execute-template --file "$ROOT/$source" >/dev/null; then
+      pass "secret template renders: $source"
+    else
+      err "secret template failed to render: $source"
+    fi
+  done
+}
+
 check_encryption_allowlist() {
   local age rel entry glob reason matched unjustified=0
   while IFS= read -r rel; do
@@ -89,7 +109,7 @@ check_encryption_allowlist() {
       err "encrypted without justification, add it to ENCRYPTION_ALLOWED_SOURCES or decrypt it: $rel"
       unjustified=$((unjustified + 1))
     fi
-  done < <(cd "$ROOT" && git ls-files | grep '\.age$' || true)
+  done < <(encryption_source_files | grep '\.age$' || true)
   [[ "$unjustified" -eq 0 ]] \
     && pass 'every encrypted source file has a declared credential justification'
 
@@ -106,7 +126,7 @@ check_encryption_allowlist() {
     while IFS= read -r rel; do
       # shellcheck disable=SC2053
       [[ "$rel" == $glob ]] && { matched=1; break; }
-    done < <(cd "$ROOT" && git ls-files | grep '\.age$' || true)
+    done < <(encryption_source_files | grep '\.age$' || true)
     if [[ "$matched" -eq 0 ]]; then
       err "stale encryption allowance, no source file matches: $glob"
       stale=$((stale + 1))
@@ -135,7 +155,7 @@ check_required_encryption() {
         leaked=$((leaked + 1))
       fi
     done
-  done < <(cd "$ROOT" && git ls-files || true)
+  done < <(encryption_source_files)
   [[ "$leaked" -eq 0 ]] \
     && pass 'no credential file or key material is committed in plaintext'
 }
@@ -145,7 +165,7 @@ check_unversioned_trees() {
   for entry in "${UNVERSIONED_SOURCE_TREES[@]}"; do
     prefix="${entry%%|*}"
     reason="${entry#*|}"
-    hits="$(cd "$ROOT" && git ls-files -- "$prefix" 2>/dev/null | head -1)"
+    hits="$(encryption_source_files | awk -v prefix="$prefix" '$0 == prefix || index($0, prefix "/") == 1 { print; exit }')"
     if [[ -n "$hits" ]]; then
       err "tree must not be versioned ($reason): $prefix"
       present=$((present + 1))
@@ -169,3 +189,5 @@ check_encryption_allowlist
 check_required_encryption
 check_unversioned_trees
 check_encryption_gitignore
+
+check_secret_templates
