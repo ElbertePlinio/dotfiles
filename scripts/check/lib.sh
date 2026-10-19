@@ -278,6 +278,9 @@ RUNTIME_SOURCE_PATHS=(
 )
 
 RUNTIME_IGNORE_PATHS=(
+  .pi/agent/auth.json
+  .pi/agent/mcp-oauth
+  .context7/credentials.json
   .pi/agent/npm
   .pi/agent/sessions
   .pi/agent/run-history.jsonl

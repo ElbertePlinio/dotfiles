@@ -83,7 +83,7 @@ check_portable_home_literals() {
       dot_config/private_katerc|dot_config/private_spectaclerc) ;;
       *) err "literal Linux home remains outside an OS-gated source: $path"; unexpected=1 ;;
     esac
-  done < <(rg -l --hidden --glob '!.git/**' --glob '!*.age' "$needle" . | sed 's#^\./##')
+  done < <(rg -l --hidden --glob '!.git' --glob '!.git/**' --glob '!*.age' "$needle" . | sed 's#^\./##')
   [[ "$unexpected" -eq 0 ]] && pass 'literal Linux homes remain only in OS-gated sources'
 }
 

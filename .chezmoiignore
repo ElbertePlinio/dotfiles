@@ -5,6 +5,11 @@ scripts
 # The age identity decrypts every encrypted file here. Never manage it.
 .config/chezmoi
 
+# Live OAuth state stays machine-owned.
+.pi/agent/auth.json
+.pi/agent/mcp-oauth
+.context7/credentials.json
+
 # Pi npm workspace — package manifests and installed deps are reconstructible
 # with `npm ci`, and the tree carried 38 MB binaries into history once already.
 .pi/agent/npm
