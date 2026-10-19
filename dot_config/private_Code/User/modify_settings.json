@@ -1,4 +1,7 @@
-{
+{{- /* chezmoi:modify-template */ -}}
+{{- /* Omarchy's theme switcher writes workbench.colorTheme into the first line. Keep the live value so a theme switch is not drift. */ -}}
+{{- $theme := regexFind "\"workbench\\.colorTheme\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" .chezmoi.stdin -}}
+{{ if $theme }}{ {{ $theme }},{{ else }}{{ "{" }}{{ end }}
   "editor.fontFamily": "JetBrainsMono Nerd Font",
   "editor.fontSize": 18,
   "editor.lineHeight": 1.8,

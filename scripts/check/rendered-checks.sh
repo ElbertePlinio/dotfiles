@@ -44,7 +44,7 @@ check_os_gating() {
       execute-template --file .chezmoiignore >"$darwin_ignore" \
     && chezmoi "${SRC[@]}" --override-data '{"chezmoi":{"os":"linux"}}' \
       execute-template --file .chezmoiignore >"$linux_ignore"; then
-    for target in .p10k.zsh .config/kdeglobals '.config/environment.d/**' '.config/fish/**'; do
+    for target in .p10k.zsh .XCompose '.config/environment.d/**' '.config/omarchy/**'; do
       grep -Fxq "$target" "$darwin_ignore" \
         || err "Darwin ignore render missing Linux target: $target"
       if grep -Fxq "$target" "$linux_ignore"; then
@@ -63,8 +63,8 @@ check_os_gating() {
       managed --path-style=relative >"$linux_managed"; then
     if ! grep -Fxq '.config/environment.d/50-sudo-askpass.conf' "$darwin_managed" \
       && grep -Fxq '.config/environment.d/50-sudo-askpass.conf' "$linux_managed" \
-      && ! grep -Fxq '.config/kdeglobals' "$darwin_managed" \
-      && grep -Fxq '.config/kdeglobals' "$linux_managed"; then
+      && ! grep -Fxq '.XCompose' "$darwin_managed" \
+      && grep -Fxq '.XCompose' "$linux_managed"; then
       pass 'OS-simulated managed sets exclude Linux-gated targets on Darwin only'
     else
       err 'OS-simulated managed sets do not reflect dual-OS gating'
@@ -77,14 +77,11 @@ check_os_gating() {
 check_portable_home_literals() {
   local needle='/home/'dev path unexpected=0
   while IFS= read -r path; do
-    case "$path" in
-      dot_config/QtProject.conf|\
-      dot_config/plasma-org.kde.plasma.desktop-appletsrc|\
-      dot_config/private_katerc|dot_config/private_spectaclerc) ;;
-      *) err "literal Linux home remains outside an OS-gated source: $path"; unexpected=1 ;;
-    esac
+    err "literal Linux home in source: $path"
+    unexpected=1
   done < <(rg -l --hidden --glob '!.git' --glob '!.git/**' --glob '!*.age' "$needle" . | sed 's#^\./##')
-  [[ "$unexpected" -eq 0 ]] && pass 'literal Linux homes remain only in OS-gated sources'
+  [[ "$unexpected" -eq 0 ]] && pass 'no literal Linux home in source'
+  return 0
 }
 
 # Persistent state for isolated temp destination applies (not live HOME).

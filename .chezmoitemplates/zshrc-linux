@@ -8,9 +8,6 @@ fi
 # Omarchy environment (OMARCHY_PATH + PATH), shared with Bash/login shells.
 [[ -r /usr/share/omarchy/default/bash/env-bootstrap ]] && source /usr/share/omarchy/default/bash/env-bootstrap
 
-# Legacy CachyOS zsh defaults, only when this dotfile is used on an old CachyOS host.
-[[ -r /usr/share/cachyos-zsh-config/cachyos-config.zsh ]] && source /usr/share/cachyos-zsh-config/cachyos-config.zsh
-
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 

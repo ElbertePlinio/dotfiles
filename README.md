@@ -1,6 +1,6 @@
 # dotfiles
 
-Personal dotfiles for macOS and CachyOS Linux, managed with [chezmoi](https://www.chezmoi.io/). Cross-platform shell, editor, git, terminal, and AI tooling configuration is shared, while KDE and other Linux desktop settings are applied only on CachyOS. A small set of API credentials lives in the repo too, **age-encrypted** via chezmoi — see [Secrets (age encryption)](#secrets-age-encryption). Browser profiles, SSH/GPG keys, and stateful blobs stay out of scope — they need manual backup before reinstalling the OS. See [Manual backup](#manual-backup-not-managed-by-chezmoi).
+Personal dotfiles for macOS and Omarchy Linux, managed with [chezmoi](https://www.chezmoi.io/). Shell, editor, git, terminal, and AI tooling configuration is shared. Linux-only settings are applied only on Linux. Omarchy owns the Hyprland desktop, so this repo does not manage it. A small set of API credentials lives in the repo too, **age-encrypted** via chezmoi — see [Secrets (age encryption)](#secrets-age-encryption). Browser profiles, SSH/GPG keys, and stateful blobs stay out of scope — they need manual backup before reinstalling the OS. See [Manual backup](#manual-backup-not-managed-by-chezmoi).
 
 ## Quickstart
 
@@ -56,11 +56,9 @@ chezmoi cd                           # open the source repository
 
 - **Shell**: `.zshrc`, `.zshenv`, `.bashrc`, `.bash_profile`; `.p10k.zsh` (Linux only)
 - **Git**: `.gitconfig`, `~/.config/git/`
-- **Terminals**: `~/.config/ghostty/`; Linux only: `~/.config/alacritty/`, `~/.config/fish/`
-- **Editors**: `~/.config/Code/User/{settings,keybindings,mcp,snippets}.json`, `~/.config/micro/`, `~/.config/nvim/` (LazyVim); Linux only: `~/.config/kate/`, `~/.config/katerc`, `~/.config/katevirc`, `~/.config/kwriterc`
-- **KDE / Plasma** (Linux only): `kdeglobals`, `kwinrc`, `kglobalshortcutsrc`, `konsolerc`, `dolphinrc`, `baloofilerc`, `kxkbrc`, `kcminputrc`, `kded5rc`, `kdedefaults/`, `kiorc`, `kactivitymanagerdrc`, `ksmserverrc`, `plasmashellrc`, `plasma-localerc`, `plasmanotifyrc`, `plasma-org.kde.plasma.desktop-appletsrc` (panel layout), `powermanagementprofilesrc`, `systemmonitorrc`, `gwenviewrc`, `spectaclerc`, `arkrc`, `bluedevilglobalrc`
-- **GTK / Qt** (Linux only): `~/.config/gtk-3.0/`, `~/.config/gtk-4.0/`, `.gtkrc-2.0`, `Trolltech.conf`, `QtProject.conf`
-- **Defaults / environment** (Linux only): `mimeapps.list`, `user-dirs.dirs`, `user-dirs.locale`, `trashrc`, `autostart/`, `environment.d/`, `cachyos/`, `cachyos-hello.json`, `libinput-gestures.conf`
+- **Terminals**: `~/.config/ghostty/`; Linux only: `~/.config/alacritty/`
+- **Editors**: `~/.config/Code/User/{settings,keybindings,mcp,snippets}.json`, `~/.config/micro/`, `~/.config/nvim/` (LazyVim). VS Code `settings.json` is a modify template that keeps the theme line Omarchy writes.
+- **Defaults / environment** (Linux only): `mimeapps.list`, `user-dirs.dirs`, `user-dirs.locale`, `environment.d/`, `systemd/user/`, `omarchy/plugins/`
 - **Fonts / input**: `~/.config/fontconfig/`; `.XCompose` (Linux only)
 - **AI tooling**:
   - Shared policy: `.chezmoitemplates/agents-shared*.md`
