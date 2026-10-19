@@ -34,7 +34,7 @@ STALE_PI_FLOW_PATHS=(
 TMPDIR_ROOT="${TMPDIR:-/tmp}"; TMPDIR_ROOT="${TMPDIR_ROOT%/}"
 TMP="$(mktemp -d "${TMPDIR_ROOT}/agent-config-sync.XXXXXX")"
 DEST="$(mktemp -d "${TMPDIR_ROOT}/chezmoi-dest.XXXXXX")"
-trap 'rm -rf "$TMP" "$DEST"; rm -f "$OMP_MCP"' EXIT
+trap 'rm -rf "$TMP" "$DEST"; rm -f "$OMP_MCP" "$MANIFEST"' EXIT
 render() { chezmoi "${SRC[@]}" execute-template --file "$1" >"$2"; }
 
 check_os_gating() {

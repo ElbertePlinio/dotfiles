@@ -25,12 +25,14 @@ expand_home() {
   fi
 }
 
-MANIFEST="$ROOT/dot_agents/skill-targets.json"
+# The skill links are the registry; the manifest is rendered from them.
+MANIFEST="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-manifest.XXXXXX")"
+chezmoi "${SRC[@]}" execute-template --file "$ROOT/dot_agents/skill-targets.json.tmpl" >"$MANIFEST"
 SKILL_LOCK="$ROOT/dot_agents/dot_skill-lock.json"
 MCP_REGISTRY="$ROOT/dot_agents/mcp-targets.json"
 OMP_MCP_SOURCE="$ROOT/dot_omp/agent/mcp.json.tmpl"
 OMP_MCP="$(mktemp "${TMPDIR:-/tmp}/agent-config-sync-omp-mcp.XXXXXX")"
-trap 'rm -f "$OMP_MCP"' EXIT
+trap 'rm -f "$OMP_MCP" "$MANIFEST"' EXIT
 chezmoi "${SRC[@]}" execute-template --file "$OMP_MCP_SOURCE" >"$OMP_MCP"
 PICKFORGE_LANES_WRAPPER="$ROOT/dot_local/bin/executable_pickforge-lanes-mcp"
 PICKFORGE_LANES_CONFIGURE="$ROOT/run_onchange_after_configure_pickforge_lanes_mcp.sh"

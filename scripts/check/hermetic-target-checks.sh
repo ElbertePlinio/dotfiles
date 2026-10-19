@@ -30,7 +30,7 @@ EXPECTED=(
   dot_local/bin/executable_pickforge-lanes-mcp
   dot_config/agent-config-sync/doctor.json
   dot_agents/dot_skill-lock.json
-  dot_agents/skill-targets.json
+  dot_agents/skill-targets.json.tmpl
   dot_agents/mcp-targets.json
 )
 if chezmoi "${TMP_SRC[@]}" --destination "$DEST" source-path "${TARGETS[@]}" >"$TMP/sp.txt" 2>"$TMP/sp.err"; then

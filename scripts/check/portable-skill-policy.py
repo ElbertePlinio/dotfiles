@@ -4,8 +4,10 @@ import re
 import sys
 from pathlib import Path
 
-root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
-manifest_path = Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else root / "dot_agents/skill-targets.json"
+if len(sys.argv) != 3:
+    raise SystemExit("usage: portable-skill-policy.py <source-root> <rendered-skill-targets.json>")
+root = Path(sys.argv[1]).resolve()
+manifest_path = Path(sys.argv[2]).resolve()
 manifest = json.loads(manifest_path.read_text())
 supported = {"claude", "codex", "grok", "pi", "omp"}
 canonical_root = root / manifest["canonical_source"]
