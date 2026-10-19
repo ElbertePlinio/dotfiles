@@ -1,5 +1,8 @@
+# Repository files, not home files.
 README.md
 LICENSE
+AGENTS.md
+docs
 scripts
 
 # The age identity decrypts every encrypted file here. Never manage it.
@@ -9,6 +12,9 @@ scripts
 .pi/agent/auth.json
 .pi/agent/mcp-oauth
 .context7/credentials.json
+
+# The skills installer records its own installs here.
+.agents/.skill-lock.json
 
 # Pi npm workspace — package manifests and installed deps are reconstructible
 # with `npm ci`, and the tree carried 38 MB binaries into history once already.

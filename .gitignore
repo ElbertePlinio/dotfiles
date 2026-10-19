@@ -27,8 +27,8 @@ dot_omp/puppeteer/
 # Hermes ships and curates its own skill library plus that library's runtime
 # state. Only our portable skill symlinks belong in this repo, so allowlist
 # them rather than chasing each bundled path or encrypted/plaintext variant.
-private_dot_hermes/private_skills/*
-!private_dot_hermes/private_skills/symlink_*
+dot_hermes/skills/*
+!dot_hermes/skills/symlink_*
 
 # Pi npm workspace — manifests and deps are reconstructible with `npm ci`, and
 # this tree carried 38 MB binaries into history once already.

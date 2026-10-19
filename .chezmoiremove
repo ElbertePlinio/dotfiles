@@ -1,3 +1,6 @@
+# Targets retired from this source. A full apply deletes them.
+# Added before 2026-10-19. Delete this file after every machine, including the
+# Mac, has run a full apply.
 .claude-personal
 .config/agent-profiles
 .config/rtk
