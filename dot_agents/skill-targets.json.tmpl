@@ -1,0 +1,27 @@
+{{- /*
+  The skill links are the registry. A portable skill reaches a symlink harness
+  when that harness's source_root holds symlink_<skill>. Codex reads the
+  canonical root directly, so it sees every skill. This file derives the
+  deployed registry from those links for agent-doctor and the checks.
+*/ -}}
+{{- $harnesses := dict
+  "claude" (dict "skills_root" "~/.claude/skills" "source_root" "dot_claude/skills" "discovery" "symlink" "relative_prefix" "../../.agents/skills")
+  "codex" (dict "skills_root" "~/.agents/skills" "source_root" "dot_agents/skills" "discovery" "canonical" "relative_prefix" nil)
+  "grok" (dict "skills_root" "~/.grok/skills" "source_root" "dot_grok/skills" "discovery" "symlink" "relative_prefix" "../../.agents/skills")
+  "pi" (dict "skills_root" "~/.pi/agent/skills" "source_root" "dot_pi/agent/skills" "discovery" "symlink" "relative_prefix" "../../../.agents/skills")
+  "omp" (dict "skills_root" "~/.omp/agent/skills" "source_root" "dot_omp/agent/skills" "discovery" "symlink" "relative_prefix" "../../../.agents/skills")
+  "hermes" (dict "skills_root" "~/.hermes/skills" "source_root" "dot_hermes/skills" "discovery" "symlink" "relative_prefix" "../../.agents/skills")
+-}}
+{{- $skills := dict -}}
+{{- range $skill_file := glob (joinPath .chezmoi.sourceDir "dot_agents/skills/*/SKILL.md") -}}
+{{-   $skill := base (dir $skill_file) -}}
+{{-   $targets := list -}}
+{{-   range $harness := keys $harnesses | sortAlpha -}}
+{{-     $h := index $harnesses $harness -}}
+{{-     if or (eq $h.discovery "canonical") (stat (joinPath $.chezmoi.sourceDir $h.source_root (printf "symlink_%s" $skill))) -}}
+{{-       $targets = append $targets $harness -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $_ := set $skills $skill $targets -}}
+{{- end -}}
+{{ dict "canonical_root" "~/.agents/skills" "canonical_source" "dot_agents/skills" "harnesses" $harnesses "skills" $skills | toPrettyJson -}}

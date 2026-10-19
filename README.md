@@ -68,7 +68,7 @@ chezmoi cd                           # open the source repository
   - Global Claude adapter: `~/.claude/CLAUDE.md` (unrestricted `claude` shell wrapper)
   - Global Codex adapter: `~/.codex/AGENTS.md` (unrestricted `codex` shell wrapper)
   - Other harness adapters: Grok, Pi, OMP
-  - Portable skills: `~/.agents/skills` (canonical). Distribution matrix: `dot_agents/skill-targets.json`
+  - Portable skills: `~/.agents/skills` (canonical). Each harness gets a skill through a `symlink_<skill>` file in its skills directory; `dot_agents/skill-targets.json.tmpl` derives the registry from those links
   - Sync CLI: `agent-config-sync` (`check` | `check-live` | `apply` | `sync` | `doctor`)
   - Skills, prompts, and harness configuration are plaintext and meant to be read. See [Secrets](#secrets-age-encryption) for the encrypted key bundle.
   - Runtime state: credentials, sessions, histories, caches, plugins, and usage state remain machine-owned

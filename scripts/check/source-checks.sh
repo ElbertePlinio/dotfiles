@@ -118,30 +118,26 @@ check_manifest_and_sources() {
     pass 'no duplicate Context7 skill directory: dot_claude'
   fi
 
-  while IFS=$'\t' read -r skill harness; do
-    [[ -n "$skill" && -n "$harness" ]] || continue
-    local discovery
-    discovery="$(jq -r --arg h "$harness" '.harnesses[$h].discovery' "$MANIFEST")"
-    if [[ "$discovery" == "canonical" ]]; then
-      pass "codex/canonical uses $skill without harness symlink"
-      continue
-    fi
-    src_root="$(jq -r --arg h "$harness" '.harnesses[$h].source_root' "$MANIFEST")"
-    rel_prefix="$(jq -r --arg h "$harness" '.harnesses[$h].relative_prefix' "$MANIFEST")"
-    expected="${rel_prefix}/${skill}"
-    link_src="$ROOT/${src_root}/symlink_${skill}"
-    if [[ ! -f "$link_src" ]]; then
-      err "missing symlink source: $link_src"
-      continue
-    fi
-    local got
-    got="$(tr -d '\n' <"$link_src")"
-    if [[ "$got" == "$expected" ]]; then
-      pass "symlink source $harness/$skill -> $expected"
-    else
-      err "symlink source $link_src expected '$expected' got '$got'"
-    fi
-  done < <(jq -r '.skills | to_entries[] | .key as $s | .value[] | "\($s)\t\(.)"' "$MANIFEST")
+  # Every link on disk is a registry entry, so check each one directly.
+  local got
+  while IFS=$'\t' read -r harness src_root rel_prefix; do
+    for link_src in "$ROOT/$src_root"/symlink_*; do
+      [[ -e "$link_src" ]] || continue
+      skill="${link_src##*/symlink_}"
+      expected="${rel_prefix}/${skill}"
+      if [[ ! -f "$ROOT/dot_agents/skills/$skill/SKILL.md" ]]; then
+        err "skill link has no canonical skill: ${link_src#"$ROOT/"}"
+        continue
+      fi
+      got="$(tr -d '\n' <"$link_src")"
+      if [[ "$got" == "$expected" ]]; then
+        pass "symlink source $harness/$skill -> $expected"
+      else
+        err "symlink source $link_src expected '$expected' got '$got'"
+      fi
+    done
+  done < <(jq -r '.harnesses | to_entries[] | select(.value.discovery == "symlink")
+    | [.key, .value.source_root, .value.relative_prefix] | @tsv' "$MANIFEST")
 }
 
 check_legacy_model_skill_absence() {

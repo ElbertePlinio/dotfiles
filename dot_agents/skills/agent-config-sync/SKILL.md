@@ -5,7 +5,7 @@ description: Use when updating or syncing global agent instructions, portable sk
 
 Resolve the source with `chezmoi source-path`. Edit that source, never only rendered files under `$HOME`. Inspect relevant source status and preserve unrelated work. Scope `chezmoi diff` to explicit paths, because whole-tree diffs open a pager and expose rendered credentials.
 
-Shared rules belong in `.chezmoitemplates/agents-shared*.md` and applicable adapters. Harness-only changes stay in that harness. Repo rules stay repo-local unless a global change was requested. Portable skills belong in `dot_agents/skills/`, with capability-aware distribution in `dot_agents/skill-targets.json` and declared links. Harness-native skills stay native.
+Shared rules belong in `.chezmoitemplates/agents-shared*.md` and applicable adapters. Harness-only changes stay in that harness. Repo rules stay repo-local unless a global change was requested. Portable skills belong in `dot_agents/skills/`. A harness receives a skill through a `symlink_<skill>` file in its skills source directory, and those links are the only distribution registry. Harness-native skills stay native.
 
 Read [operations](references/operations.md) for commands, bootstrap, harness ownership, and harness-only apply. An authorized implementation includes relevant validation and apply within the requested scope unless the user limits it. Do not ask again for the same authorization. Assessment requests do not authorize edits; changes to architecture, persistence, auth, security, or scope still need approval.
 
