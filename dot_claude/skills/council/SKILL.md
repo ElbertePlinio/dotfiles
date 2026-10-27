@@ -15,7 +15,7 @@ Brief. Give each delegate the request, the requirements, the exact diff or desig
 
 Decide. Verify each finding through code or a focused test; a vote is not evidence. Fix what is valid with the smallest change. Fight scope creep: decline nits and out-of-scope ideas, and list them as follow-ups. After fixes, start a fresh round with the earlier findings and your answers. Stop when every seat approves or has only nits, or after three rounds, and report what stays disputed. For a product decision, ask the user with the question tool and put each seat's view in the options.
 
-Record. When the work ends in a PR, edit its description and add this block above the model line. Write `no score` where a delegate gave none, and never invent one.
+Record. When the work ends in a PR, edit its description and add this block at the end. Write `no score` where a delegate gave none, and never invent one.
 
 ```markdown
 Council review, <N> rounds:
