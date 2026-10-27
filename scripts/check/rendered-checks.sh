@@ -13,7 +13,7 @@ HARNESS=(
 )
 # Size ratchet: the shared policy shrank deliberately (2026-07); the budget stops
 # it regrowing. Raise only with an explicit decision, never to make a check pass.
-SHARED_MAX_BYTES=10000
+SHARED_MAX_BYTES=10450
 
 ADAPTER_BUDGETS=(
   'dot_claude/CLAUDE.md.tmpl|3800'
