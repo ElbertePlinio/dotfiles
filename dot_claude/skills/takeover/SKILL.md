@@ -9,7 +9,7 @@ Finish the original goal of someone else's work, and keep the original contribut
 
 Read the source PR, branch, or thread, with its review findings and the user's later corrections. Resolve it to the real code at the current head, and account for uncommitted work. The handoff is context, not proof.
 
-Run the modernize skill first. It decides whether the goal still matters and whether the code is a starting point or only a reference. Rework what the same goal needs and nothing more. Simplify, but keep every intended behavior.
+Run the intent, context, and disposition steps of the modernize skill first, without its rebase or push. They decide whether the goal still matters and whether the code is a starting point or only a reference. Do all rework on your replacement branch. Rework what the same goal needs and nothing more. Simplify, but keep every intended behavior.
 
 For a replacement PR, bring the original commits onto a new branch and add your fixes as separate commits, so authorship survives. Continue in place or stacked only when the user asks for it. Never change the original PR, or overwrite work on it, without permission. Credit the original contributors in the PR description and link their PR. Model attribution does not replace contributor credit.
 

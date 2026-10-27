@@ -7,9 +7,9 @@ metadata:
 
 You own the change, and Sol reviews it in a loop until you both agree or the budget ends. Fix what is right and push back on what is wrong. Keep the smallest change that meets the intent. Review makes a change correct, not bigger.
 
-Reviewer. Sol is the default reviewer. It finds as many bugs as Astra at about a sixth of the cost. If Sol wrote the code, Astra reviews in its place, because a model never reviews its own code. Use high effort. Use xhigh when the change touches security, auth, permissions, money, migrations, persistence, concurrency, or data loss.
+Reviewer. Sol is the default reviewer. It scores within a point of Astra on independent tests at about a sixth of the cost. If Sol wrote the code, Astra reviews in its place, because a model never reviews its own code. Use high effort, because this review is the main bug gate before an unattended merge. Use xhigh when the change touches security, auth, permissions, money, migrations, persistence, concurrency, or data loss.
 
-Route. In T3 Code, resolve the latest Sol through `orchestrator_capabilities`. Start every round with `delegate_task`: role `review`, mode `async`, the Codex provider, and `reasoningEffort` in `target.options`. Use a new `clientRequestId` per round and keep each `taskId`. The `childThreadId` is storage, never the target of the next round. Outside T3, run `codex-run review --model sol` through the codex skill in the background, and send later rounds with `--resume`. If no route runs Sol, report the blocker. Never substitute another model without saying so.
+Route. Send each round to the chosen reviewer, Sol or Astra. In T3 Code, resolve its latest model through `orchestrator_capabilities`. Start every round with `delegate_task`: role `review`, mode `async`, the Codex provider, and `reasoningEffort` in `target.options`. Use a new `clientRequestId` per round and keep each `taskId`. The `childThreadId` is storage, never the target of the next round. Outside T3, commit the change's paths first, because codex-run reviews a commit and never sees uncommitted or untracked work. Then run `codex-run review --model <sol|astra> --rev <sha>` through the codex skill in the background, and send later rounds with `--resume`. A local commit is not a push. If no route runs the reviewer, report the blocker. Never substitute another model without saying so.
 
 Budget. Run three rounds at most. Round one reviews the whole change; later rounds check only changed code and open findings. Allow five rounds only for the risk areas above, while a blocker or should stays open with evidence. Stop early when a round returns only nits. Run one reviewer at a time.
 
@@ -21,17 +21,18 @@ Brief. A delegated child has no history, so every brief stands alone:
 Review only. Do not edit, commit, push, comment, or start subagents.
 Repo: <path>  Base: <sha>  Intent: <one or two sentences>  Out of scope: <items>
 Checks: <commands and results>
-Diff: git diff <base> [-- <paths>], plus untracked files from git status --short.
+Diff: git diff <base> [<sha>] [-- <paths>], plus untracked files from git status --short.
 Read callers and surrounding code. Find bugs, broken callers, and gaps against the intent.
 Ignore style unless it hides a bug. Flag code, tests, or guards the intent does not need.
-blocker: the intended case is wrong. should: a real bug callers hit within the intent.
-nit: everything else, such as rare paths, small costs, or extra compatibility.
+blocker: the intended case is wrong, or any path can lose data, money, or access.
+should: a real bug callers hit within the intent.
+nit: everything else, such as rare low-impact paths, small costs, or extra compatibility.
 Reply with VERDICT: APPROVE or CHANGES, then one line per finding:
 S1 [blocker|should|nit] <file>:<line> <claim> Fix: <suggestion>
 Keep ids stable across rounds.
 ```
 
-Answers. Check every finding and its severity yourself; a rare path or a small cost is a nit whatever its label. When you agree, make the smallest fix. Prefer deleting or narrowing code over a new lock, cache, helper, or option. Add one focused test that fails without the fix when the intent needs it. When you disagree, give evidence: file and line, a test, or output. Decline nits and out-of-scope items in one line and list them as follow-ups. Keep a ledger of id, severity, and outcome. After fixes, rerun the checks and `git diff --shortstat <base>`. If review grew the diff, cut it back. Never agree only to end the loop.
+Answers. Check every finding and its severity yourself, and judge severity by consequence. A rare path with small impact is a nit whatever its label. A rare path that can lose data, money, or access is not a nit. When you agree, make the smallest fix. Prefer deleting or narrowing code over a new lock, cache, helper, or option. Add one focused test that fails without the fix when the intent needs it. When you disagree, give evidence: file and line, a test, or output. Decline nits and out-of-scope items in one line and list them as follow-ups. Keep a ledger of id, severity, and outcome. After fixes, rerun the checks and `git diff --shortstat <base>`. If review grew the diff, cut it back. Never agree only to end the loop.
 
 Next round. Start one only while budget remains and a blocker or should is open, or behavior code changed after an approval. Send the round-one brief again with the ledger (fixed, disputed, declined, with evidence), the same base diff, and the change since the last round. Ask Sol to check only open ids and changed code, and to mark each old id resolved or still open with a reason.
 
