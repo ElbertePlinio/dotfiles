@@ -4,8 +4,6 @@ TARGETS=(
   "$DEST/.claude/agents/final-reviewer.md"
   "$DEST/.claude/agents/final-reviewer-high.md"
   "$DEST/.claude/agents/final-reviewer-xhigh.md"
-  "$DEST/.claude/skills/kickoff"
-  "$DEST/.claude/skills/codex"
   "$DEST/.claude/settings.json"
   "$DEST/.codex/AGENTS.md"
   "$DEST/.grok/AGENTS.md" "$DEST/.pi/agent/AGENTS.md" "$DEST/.omp/agent/AGENTS.md"
@@ -17,6 +15,10 @@ TARGETS=(
   "$DEST/.agents/skill-targets.json"
   "$DEST/.agents/mcp-targets.json"
 )
+# Claude-native skills are directories beside the symlink_ files; apply every one.
+for skill_dir in "$ROOT"/dot_claude/skills/*/; do
+  TARGETS+=("$DEST/.claude/skills/$(basename "$skill_dir")")
+done
 EXPECTED=(
   dot_zshrc.tmpl dot_bashrc
   dot_claude/CLAUDE.md.tmpl
