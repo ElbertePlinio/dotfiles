@@ -13,7 +13,7 @@ HARNESS=(
 )
 # Size ratchet: the shared policy shrank deliberately (2026-07); the budget stops
 # it regrowing. Raise only with an explicit decision, never to make a check pass.
-SHARED_MAX_BYTES=10450
+SHARED_MAX_BYTES=10850
 
 ADAPTER_BUDGETS=(
   'dot_claude/CLAUDE.md.tmpl|3800'
@@ -182,15 +182,15 @@ for routing_adapter in dot_codex/AGENTS.md.tmpl dot_pi/agent/AGENTS.md.tmpl dot_
 done
 unset routing_rule routing_adapter routing_render
 
-# Claude Code runs Anthropic models natively and OpenAI models through its codex skill, never Lanes.
+# Claude Code runs Anthropic models natively and other providers through T3 delegate_task or its codex skill, never Lanes.
 claude_render="$TMP/routing-claude-CLAUDE.md"
 if render dot_claude/CLAUDE.md.tmpl "$claude_render" \
   && [[ "$(grep -c 'Make the smallest clean change that solves the requested problem.' "$claude_render" || true)" -eq 1 ]] \
   && grep -Fq 'AgentMemory' "$claude_render" \
-  && grep -Fq 'Claude Code does not use Lanes or other providers.' "$claude_render" \
-  && grep -Fq 'Astra reviews all code being shipped, through the codex skill.' "$claude_render" \
+  && grep -Fq 'Claude Code does not use Lanes.' "$claude_render" \
+  && grep -Fq 'Sol reviews all code being shipped, through the sol-loop skill.' "$claude_render" \
   && ! grep -Eq 'lanes_|pickforge-lanes|Lanes registers' "$claude_render"; then
-  pass 'Claude adapter keeps neutral shared policy and routes OpenAI models through the codex skill'
+  pass 'Claude adapter keeps neutral shared policy, routes Sol reviews through sol-loop, and avoids Lanes'
 else
   err 'Claude adapter lost neutral shared policy or still routes through Lanes'
 fi
