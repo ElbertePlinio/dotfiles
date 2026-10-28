@@ -59,13 +59,24 @@ if [[ -n "$(find "$source_dir" -name .git -prune -o -name "*"$'\n'"*" -print)" ]
   exit 1
 fi
 
-# Patterns that this machine leaves to another tool, relative to the target
-# directory, as .chezmoiignore reads them.
+# Live paths that this machine leaves to another tool through ignore.local.
+# chezmoi's own glob expands each pattern, so it matches the way
+# .chezmoiignore does. Lines that start with ! only undo other patterns.
 dest="${CHEZMOI_DEST_DIR:-$HOME}"
 local_ignore="$HOME/.config/chezmoi/ignore.local"
 kept=""
-[[ -f "$local_ignore" ]] \
-  && kept="$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$local_ignore" || true)"
+kept_loaded=false
+load_kept() {
+  local pattern
+  $kept_loaded && return
+  kept_loaded=true
+  [[ -f "$local_ignore" ]] || return 0
+  while IFS= read -r pattern; do
+    [[ -n "$pattern" && "$pattern" != '!'* ]] || continue
+    kept+="$(GUARD_PATTERN="$pattern" cz execute-template \
+      '{{ range glob (env "GUARD_PATTERN") }}{{ . }}{{ "\n" }}{{ end }}')"$'\n'
+  done < <(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$local_ignore" || true)
+}
 
 status="$(cz status --exclude=scripts --path-style=absolute)"
 managed_dirs=""
@@ -81,20 +92,14 @@ while IFS= read -r line; do
   [[ "$planned" == ' ' ]] && continue
   # Removals come from .chezmoiremove and are meant to delete, but a removed
   # directory takes everything below it, including locally ignored paths.
-  # The pattern stays unquoted, so bash matches it as a glob. There `*` also
-  # crosses `/`, which can only block more removals, never fewer.
   if [[ "$planned" == D ]]; then
-    [[ -n "$kept" ]] || continue
-    while IFS= read -r -d '' entry; do
-      rel="${entry#"$dest"/}"
-      while IFS= read -r pattern; do
-        [[ -n "$pattern" && "$pattern" != '!'* ]] || continue
-        if [[ "$rel" == $pattern ]]; then
-          removed+=("$path")
-          break 2
-        fi
-      done <<<"$kept"
-    done < <(find "$path" -print0 2>/dev/null)
+    load_kept
+    while IFS= read -r rel; do
+      if [[ -n "$rel" && ( "$dest/$rel" == "$path" || "$dest/$rel" == "$path"/* ) ]]; then
+        removed+=("$path")
+        break
+      fi
+    done <<<"$kept"
     continue
   fi
   # A managed directory only changes mode, and its contents are separate
