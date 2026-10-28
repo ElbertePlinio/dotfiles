@@ -158,7 +158,8 @@ check_apply_guard() {
 
   local pattern
   for pattern in .retired-dir/sub/kept.json '.retired-*/*/kept.json' '.retired-dir/**/sub/kept.json' \
-    '  .retired-dir/sub/kept.json # tool-owned' $'.retired-dir/sub/kept.json\t# tool-owned'; do
+    '  .retired-dir/sub/kept.json # tool-owned' $'.retired-dir/sub/kept.json\t# tool-owned' \
+    $'\xc2\xa0.retired-dir/sub/kept.json'; do
     mkdir -p "$home/.retired-dir/sub"
     printf '%s\n' tool >"$home/.retired-dir/sub/kept.json"
     printf '%s\n' "$pattern" >"$home/.config/chezmoi/ignore.local"
