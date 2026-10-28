@@ -125,3 +125,8 @@ scripts
 .config/systemd/**
 .local/bin/sunshine-stream-session
 {{ end }}
+
+# Machine-local patterns, such as files that another tool manages on that
+# machine. The list stays outside this public repository.
+{{- $localIgnore := joinPath .chezmoi.homeDir ".config/chezmoi/ignore.local" }}
+{{ if stat $localIgnore }}{{ include $localIgnore }}{{ end }}
