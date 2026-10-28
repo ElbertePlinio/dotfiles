@@ -81,13 +81,20 @@ while IFS= read -r line; do
   [[ "$planned" == ' ' ]] && continue
   # Removals come from .chezmoiremove and are meant to delete, but a removed
   # directory takes everything below it, including locally ignored paths.
+  # The pattern stays unquoted, so bash matches it as a glob. There `*` also
+  # crosses `/`, which can only block more removals, never fewer.
   if [[ "$planned" == D ]]; then
-    while IFS= read -r pattern; do
-      if [[ -n "$pattern" && "$dest/$pattern" == "$path"/* ]]; then
-        removed+=("$path")
-        break
-      fi
-    done <<<"$kept"
+    [[ -n "$kept" ]] || continue
+    while IFS= read -r -d '' entry; do
+      rel="${entry#"$dest"/}"
+      while IFS= read -r pattern; do
+        [[ -n "$pattern" && "$pattern" != '!'* ]] || continue
+        if [[ "$rel" == $pattern ]]; then
+          removed+=("$path")
+          break 2
+        fi
+      done <<<"$kept"
+    done < <(find "$path" -print0 2>/dev/null)
     continue
   fi
   # A managed directory only changes mode, and its contents are separate

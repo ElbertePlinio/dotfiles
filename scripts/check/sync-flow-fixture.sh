@@ -156,16 +156,26 @@ check_apply_guard() {
     err "apply guard blocked a retirement: $(tr '\n' ' ' <"$log")"
   fi
 
-  mkdir -p "$home/.retired-dir"
-  printf '%s\n' tool >"$home/.retired-dir/kept.json"
-  printf '%s\n' .retired-dir/kept.json >"$home/.config/chezmoi/ignore.local"
-  printf '%s\n' .retired-dir >"$src/.chezmoiremove"
-  if ! fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
-    && grep -Fq "removal would delete a path in $home/.config/chezmoi/ignore.local: $home/.retired-dir" "$log" \
-    && grep -Fxq tool "$home/.retired-dir/kept.json"; then
-    pass 'apply guard blocks a removal that would delete a locally ignored path'
+  local pattern
+  for pattern in .retired-dir/sub/kept.json '.retired-*/*/kept.json'; do
+    mkdir -p "$home/.retired-dir/sub"
+    printf '%s\n' tool >"$home/.retired-dir/sub/kept.json"
+    printf '%s\n' "$pattern" >"$home/.config/chezmoi/ignore.local"
+    printf '%s\n' .retired-dir >"$src/.chezmoiremove"
+    if ! fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+      && grep -Fq "removal would delete a path in $home/.config/chezmoi/ignore.local: $home/.retired-dir" "$log" \
+      && grep -Fxq tool "$home/.retired-dir/sub/kept.json"; then
+      pass "apply guard blocks a removal that would delete a locally ignored path: $pattern"
+    else
+      err "apply guard let a removal delete a locally ignored path ($pattern): $(tr '\n' ' ' <"$log")"
+    fi
+  done
+  printf '%s\n' '.other-dir/*' >"$home/.config/chezmoi/ignore.local"
+  if fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && [[ ! -e "$home/.retired-dir" ]]; then
+    pass 'apply guard lets a removal proceed when no locally ignored path is below it'
   else
-    err "apply guard let a removal delete a locally ignored path: $(tr '\n' ' ' <"$log")"
+    err "apply guard blocked an unrelated removal: $(tr '\n' ' ' <"$log")"
   fi
   rm -rf "$home/.retired-dir" "$home/.config/chezmoi/ignore.local"
 
