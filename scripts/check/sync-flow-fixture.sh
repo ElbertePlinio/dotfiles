@@ -156,6 +156,19 @@ check_apply_guard() {
     err "apply guard blocked a retirement: $(tr '\n' ' ' <"$log")"
   fi
 
+  mkdir -p "$home/.retired-dir"
+  printf '%s\n' tool >"$home/.retired-dir/kept.json"
+  printf '%s\n' .retired-dir/kept.json >"$home/.config/chezmoi/ignore.local"
+  printf '%s\n' .retired-dir >"$src/.chezmoiremove"
+  if ! fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && grep -Fq "removal would delete a path in $home/.config/chezmoi/ignore.local: $home/.retired-dir" "$log" \
+    && grep -Fxq tool "$home/.retired-dir/kept.json"; then
+    pass 'apply guard blocks a removal that would delete a locally ignored path'
+  else
+    err "apply guard let a removal delete a locally ignored path: $(tr '\n' ' ' <"$log")"
+  fi
+  rm -rf "$home/.retired-dir" "$home/.config/chezmoi/ignore.local"
+
   # The removal leaves a remove entry in the state. A file recreated at that
   # path later is still not content chezmoi wrote.
   : >"$src/.chezmoiremove"

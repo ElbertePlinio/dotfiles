@@ -259,7 +259,20 @@ check_live_primary_global_targets() {
     "${target_root}/.bashrc"
   )
 
-  if chezmoi "${SRC[@]}" --destination "$target_root" verify "${targets[@]}" >/dev/null 2>&1; then
+  # A target that this machine leaves to another tool through ignore.local is
+  # not managed here, so verify cannot check it.
+  local ignored target
+  local -a managed=()
+  ignored="$(chezmoi "${SRC[@]}" --destination "$target_root" ignored 2>/dev/null || true)"
+  for target in "${targets[@]}"; do
+    if grep -Fxq -- "${target#"$target_root"/}" <<<"$ignored"; then
+      pass "live target ignored on this machine: $target"
+    else
+      managed+=("$target")
+    fi
+  done
+
+  if chezmoi "${SRC[@]}" --destination "$target_root" verify "${managed[@]}" >/dev/null 2>&1; then
     pass 'live global Claude policy, settings, rules, skills, and shell targets match managed state'
   else
     err 'live global Claude policy, settings, rules, skills, or shell target differs from managed state'

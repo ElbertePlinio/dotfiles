@@ -59,18 +59,37 @@ if [[ -n "$(find "$source_dir" -name .git -prune -o -name "*"$'\n'"*" -print)" ]
   exit 1
 fi
 
+# Patterns that this machine leaves to another tool, relative to the target
+# directory, as .chezmoiignore reads them.
+dest="${CHEZMOI_DEST_DIR:-$HOME}"
+local_ignore="$HOME/.config/chezmoi/ignore.local"
+kept=""
+[[ -f "$local_ignore" ]] \
+  && kept="$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$local_ignore" || true)"
+
 status="$(cz status --exclude=scripts --path-style=absolute)"
 managed_dirs=""
 edited=()
 unowned=()
 replaced=()
+removed=()
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   before="${line:0:1}"
   planned="${line:1:1}"
   path="${line:3}"
-  # Removals come from .chezmoiremove and are meant to delete.
-  [[ "$planned" == ' ' || "$planned" == D ]] && continue
+  [[ "$planned" == ' ' ]] && continue
+  # Removals come from .chezmoiremove and are meant to delete, but a removed
+  # directory takes everything below it, including locally ignored paths.
+  if [[ "$planned" == D ]]; then
+    while IFS= read -r pattern; do
+      if [[ -n "$pattern" && "$dest/$pattern" == "$path"/* ]]; then
+        removed+=("$path")
+        break
+      fi
+    done <<<"$kept"
+    continue
+  fi
   # A managed directory only changes mode, and its contents are separate
   # targets. Any other target replaces the live directory and its contents.
   if [[ -d "$path" && ! -L "$path" ]]; then
@@ -90,8 +109,8 @@ while IFS= read -r line; do
   unowned+=("$path")
 done <<<"$status"
 
-[[ "${#edited[@]}" -eq 0 && "${#unowned[@]}" -eq 0 && "${#replaced[@]}" -eq 0 ]] \
-  && exit 0
+[[ "${#edited[@]}" -eq 0 && "${#unowned[@]}" -eq 0 && "${#replaced[@]}" -eq 0 \
+  && "${#removed[@]}" -eq 0 ]] && exit 0
 
 {
   echo "apply-guard: this full apply would overwrite content chezmoi did not write."
@@ -104,7 +123,12 @@ done <<<"$status"
   for path in ${replaced[@]+"${replaced[@]}"}; do
     echo "  live directory would be replaced: $path"
   done
+  for path in ${removed[@]+"${removed[@]}"}; do
+    echo "  removal would delete a path in $local_ignore: $path"
+  done
   echo "Review each path. Merge it with \`chezmoi merge <path>\`, or take the"
   echo "source version with \`chezmoi apply --force <path>\`. Then apply again."
+  [[ "${#removed[@]}" -eq 0 ]] \
+    || echo "For a removal, move the ignored path out of it or drop its pattern."
 } >&2
 exit 1
