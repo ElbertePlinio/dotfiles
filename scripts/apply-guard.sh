@@ -59,18 +59,52 @@ if [[ -n "$(find "$source_dir" -name .git -prune -o -name "*"$'\n'"*" -print)" ]
   exit 1
 fi
 
+# Live paths that this machine leaves to another tool through ignore.local.
+# A chezmoi template reads each line the way chezmoi reads .chezmoiignore:
+# the same comment regex, Go's TrimSpace, then a clean path. chezmoi's own
+# glob then expands the pattern. Lines that start with ! only undo other patterns, so skipping
+# them can only block more removals.
+dest="${CHEZMOI_DEST_DIR:-$HOME}"
+local_ignore="$HOME/.config/chezmoi/ignore.local"
+kept=""
+kept_loaded=false
+load_kept() {
+  $kept_loaded && return
+  kept_loaded=true
+  [[ -f "$local_ignore" ]] || return 0
+  kept="$(GUARD_IGNORE="$local_ignore" cz execute-template \
+    '{{ range splitList "\n" (include (env "GUARD_IGNORE")) }}
+{{- $pattern := regexReplaceAll `(?:\A|\s+)#.*$` . "" | trim }}
+{{- if and $pattern (not (hasPrefix "!" $pattern)) }}
+{{- range glob (clean $pattern) }}{{ clean . }}{{ "\n" }}{{ end }}
+{{- end }}
+{{- end }}')"
+}
+
 status="$(cz status --exclude=scripts --path-style=absolute)"
 managed_dirs=""
 edited=()
 unowned=()
 replaced=()
+removed=()
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   before="${line:0:1}"
   planned="${line:1:1}"
   path="${line:3}"
-  # Removals come from .chezmoiremove and are meant to delete.
-  [[ "$planned" == ' ' || "$planned" == D ]] && continue
+  [[ "$planned" == ' ' ]] && continue
+  # Removals come from .chezmoiremove and are meant to delete, but a removed
+  # directory takes everything below it, including locally ignored paths.
+  if [[ "$planned" == D ]]; then
+    load_kept
+    while IFS= read -r rel; do
+      if [[ -n "$rel" && ( "$dest/$rel" == "$path" || "$dest/$rel" == "$path"/* ) ]]; then
+        removed+=("$path")
+        break
+      fi
+    done <<<"$kept"
+    continue
+  fi
   # A managed directory only changes mode, and its contents are separate
   # targets. Any other target replaces the live directory and its contents.
   if [[ -d "$path" && ! -L "$path" ]]; then
@@ -90,8 +124,8 @@ while IFS= read -r line; do
   unowned+=("$path")
 done <<<"$status"
 
-[[ "${#edited[@]}" -eq 0 && "${#unowned[@]}" -eq 0 && "${#replaced[@]}" -eq 0 ]] \
-  && exit 0
+[[ "${#edited[@]}" -eq 0 && "${#unowned[@]}" -eq 0 && "${#replaced[@]}" -eq 0 \
+  && "${#removed[@]}" -eq 0 ]] && exit 0
 
 {
   echo "apply-guard: this full apply would overwrite content chezmoi did not write."
@@ -104,7 +138,12 @@ done <<<"$status"
   for path in ${replaced[@]+"${replaced[@]}"}; do
     echo "  live directory would be replaced: $path"
   done
+  for path in ${removed[@]+"${removed[@]}"}; do
+    echo "  removal would delete a path in $local_ignore: $path"
+  done
   echo "Review each path. Merge it with \`chezmoi merge <path>\`, or take the"
   echo "source version with \`chezmoi apply --force <path>\`. Then apply again."
+  [[ "${#removed[@]}" -eq 0 ]] \
+    || echo "For a removal, move the ignored path out of it or drop its pattern."
 } >&2
 exit 1

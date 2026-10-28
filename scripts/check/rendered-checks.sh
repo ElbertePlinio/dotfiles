@@ -74,6 +74,33 @@ check_os_gating() {
   fi
 }
 
+check_local_ignore() {
+  local home="$TMP/local-ignore-home" out="$TMP/chezmoiignore-local"
+  local data="{\"chezmoi\":{\"homeDir\":\"$home\"}}"
+  local -a machine=(env -u AGENT_CONFIG_SYNC_SOURCE_CHECK chezmoi "${SRC[@]}" --override-data "$data")
+  mkdir -p "$home/.config/chezmoi"
+  if "${machine[@]}" execute-template --file .chezmoiignore >"$out" \
+    && ! grep -Fxq 'zz-local-only.json' "$out"; then
+    pass 'ignore render works without a machine-local list'
+  else
+    err 'ignore render fails or adds patterns without a machine-local list'
+  fi
+  printf 'zz-local-only.json\n' >"$home/.config/chezmoi/ignore.local"
+  if "${machine[@]}" execute-template --file .chezmoiignore >"$out" \
+    && grep -Fxq 'zz-local-only.json' "$out"; then
+    pass 'ignore render adds machine-local patterns'
+  else
+    err 'ignore render misses machine-local patterns'
+  fi
+  if AGENT_CONFIG_SYNC_SOURCE_CHECK=1 chezmoi "${SRC[@]}" --override-data "$data" \
+      execute-template --file .chezmoiignore >"$out" \
+    && ! grep -Fxq 'zz-local-only.json' "$out"; then
+    pass 'source checks skip machine-local ignore patterns'
+  else
+    err 'source checks apply machine-local ignore patterns'
+  fi
+}
+
 check_portable_home_literals() {
   local needle='/home/'dev path unexpected=0
   while IFS= read -r path; do
@@ -108,6 +135,7 @@ check_agent_hook_policy
 check_managed_workflow_mode
 check_doctor_sources
 check_os_gating
+check_local_ignore
 check_portable_home_literals
 
 for f in "${SHARED[@]}"; do need "$f"; done

@@ -125,3 +125,9 @@ scripts
 .config/systemd/**
 .local/bin/sunshine-stream-session
 {{ end }}
+
+# Machine-local patterns, such as files that another tool manages on that
+# machine. The list stays outside this public repository. Source checks set
+# AGENT_CONFIG_SYNC_SOURCE_CHECK, so they test the repository, not the machine.
+{{- $localIgnore := joinPath .chezmoi.homeDir ".config/chezmoi/ignore.local" }}
+{{ if and (stat $localIgnore) (not (env "AGENT_CONFIG_SYNC_SOURCE_CHECK")) }}{{ include $localIgnore }}{{ end }}

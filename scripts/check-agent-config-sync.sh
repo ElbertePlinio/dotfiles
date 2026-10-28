@@ -11,6 +11,9 @@ for arg in "$@"; do
     --check-live-migration) MODE=live ;;
   esac
 done
+if [[ "$MODE" == default ]]; then
+  export AGENT_CONFIG_SYNC_SOURCE_CHECK=1
+fi
 
 
 python3 "$ROOT/scripts/check-hermes-policy.py"

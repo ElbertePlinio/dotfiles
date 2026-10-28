@@ -156,6 +156,31 @@ check_apply_guard() {
     err "apply guard blocked a retirement: $(tr '\n' ' ' <"$log")"
   fi
 
+  local pattern
+  for pattern in .retired-dir/sub/kept.json '.retired-*/*/kept.json' '.retired-dir/**/sub/kept.json' \
+    '  .retired-dir/sub/kept.json # tool-owned' $'.retired-dir/sub/kept.json\t# tool-owned' \
+    $'\xc2\xa0.retired-dir/sub/kept.json' ./.retired-dir/sub/kept.json .retired-dir/sub/; do
+    mkdir -p "$home/.retired-dir/sub"
+    printf '%s\n' tool >"$home/.retired-dir/sub/kept.json"
+    printf '%s\n' "$pattern" >"$home/.config/chezmoi/ignore.local"
+    printf '%s\n' .retired-dir >"$src/.chezmoiremove"
+    if ! fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+      && grep -Fq "removal would delete a path in $home/.config/chezmoi/ignore.local: $home/.retired-dir" "$log" \
+      && grep -Fxq tool "$home/.retired-dir/sub/kept.json"; then
+      pass "apply guard blocks a removal that would delete a locally ignored path: $pattern"
+    else
+      err "apply guard let a removal delete a locally ignored path ($pattern): $(tr '\n' ' ' <"$log")"
+    fi
+  done
+  printf '%s\n' '.other-dir/*' >"$home/.config/chezmoi/ignore.local"
+  if fixture_env "$home" "${cz[@]}" apply --force --no-tty >"$log" 2>&1 \
+    && [[ ! -e "$home/.retired-dir" ]]; then
+    pass 'apply guard lets a removal proceed when no locally ignored path is below it'
+  else
+    err "apply guard blocked an unrelated removal: $(tr '\n' ' ' <"$log")"
+  fi
+  rm -rf "$home/.retired-dir" "$home/.config/chezmoi/ignore.local"
+
   # The removal leaves a remove entry in the state. A file recreated at that
   # path later is still not content chezmoi wrote.
   : >"$src/.chezmoiremove"
