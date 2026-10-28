@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 [[ -n "$repo" ]] || usage
-[[ -n "$model" ]] || { [[ "$mode" == review ]] && model=astra || model=sol; }
+[[ -n "$model" ]] || model=sol
 case "$model" in
   sol) slug=gpt-6.1-sol ;;
   astra) slug=gpt-6-astra ;;
