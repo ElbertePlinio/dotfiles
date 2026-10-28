@@ -61,8 +61,8 @@ fi
 
 # Live paths that this machine leaves to another tool through ignore.local.
 # A chezmoi template reads each line the way chezmoi reads .chezmoiignore:
-# the same comment regex, then Go's TrimSpace. chezmoi's own glob then expands
-# the pattern. Lines that start with ! only undo other patterns, so skipping
+# the same comment regex, Go's TrimSpace, then a clean path. chezmoi's own
+# glob then expands the pattern. Lines that start with ! only undo other patterns, so skipping
 # them can only block more removals.
 dest="${CHEZMOI_DEST_DIR:-$HOME}"
 local_ignore="$HOME/.config/chezmoi/ignore.local"
@@ -76,7 +76,7 @@ load_kept() {
     '{{ range splitList "\n" (include (env "GUARD_IGNORE")) }}
 {{- $pattern := regexReplaceAll `(?:\A|\s+)#.*$` . "" | trim }}
 {{- if and $pattern (not (hasPrefix "!" $pattern)) }}
-{{- range glob $pattern }}{{ . }}{{ "\n" }}{{ end }}
+{{- range glob (clean $pattern) }}{{ clean . }}{{ "\n" }}{{ end }}
 {{- end }}
 {{- end }}')"
 }
