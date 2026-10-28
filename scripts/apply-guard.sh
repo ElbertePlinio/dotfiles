@@ -60,22 +60,33 @@ if [[ -n "$(find "$source_dir" -name .git -prune -o -name "*"$'\n'"*" -print)" ]
 fi
 
 # Live paths that this machine leaves to another tool through ignore.local.
-# chezmoi's own glob expands each pattern, so it matches the way
-# .chezmoiignore does. Lines that start with ! only undo other patterns.
+# Each line is read the way .chezmoiignore reads it: outer whitespace goes,
+# a line that starts with # is a comment, and whitespace before # starts a
+# trailing comment.
+# chezmoi's own glob then expands the pattern. Lines that start with ! only
+# undo other patterns, so skipping them can only block more removals.
 dest="${CHEZMOI_DEST_DIR:-$HOME}"
 local_ignore="$HOME/.config/chezmoi/ignore.local"
 kept=""
 kept_loaded=false
+trim() {
+  local text="$1"
+  text="${text#"${text%%[![:space:]]*}"}"
+  printf '%s' "${text%"${text##*[![:space:]]}"}"
+}
 load_kept() {
-  local pattern
+  local line pattern
   $kept_loaded && return
   kept_loaded=true
   [[ -f "$local_ignore" ]] || return 0
-  while IFS= read -r pattern; do
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    pattern="$(trim "$line")"
+    [[ "$pattern" == '#'* ]] && continue
+    pattern="$(trim "${pattern%%[[:space:]]#*}")"
     [[ -n "$pattern" && "$pattern" != '!'* ]] || continue
     kept+="$(GUARD_PATTERN="$pattern" cz execute-template \
       '{{ range glob (env "GUARD_PATTERN") }}{{ . }}{{ "\n" }}{{ end }}')"$'\n'
-  done < <(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$local_ignore" || true)
+  done <"$local_ignore"
 }
 
 status="$(cz status --exclude=scripts --path-style=absolute)"
