@@ -55,7 +55,7 @@ block_private_terms() {
   fi
   case "$hook" in
     pre-commit)
-      names="$(gitq diff --cached --name-only)" \
+      names="$(gitq diff --cached --name-only --diff-filter=d)" \
         && patch="$(gitq diff --cached -U0 --no-color --no-ext-diff --no-textconv)" || scan_failed
       text="$names"$'\n'"$(grep '^+' <<<"$patch")"
       ;;
@@ -69,7 +69,7 @@ block_private_terms() {
           range=("$remote_oid..$local_oid")
         fi
         meta="$(gitq log --format='%an %ae %cn %ce%n%B' "${range[@]}")" \
-          && names="$(gitq log --format= --name-only --diff-merges=first-parent "${range[@]}")" \
+          && names="$(gitq log --format= --name-only --diff-filter=d --diff-merges=first-parent "${range[@]}")" \
           && patch="$(gitq log --format= -p -U0 --no-color --no-ext-diff --no-textconv \
             --diff-merges=first-parent "${range[@]}")" || scan_failed
         text+="$meta"$'\n'"$names"$'\n'"$(grep '^+' <<<"$patch")"$'\n'

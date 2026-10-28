@@ -138,7 +138,7 @@ check_agent_hook_policy() {
 # repository. Seed a fake term and require rejection on every gated path.
 check_private_terms_gate() {
   local dispatch="$TMP/private-terms/hook-dispatch" repo="$TMP/private-terms/repo"
-  local home="$TMP/private-terms/home" zero=0000000000000000000000000000000000000000 one two three
+  local home="$TMP/private-terms/home" zero=0000000000000000000000000000000000000000 one two three four
   rm -rf "$TMP/private-terms"
   mkdir -p "$repo" "$home/.config/chezmoi"
   cp "$ROOT/dot_config/git/hooks/executable_hook-dispatch" "$dispatch"
@@ -179,6 +179,15 @@ check_private_terms_gate() {
   three="$(git -C "$repo" rev-parse HEAD)"
   push_gate "$two" "$three" && err 'private-terms gate allows a private term added in a merge' \
     || pass 'private-terms gate blocks a private term added in a merge'
+  printf 'x\n' >"$repo/zz-private-term.txt"
+  git -C "$repo" add zz-private-term.txt && fixture_git commit -qm add
+  four="$(git -C "$repo" rev-parse HEAD)"
+  git -C "$repo" rm -q zz-private-term.txt
+  run_gate pre-commit && pass 'private-terms gate allows removing a file named with a term' \
+    || err 'private-terms gate blocks removing a file named with a term'
+  fixture_git commit -qm remove
+  push_gate "$four" "$(git -C "$repo" rev-parse HEAD)" && pass 'private-terms gate allows pushing a removal' \
+    || err 'private-terms gate blocks pushing a removal'
 
   # A clean push still hands its refs to the repository's own pre-push hook.
   printf '#!/bin/sh\ncat >"%s"\n' "$TMP/private-terms/pushed" >"$repo/.git/hooks/pre-push"
