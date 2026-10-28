@@ -4,4 +4,7 @@
 {{ template "zshrc-linux" . }}
 {{- else -}}
 {{ fail (printf "unsupported OS for .zshrc: %s" .chezmoi.os) }}
-{{- end -}}
+{{- end }}
+
+# Machine-local settings stay outside this public repository.
+[[ -r ~/.zshrc.local ]] && source ~/.zshrc.local
