@@ -8,3 +8,6 @@
 	; so repo-local hooks (CodeGraph, etc.) keep firing. Repos that set their
 	; own core.hooksPath (husky) override this and self-manage.
 	hooksPath = ~/.config/git/hooks
+[include]
+	; Machine-local settings, such as work identities, stay outside this public repository.
+	path = ~/.gitconfig.local

@@ -199,13 +199,14 @@
       }{{ end }}
     ]
   },
+{{- /* Machine-local plugins come from a file that stays outside this public repository. */}}
+{{- $plugins := dict "context7@claude-plugins-official" true "pyright-lsp@claude-plugins-official" true "rust-analyzer-lsp@claude-plugins-official" true "typescript-lsp@claude-plugins-official" true "stripe@claude-plugins-official" true "hyperframes@hyperframes" true }}
+{{- $localPlugins := joinPath .chezmoi.homeDir ".config/chezmoi/claude-plugins.json" }}
+{{- if stat $localPlugins }}{{ $plugins = mergeOverwrite $plugins (include $localPlugins | fromJson) }}{{ end }}
   "enabledPlugins": {
-    "context7@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true,
-    "rust-analyzer-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "stripe@claude-plugins-official": true,
-    "hyperframes@hyperframes": true
+{{- range $i, $name := keys $plugins | sortAlpha }}{{ if $i }},{{ end }}
+    {{ $name | toJson }}: {{ index $plugins $name | toJson }}
+{{- end }}
   },
   "extraKnownMarketplaces": {
     "hyperframes": {

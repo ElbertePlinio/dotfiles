@@ -3,6 +3,8 @@ name: kickoff
 description: Use when the user runs /kickoff or says "kickoff", or asks to take a GitHub issue or a request from start to merge.
 ---
 
+When the repo's `AGENTS.md` defines its own ticket flow, follow that flow and not this skill.
+
 Take the issue or request in $ARGUMENTS, or in the user's message when that is empty, to a merged PR and a closed issue. If neither names one, ask what to kick off with the question tool. Kickoff is full-send plus issue tracking, a QA pass, and a visual report. It is the user's standing opt-in for the Workflow tool, for filing issues, and for merging PRs that pass the gate. It never tags, releases, publishes packages, or dispatches workflows. If the request also says "full stop", follow the full-stop skill at the end instead of merging.
 
 Intake. Resolve the target repo and read its `AGENTS.md`. For an issue, read the body and comments. For a request without an issue, search open and recently closed issues first with `gh issue list --state all --search ...`. If one matches, add the new details and an updated checklist to it. Otherwise create an issue with a problem statement, acceptance criteria, and a checklist. In a public repo, leave out details of private projects. Work on a branch from a fresh `origin/main` in `~/Projects/.worktrees/<repo>/<branch>`. Never use `git stash`.
