@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Global git hook dispatcher, installed via core.hooksPath.
 #
-# Two jobs:
+# Three jobs:
 #   1. commit-msg: reject AI-agent attribution trailers. The user's standing rule
 #      is that no commit in their repos carries AI co-authorship or bot trailers.
 #      Instructions alone proved unreliable -- a harness-injected reminder once
 #      contradicted the rule mid-session -- so this is the machine-checkable gate.
-#   2. Every hook: chain to the repository's own .git/hooks/<name>. core.hooksPath
+#   2. In the public dotfiles repository only: block private work terms in
+#      staged changes, commit messages, and pushed commits.
+#   3. Every hook: chain to the repository's own .git/hooks/<name>. core.hooksPath
 #      SHADOWS per-repo hooks, and several repos rely on CodeGraph's post-commit /
 #      post-merge / post-rewrite / post-checkout hooks. Without this delegation
 #      they would silently stop firing.
@@ -32,6 +34,54 @@ EOF
   exit 1
 }
 
+# The public dotfiles repository must not carry private work terms. The list
+# lives in a file that never enters the repository, one term per line. Only
+# added lines, destination paths, messages, and identities count, so a commit
+# that removes a term is never blocked.
+gitq() { git -c core.quotePath=false "$@"; }
+
+scan_failed() {
+  printf '\n  Blocked: git failed, so the private-terms check could not run.\n\n' >&2
+  exit 1
+}
+
+block_private_terms() {
+  local terms="$HOME/.config/chezmoi/private-terms" patterns text="" names patch meta found
+  local _l local_oid _r remote_oid range
+  patterns="$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$terms" 2>/dev/null | tr -d '\r')"
+  if [[ -z "$patterns" ]]; then
+    printf '\n  Blocked: %s is missing or empty.\n  This repository is public. List one private work term per line there.\n\n' "$terms" >&2
+    exit 1
+  fi
+  case "$hook" in
+    pre-commit)
+      names="$(gitq diff --cached --name-only --diff-filter=d)" \
+        && patch="$(gitq diff --cached -U0 --no-color --no-ext-diff --no-textconv)" || scan_failed
+      text="$names"$'\n'"$(grep '^+' <<<"$patch")"
+      ;;
+    commit-msg) text="$(grep -v '^#' "$1")" ;;
+    pre-push)
+      while read -r _l local_oid _r remote_oid; do
+        [[ -n "$local_oid" && ! "$local_oid" =~ ^0+$ ]] || continue
+        if [[ "$remote_oid" =~ ^0+$ ]] || ! git cat-file -e "$remote_oid" 2>/dev/null; then
+          range=("$local_oid" --not --remotes=origin)
+        else
+          range=("$remote_oid..$local_oid")
+        fi
+        meta="$(gitq log --format='%an %ae %cn %ce%n%B' "${range[@]}")" \
+          && names="$(gitq log --format= --name-only --diff-filter=d --diff-merges=first-parent "${range[@]}")" \
+          && patch="$(gitq log --format= -p -U0 --no-color --no-ext-diff --no-textconv \
+            --diff-merges=first-parent "${range[@]}")" || scan_failed
+        text+="$meta"$'\n'"$names"$'\n'"$(grep '^+' <<<"$patch")"$'\n'
+      done <<<"$push_input"
+      ;;
+  esac
+  if found="$(grep -inF -e "$patterns" <<<"$text" | head -3)"; [[ -n "$found" ]]; then
+    printf '\n  Blocked: private work terms in a public repository.\n\n%s\n\n  Remove them, then retry.\n\n' "$found" >&2
+    exit 1
+  fi
+}
+
 if [[ "$hook" == "commit-msg" && -n "${1:-}" && -f "$1" ]]; then
   # Strip comment lines; git ignores them and they must not trip the gate.
   body="$(grep -v '^#' "$1" || true)"
@@ -47,10 +97,20 @@ if [[ "$hook" == "commit-msg" && -n "${1:-}" && -f "$1" ]]; then
   fi
 fi
 
+if [[ "$hook" =~ ^(pre-commit|commit-msg|pre-push)$ ]]; then
+  origin="$(git remote get-url origin 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  if [[ "$origin" =~ [:/]elberteplinio/dotfiles(\.git)?/?$ ]]; then
+    [[ "$hook" == pre-push ]] && push_input="$(cat)"
+    block_private_terms "$@"
+  fi
+fi
+
 # Chain to the repo's own hook so local tooling (CodeGraph, etc.) still runs.
 git_dir="${GIT_DIR:-$(git rev-parse --git-dir 2>/dev/null || true)}"
 local_hook="${git_dir:+$git_dir/hooks/$hook}"
 if [[ -n "$local_hook" && -x "$local_hook" ]]; then
+  # pre-push reads its refs from stdin, so pass them on after the check read them.
+  [[ -n "${push_input:-}" ]] && exec "$local_hook" "$@" <<<"$push_input"
   exec "$local_hook" "$@"
 fi
 exit 0

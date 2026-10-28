@@ -131,6 +131,84 @@ check_agent_hook_policy() {
 
   check_absent_hook_tools
   check_hook_policy_detection
+  check_private_terms_gate
+}
+
+# The dispatcher blocks private work terms only in the public dotfiles
+# repository. Seed a fake term and require rejection on every gated path.
+check_private_terms_gate() {
+  local dispatch="$TMP/private-terms/hook-dispatch" repo="$TMP/private-terms/repo"
+  local home="$TMP/private-terms/home" zero=0000000000000000000000000000000000000000 one two three four
+  rm -rf "$TMP/private-terms"
+  mkdir -p "$repo" "$home/.config/chezmoi"
+  cp "$ROOT/dot_config/git/hooks/executable_hook-dispatch" "$dispatch"
+  run_gate() { (cd "$repo" && HOME="$home" bash "$dispatch" "$@") >/dev/null 2>&1; }
+  push_gate() { run_gate pre-push origin x <<<"refs/heads/main $2 refs/heads/main $1"; }
+  fixture_git() { git -C "$repo" -c core.hooksPath=/dev/null -c user.name=t -c user.email=t@example.com "$@"; }
+  git init -q -b main "$repo"
+  git -C "$repo" remote add origin git@github.com:ElbertePlinio/dotfiles.git
+  printf 'clean\n' >"$repo/a.txt"
+  git -C "$repo" add a.txt
+
+  run_gate pre-commit && err 'private-terms gate allows a commit without a term list' \
+    || pass 'private-terms gate blocks a commit without a term list'
+  printf '# comment\n\nzz-private-term\n' >"$home/.config/chezmoi/private-terms"
+  run_gate pre-commit && pass 'private-terms gate allows a clean staged change' \
+    || err 'private-terms gate blocks a clean staged change'
+
+  printf 'has ZZ-Private-Term\n' >"$repo/a.txt"
+  git -C "$repo" add a.txt
+  run_gate pre-commit && err 'private-terms gate allows a staged private term' \
+    || pass 'private-terms gate blocks a staged private term'
+  printf 'docs: mention zz-private-term\n' >"$TMP/private-terms/msg"
+  run_gate commit-msg "$TMP/private-terms/msg" && err 'private-terms gate allows a private term in a message' \
+    || pass 'private-terms gate blocks a private term in a message'
+
+  fixture_git commit -qm t
+  one="$(git -C "$repo" rev-parse HEAD)"
+  push_gate "$zero" "$one" && err 'private-terms gate allows a push with a private term' \
+    || pass 'private-terms gate blocks a push with a private term'
+  fixture_git commit -q --allow-empty -m 'chore: tidy' -m '- zz-private-term'
+  two="$(git -C "$repo" rev-parse HEAD)"
+  push_gate "$one" "$two" && err 'private-terms gate allows a private term in a message bullet' \
+    || pass 'private-terms gate blocks a private term in a message bullet'
+  fixture_git switch -qc side && fixture_git commit -q --allow-empty -m side && fixture_git switch -q main
+  fixture_git merge -q --no-ff --no-commit side >/dev/null 2>&1
+  printf 'zz-private-term\n' >"$repo/m.txt"
+  git -C "$repo" add m.txt && fixture_git commit -qm merge
+  three="$(git -C "$repo" rev-parse HEAD)"
+  push_gate "$two" "$three" && err 'private-terms gate allows a private term added in a merge' \
+    || pass 'private-terms gate blocks a private term added in a merge'
+  printf 'x\n' >"$repo/zz-private-term.txt"
+  git -C "$repo" add zz-private-term.txt && fixture_git commit -qm add
+  four="$(git -C "$repo" rev-parse HEAD)"
+  git -C "$repo" rm -q zz-private-term.txt
+  run_gate pre-commit && pass 'private-terms gate allows removing a file named with a term' \
+    || err 'private-terms gate blocks removing a file named with a term'
+  fixture_git commit -qm remove
+  push_gate "$four" "$(git -C "$repo" rev-parse HEAD)" && pass 'private-terms gate allows pushing a removal' \
+    || err 'private-terms gate blocks pushing a removal'
+
+  # A clean push still hands its refs to the repository's own pre-push hook.
+  printf '#!/bin/sh\ncat >"%s"\n' "$TMP/private-terms/pushed" >"$repo/.git/hooks/pre-push"
+  chmod +x "$repo/.git/hooks/pre-push"
+  printf 'zz-other-term\n' >"$home/.config/chezmoi/private-terms"
+  if push_gate "$zero" "$one" && grep -Fq "refs/heads/main $one" "$TMP/private-terms/pushed" 2>/dev/null; then
+    pass 'private-terms gate passes push refs to the local pre-push hook'
+  else
+    err 'private-terms gate loses push refs before the local pre-push hook'
+  fi
+
+  printf 'zz-private-term\n' >"$home/.config/chezmoi/private-terms"
+  printf 'again ZZ-Private-Term\n' >"$repo/a.txt"
+  git -C "$repo" add a.txt
+  git -C "$repo" remote set-url origin https://github.com/elberteplinio/dotfiles/
+  run_gate pre-commit && err 'private-terms gate misses a lowercase https origin' \
+    || pass 'private-terms gate matches a lowercase https origin'
+  git -C "$repo" remote set-url origin git@github.com:someone/other.git
+  run_gate pre-commit && pass 'private-terms gate leaves other repositories alone' \
+    || err 'private-terms gate blocks other repositories'
+  unset -f run_gate push_gate fixture_git
 }
 
 # OpenCode loads pickcheck as a plugin package rather than a hook command.
