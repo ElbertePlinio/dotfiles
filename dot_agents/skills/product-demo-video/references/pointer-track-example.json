@@ -1,0 +1,39 @@
+{
+  "schema": "pickforge.pointer-track",
+  "version": 1,
+  "runId": "example-run",
+  "coordinateSpace": "xvfb-root",
+  "clock": {
+    "source": "wall-clock-action-records",
+    "approximate": true,
+    "origin": "2026-01-01T12:00:00.000Z"
+  },
+  "events": [
+    {
+      "sequence": 1,
+      "milliseconds": 0,
+      "actionId": "action-1",
+      "kind": "move",
+      "point": { "x": 320, "y": 180 },
+      "inputState": "completed"
+    },
+    {
+      "sequence": 2,
+      "milliseconds": 850,
+      "actionId": "action-2",
+      "kind": "click",
+      "point": { "x": 412, "y": 236 },
+      "inputState": "completed",
+      "durationMs": 40
+    },
+    {
+      "sequence": 3,
+      "milliseconds": 2100,
+      "actionId": "action-3",
+      "kind": "scroll",
+      "point": { "x": 640, "y": 400 },
+      "inputState": "attempted",
+      "wheelSteps": { "x": 0, "y": 3 }
+    }
+  ]
+}
