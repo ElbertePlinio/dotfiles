@@ -4,6 +4,8 @@ After=default.target
 
 [Service]
 ExecStart=%h/.local/bin/modo-jogo vigiar
+# Also runs after a crash or a kill, so no limit outlives the watcher.
+ExecStopPost=%h/.local/bin/modo-jogo limpar
 Restart=on-failure
 RestartSec=10
 # The watcher only checks processes; it never needs much CPU.

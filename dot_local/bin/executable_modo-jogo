@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Game mode: while a game runs, the agents yield the CPU to it.
-# uso: modo-jogo vigiar | ligar | desligar | status
+# uso: modo-jogo vigiar | ligar | desligar | status | limpar
 #   vigiar    checks for a game every few seconds; the modo-jogo user service runs this.
 #   ligar     turns game mode on by hand, for a game the check misses, until desligar.
 #   desligar  undoes ligar.
 #   status    says whether game mode is on and why.
+#   limpar    undoes the limits this script set; the service runs it when it stops.
 # While on, the agent units run at idle CPU priority and at most MODO_JOGO_COTA of the CPU, and
 # $XDG_RUNTIME_DIR/modo-jogo exists, so scripts can send heavy work elsewhere.
 set -euo pipefail
@@ -16,6 +17,8 @@ OUTROS=${MODO_JOGO_OUTROS:-'gamescope|lutris-wrapper|umu-run'}
 run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 flag=$run/modo-jogo
 manual=$run/modo-jogo.manual
+# The units this script limited, so it never resets a limit that someone else set.
+dono=$run/modo-jogo.unidades
 
 # T3 Code puts every agent and its children in app-t3code.slice. OpenBot runs its browser agents in
 # app-openbot-*.scope. All are siblings of a game under app.slice, so idle weight there yields to it.
@@ -24,17 +27,32 @@ unidades() {
     awk '{print $1}'
 }
 
-aplicar() {
+limitar() {
   local u
   for u in $(unidades); do
-    if [ "$1" = on ]; then
-      [ "$(systemctl --user show -P CPUQuotaPerSecUSec "$u")" = infinity ] || continue
-      systemctl --user set-property --runtime "$u" CPUWeight=idle CPUQuota="$COTA" || true
-    else
-      systemctl --user set-property --runtime "$u" CPUWeight= CPUQuota= || true
+    grep -qxF "$u" "$dono" 2>/dev/null && continue
+    [ "$(systemctl --user show -P CPUQuotaPerSecUSec "$u")" = infinity ] || continue
+    if systemctl --user set-property --runtime "$u" CPUWeight=idle CPUQuota="$COTA"; then
+      printf '%s\n' "$u" >>"$dono"
     fi
   done
 }
+
+# Undoes limitar. A unit that failed to reset stays listed, so the next pass tries again. A unit that
+# no longer exists drops out.
+soltar() {
+  [ -e "$dono" ] || return 0
+  local u resto=()
+  while read -r u; do
+    [ "$(systemctl --user show -P LoadState "$u")" = loaded ] || continue
+    systemctl --user set-property --runtime "$u" CPUWeight= CPUQuota= || resto+=("$u")
+  done <"$dono"
+  if [ ${#resto[@]} -eq 0 ]; then rm -f "$dono"; return 0; fi
+  printf '%s\n' "${resto[@]}" >"$dono"
+  return 1
+}
+
+limpar() { soltar || true; rm -f "$flag"; }
 
 # A game process found by its name, so a command that only mentions one never counts. Steam starts
 # every game, native or Proton, through a process named reaper with "SteamLaunch AppId=".
@@ -46,25 +64,27 @@ jogo() {
 }
 
 vigiar() {
-  local estado=off motivo
-  trap 'aplicar off; rm -f "$flag"' EXIT
+  local motivo
+  trap limpar EXIT
   trap 'exit 0' TERM INT
+  # A watcher that was killed can leave limits behind.
+  limpar
   while :; do
     motivo=$(jogo)
     [ -z "$motivo" ] && [ -e "$manual" ] && motivo="ligado à mão"
     if [ -n "$motivo" ]; then
       # Applied on every pass, because T3 Code or OpenBot can start new units mid-game.
-      aplicar on
-      if [ "$estado" = off ]; then
+      limitar
+      if [ ! -e "$flag" ]; then
         printf '%s\n' "$motivo" >"$flag"
         echo "modo jogo ligado: $motivo"
-        estado=on
       fi
-    elif [ "$estado" = on ]; then
-      aplicar off
-      rm -f "$flag"
-      echo "modo jogo desligado"
-      estado=off
+    else
+      if [ -e "$flag" ]; then
+        rm -f "$flag"
+        echo "modo jogo desligado"
+      fi
+      soltar || echo "aviso: não consegui soltar todas as unidades; tento de novo" >&2
     fi
     sleep "$INTERVALO"
   done
@@ -72,11 +92,12 @@ vigiar() {
 
 case ${1:-status} in
   vigiar) vigiar ;;
+  limpar) limpar ;;
   ligar) : >"$manual"; echo "modo jogo ligado à mão; o serviço aplica em até ${INTERVALO} s" ;;
   desligar) rm -f "$manual"; echo "modo jogo à mão desligado" ;;
   status)
     if [ -e "$flag" ]; then echo "ligado: $(cat "$flag")"; else echo "desligado"; fi
     systemctl --user is-active --quiet modo-jogo.service || echo "aviso: o serviço modo-jogo não está rodando" >&2
     ;;
-  *) echo "uso: modo-jogo vigiar | ligar | desligar | status" >&2; exit 2 ;;
+  *) echo "uso: modo-jogo vigiar | ligar | desligar | status | limpar" >&2; exit 2 ;;
 esac
