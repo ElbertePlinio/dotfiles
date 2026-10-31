@@ -48,6 +48,11 @@ scan_failed() {
 block_private_terms() {
   local terms="$HOME/.config/chezmoi/private-terms" patterns text="" names patch meta found
   local _l local_oid _r remote_oid range
+  # Encrypted .age content is random base64 and can spell short terms by chance.
+  # Their names are still checked.
+  # --full-history keeps every merged commit in the scan; a pathspec would otherwise let git
+  # skip a side branch whose net change is empty.
+  local skip_age=':(exclude)*.age'
   patterns="$(grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$terms" 2>/dev/null | tr -d '\r')"
   if [[ -z "$patterns" ]]; then
     printf '\n  Blocked: %s is missing or empty.\n  This repository is public. List one private work term per line there.\n\n' "$terms" >&2
@@ -56,7 +61,7 @@ block_private_terms() {
   case "$hook" in
     pre-commit)
       names="$(gitq diff --cached --name-only --diff-filter=d)" \
-        && patch="$(gitq diff --cached -U0 --no-color --no-ext-diff --no-textconv)" || scan_failed
+        && patch="$(gitq diff --cached -U0 --no-color --no-ext-diff --no-textconv -- . "$skip_age")" || scan_failed
       text="$names"$'\n'"$(grep '^+' <<<"$patch")"
       ;;
     commit-msg) text="$(grep -v '^#' "$1")" ;;
@@ -70,8 +75,8 @@ block_private_terms() {
         fi
         meta="$(gitq log --format='%an %ae %cn %ce%n%B' "${range[@]}")" \
           && names="$(gitq log --format= --name-only --diff-filter=d --diff-merges=first-parent "${range[@]}")" \
-          && patch="$(gitq log --format= -p -U0 --no-color --no-ext-diff --no-textconv \
-            --diff-merges=first-parent "${range[@]}")" || scan_failed
+          && patch="$(gitq log --format= -p -U0 --full-history --no-color --no-ext-diff --no-textconv \
+            --diff-merges=first-parent "${range[@]}" -- . "$skip_age")" || scan_failed
         text+="$meta"$'\n'"$names"$'\n'"$(grep '^+' <<<"$patch")"$'\n'
       done <<<"$push_input"
       ;;

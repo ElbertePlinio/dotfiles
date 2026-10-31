@@ -8,9 +8,11 @@ Use a live native X search tool when available. For one public post's text, try 
 For threads, reactions, Articles, or failed direct retrieval without a native tool, use Grok:
 
 ```sh
-grok --prompt-file <scratchpad>/x-<topic>.md --model grok-4.6 --reasoning-effort high \
+grok --prompt-file <scratchpad>/x-<topic>.md --model grok-4.6 --reasoning-effort <effort> \
   --deny "Write(*)" --deny "Edit(*)" > <scratchpad>/x-<topic>-out.md 2>&1
 ```
+
+Choose the effort from the depth the request needs. Use `low` to read one post or thread. Use `medium` for routine reactions or a short topic scan. Use `high` for broad research across many accounts, or when the user asks for depth. Use `xhigh` only when the user asks for a very detailed search. An effort the user names takes precedence.
 
 `--prompt-file` is single-turn mode; do not add `-p`, which needs an inline prompt. Research can take minutes; run in the background and read the output file when ready. Deny writes and edits for research. Use `--json-schema` if structured output is needed.
 
