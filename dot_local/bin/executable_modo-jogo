@@ -29,14 +29,16 @@ unidades() {
 }
 
 # Each unit enters the list before its limit, so a watcher killed in between leaves nothing untracked.
+# A listed unit still without a quota failed to take the limit, so the next pass tries again.
 limitar() {
   local u w
   for u in $(unidades); do
-    [ -e "$dono" ] && awk -v u="$u" '$1 == u {f = 1} END {exit !f}' "$dono" && continue
     [ "$(systemctl --user show -P CPUQuotaPerSecUSec "$u")" = infinity ] || continue
-    w=$(systemctl --user show -P CPUWeight "$u") || continue
-    [ "$w" = "[not set]" ] && w=
-    printf '%s %s\n' "$u" "$w" >>"$dono"
+    if ! { [ -e "$dono" ] && awk -v u="$u" '$1 == u {f = 1} END {exit !f}' "$dono"; }; then
+      w=$(systemctl --user show -P CPUWeight "$u") || continue
+      [ "$w" = "[not set]" ] && w=
+      printf '%s %s\n' "$u" "$w" >>"$dono"
+    fi
     systemctl --user set-property --runtime "$u" CPUWeight=idle CPUQuota="$COTA" || true
   done
 }
