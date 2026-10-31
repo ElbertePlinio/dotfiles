@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Game mode: while a game runs, the agents yield the CPU to it.
+# uso: modo-jogo vigiar | ligar | desligar | status
+#   vigiar    checks for a game every few seconds; the modo-jogo user service runs this.
+#   ligar     turns game mode on by hand, for a game the check misses, until desligar.
+#   desligar  undoes ligar.
+#   status    says whether game mode is on and why.
+# While on, the agent units run at idle CPU priority and at most MODO_JOGO_COTA of the CPU, and
+# $XDG_RUNTIME_DIR/modo-jogo exists, so scripts can send heavy work elsewhere.
+set -euo pipefail
+
+COTA=${MODO_JOGO_COTA:-400%}
+INTERVALO=${MODO_JOGO_INTERVALO:-5}
+# Other launchers, by exact process name.
+OUTROS=${MODO_JOGO_OUTROS:-'gamescope|lutris-wrapper|umu-run'}
+run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+flag=$run/modo-jogo
+manual=$run/modo-jogo.manual
+
+# T3 Code puts every agent and its children in app-t3code.slice. OpenBot runs its browser agents in
+# app-openbot-*.scope. All are siblings of a game under app.slice, so idle weight there yields to it.
+unidades() {
+  systemctl --user list-units --plain --no-legend --type=slice,scope 'app-t3code.slice' 'app-openbot-*.scope' |
+    awk '{print $1}'
+}
+
+aplicar() {
+  local u
+  for u in $(unidades); do
+    if [ "$1" = on ]; then
+      [ "$(systemctl --user show -P CPUQuotaPerSecUSec "$u")" = infinity ] || continue
+      systemctl --user set-property --runtime "$u" CPUWeight=idle CPUQuota="$COTA" || true
+    else
+      systemctl --user set-property --runtime "$u" CPUWeight= CPUQuota= || true
+    fi
+  done
+}
+
+# A game process found by its name, so a command that only mentions one never counts. Steam starts
+# every game, native or Proton, through a process named reaper with "SteamLaunch AppId=".
+jogo() {
+  local p
+  p=$(pgrep -a -x reaper | grep -m1 -E ' SteamLaunch AppId=[0-9]+' || true)
+  [ -n "$p" ] || p=$(pgrep -a -x -- "$OUTROS" | head -1 || true)
+  printf '%s' "$p"
+}
+
+vigiar() {
+  local estado=off motivo
+  trap 'aplicar off; rm -f "$flag"' EXIT
+  trap 'exit 0' TERM INT
+  while :; do
+    motivo=$(jogo)
+    [ -z "$motivo" ] && [ -e "$manual" ] && motivo="ligado à mão"
+    if [ -n "$motivo" ]; then
+      # Applied on every pass, because T3 Code or OpenBot can start new units mid-game.
+      aplicar on
+      if [ "$estado" = off ]; then
+        printf '%s\n' "$motivo" >"$flag"
+        echo "modo jogo ligado: $motivo"
+        estado=on
+      fi
+    elif [ "$estado" = on ]; then
+      aplicar off
+      rm -f "$flag"
+      echo "modo jogo desligado"
+      estado=off
+    fi
+    sleep "$INTERVALO"
+  done
+}
+
+case ${1:-status} in
+  vigiar) vigiar ;;
+  ligar) : >"$manual"; echo "modo jogo ligado à mão; o serviço aplica em até ${INTERVALO} s" ;;
+  desligar) rm -f "$manual"; echo "modo jogo à mão desligado" ;;
+  status)
+    if [ -e "$flag" ]; then echo "ligado: $(cat "$flag")"; else echo "desligado"; fi
+    systemctl --user is-active --quiet modo-jogo.service || echo "aviso: o serviço modo-jogo não está rodando" >&2
+    ;;
+  *) echo "uso: modo-jogo vigiar | ligar | desligar | status" >&2; exit 2 ;;
+esac
