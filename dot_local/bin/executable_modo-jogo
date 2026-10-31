@@ -17,7 +17,8 @@ OUTROS=${MODO_JOGO_OUTROS:-'gamescope|lutris-wrapper|umu-run'}
 run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 flag=$run/modo-jogo
 manual=$run/modo-jogo.manual
-# The units this script limited, so it never resets a limit that someone else set.
+# The units this script limited, one per line with the CPU weight each had before, so it never
+# resets a limit that someone else set.
 dono=$run/modo-jogo.unidades
 
 # T3 Code puts every agent and its children in app-t3code.slice. OpenBot runs its browser agents in
@@ -27,25 +28,28 @@ unidades() {
     awk '{print $1}'
 }
 
+# Each unit enters the list before its limit, so a watcher killed in between leaves nothing untracked.
 limitar() {
-  local u
+  local u w
   for u in $(unidades); do
-    grep -qxF "$u" "$dono" 2>/dev/null && continue
+    [ -e "$dono" ] && awk -v u="$u" '$1 == u {f = 1} END {exit !f}' "$dono" && continue
     [ "$(systemctl --user show -P CPUQuotaPerSecUSec "$u")" = infinity ] || continue
-    if systemctl --user set-property --runtime "$u" CPUWeight=idle CPUQuota="$COTA"; then
-      printf '%s\n' "$u" >>"$dono"
-    fi
+    w=$(systemctl --user show -P CPUWeight "$u") || continue
+    [ "$w" = "[not set]" ] && w=
+    printf '%s %s\n' "$u" "$w" >>"$dono"
+    systemctl --user set-property --runtime "$u" CPUWeight=idle CPUQuota="$COTA" || true
   done
 }
 
-# Undoes limitar. A unit that failed to reset stays listed, so the next pass tries again. A unit that
-# no longer exists drops out.
+# Undoes limitar. A unit whose reset failed, or whose state could not be read, stays listed, so the
+# next pass tries again. A unit that no longer exists drops out.
 soltar() {
   [ -e "$dono" ] || return 0
-  local u resto=()
-  while read -r u; do
-    [ "$(systemctl --user show -P LoadState "$u")" = loaded ] || continue
-    systemctl --user set-property --runtime "$u" CPUWeight= CPUQuota= || resto+=("$u")
+  local u w estado resto=()
+  while read -r u w; do
+    if ! estado=$(systemctl --user show -P LoadState "$u"); then resto+=("$u $w"); continue; fi
+    [ "$estado" = loaded ] || continue
+    systemctl --user set-property --runtime "$u" CPUWeight="$w" CPUQuota= || resto+=("$u $w")
   done <"$dono"
   if [ ${#resto[@]} -eq 0 ]; then rm -f "$dono"; return 0; fi
   printf '%s\n' "${resto[@]}" >"$dono"
