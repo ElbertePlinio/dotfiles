@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Frees disk space by removing caches and work files that tools rebuild on demand.
+# It never touches footage, masters, downloads, games or Docker volumes.
+# Usage: liberar-espaco [--dry-run] [--quiet]
+set -uo pipefail
+
+DRY=0
+QUIET=0
+for arg in "$@"; do
+  case $arg in
+    --dry-run) DRY=1 ;;
+    --quiet) QUIET=1 ;;
+    -h|--help) sed -n 2,4p "$0" | sed 's/^# //'; exit 0 ;;
+    *) echo "liberar-espaco: unknown option $arg" >&2; exit 2 ;;
+  esac
+done
+
+# Below this many free GB, the run sends a desktop notification.
+LIMITE_GB=${LIBERAR_ESPACO_LIMITE_GB:-150}
+CANAIS=${CANAIS_DARK_DIR:-$HOME/Projects/Personal/canais-dark}
+
+livre_gb() { df -BG --output=avail / | tail -1 | tr -dc 0-9; }
+say() { [ "$QUIET" = 1 ] || echo "$@"; }
+
+apagar() {
+  local alvo=$1
+  [ -e "$alvo" ] || return 0
+  say "  $(du -sh "$alvo" 2>/dev/null | cut -f1)	$alvo"
+  [ "$DRY" = 1 ] || rm -rf -- "$alvo"
+}
+
+# True when nothing under the path changed in the last N days, so no job is using it.
+parado() { [ -z "$(find "$1" -mmin -$(( $2 * 1440 )) -print -quit 2>/dev/null)" ]; }
+
+antes=$(livre_gb)
+say "Livre antes: ${antes} GB"
+
+say "Caches temporários parados há 3 dias:"
+for d in "$HOME/.cache/canais-dark-tmp"/* "$HOME/.cache/hf-tmp" "$HOME/.cache/yay"/*; do
+  [ -e "$d" ] && parado "$d" 3 && apagar "$d"
+done
+
+say "tmp/ de episódios publicados, medidos ou descartados, parados há 2 dias:"
+for ep in "$CANAIS"/episodios/*/*/; do
+  [ -d "$ep/tmp" ] || continue
+  status=$(grep -m1 '^status:' "$ep/episodio.yaml" 2>/dev/null | awk '{print $2}')
+  case $status in
+    publicado|medido|descartado) parado "$ep/tmp" 2 && apagar "${ep%/}/tmp" ;;
+  esac
+done
+
+if [ "$DRY" = 0 ]; then
+  say "Caches de pacotes:"
+  command -v uv >/dev/null && uv cache prune >/dev/null 2>&1 && say "  uv cache prune"
+  if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+    docker builder prune -f --filter until=168h >/dev/null 2>&1 && say "  docker builder prune (mais de 7 dias)"
+    docker image prune -f >/dev/null 2>&1 && say "  docker image prune (imagens sem nome)"
+  fi
+fi
+
+depois=$(livre_gb)
+say "Livre depois: ${depois} GB"
+[ "$QUIET" = 1 ] && echo "liberar-espaco: ${antes} GB -> ${depois} GB livres"
+
+if [ "$depois" -lt "$LIMITE_GB" ] && command -v notify-send >/dev/null; then
+  notify-send -u critical "Disco com ${depois} GB livres" \
+    "A limpeza automática não basta. Peça a um agente para revisar jogos, Downloads e masters de vídeo."
+fi
+exit 0
