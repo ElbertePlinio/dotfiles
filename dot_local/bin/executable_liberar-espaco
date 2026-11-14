@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Frees disk space by removing caches and work files that tools rebuild on demand.
-# It never touches footage, masters, downloads, games or Docker volumes.
+# Published canais-dark episodes keep their text, quadros/, clipes/, audio/ and light AV1 copies of final/.
+# Published Berteckle videos lose their masters at once. After 14 quiet days, their sources go to the HD and to Google Drive.
 # Usage: liberar-espaco [--dry-run] [--quiet]
 set -uo pipefail
 
@@ -10,7 +11,7 @@ for arg in "$@"; do
   case $arg in
     --dry-run) DRY=1 ;;
     --quiet) QUIET=1 ;;
-    -h|--help) sed -n 2,4p "$0" | sed 's/^# //'; exit 0 ;;
+    -h|--help) sed -n 2,5p "$0" | sed 's/^# //'; exit 0 ;;
     *) echo "liberar-espaco: unknown option $arg" >&2; exit 2 ;;
   esac
 done
@@ -18,9 +19,37 @@ done
 # Below this many free GB, the run sends a desktop notification.
 LIMITE_GB=${LIBERAR_ESPACO_LIMITE_GB:-150}
 CANAIS=${CANAIS_DARK_DIR:-$HOME/Projects/Personal/canais-dark}
+BERTECKLE=${BERTECKLE_DIR:-$HOME/Projects/Personal/berteckle}
+# Days a published episode or video stays untouched before its work files go and its videos turn light.
+LEVE_DIAS=${LIBERAR_ESPACO_LEVE_DIAS:-14}
+# The HD that keeps the sources of published videos. Below HD_LIMITE_GB free GB, the run sends a notification.
+HD=${LIBERAR_ESPACO_HD:-/run/media/dev/Social Media}
+HD_LIMITE_GB=${LIBERAR_ESPACO_HD_LIMITE_GB:-100}
+# The rclone remote and folder that keep the second copy of Berteckle sources.
+DRIVE=${LIBERAR_ESPACO_DRIVE:-gdrive:Arquivo}
+# Days between the first archive check and the second one that allows the SSD copy to go.
+CONFERIR_DIAS=${LIBERAR_ESPACO_CONFERIR_DIAS:-7}
+LOG_DIR=${XDG_STATE_HOME:-$HOME/.local/state}/liberar-espaco
+mkdir -p "$LOG_DIR"
+exec 9> "$LOG_DIR/lock"
+flock -n 9 || { echo "liberar-espaco: outra execução está rodando" >&2; exit 0; }
+LOG="$LOG_DIR/$(date +%F).log"
+[ "$DRY" = 1 ] && LOG=/dev/null
+[ "$DRY" = 1 ] || find "$LOG_DIR" -name '*.log' -mtime +60 -delete 2>/dev/null
 
-livre_gb() { df -BG --output=avail / | tail -1 | tr -dc 0-9; }
-say() { [ "$QUIET" = 1 ] || echo "$@"; }
+livre_gb() { df -BG --output=avail "${1:-/}" | tail -1 | tr -dc 0-9; }
+say() { echo "$@" >> "$LOG"; [ "$QUIET" = 1 ] || echo "$@"; }
+avisar() { say "  AVISO: $1"; command -v notify-send >/dev/null && notify-send -u critical "liberar-espaco" "$1"; }
+hd_gravavel() { findmnt -no OPTIONS "$HD" 2>/dev/null | grep -q '^rw'; }
+drive_ok() { command -v rclone >/dev/null && rclone lsf "${DRIVE%%:*}:" --max-depth 1 >/dev/null 2>&1; }
+HD_OK=0
+hd_gravavel && HD_OK=1
+DRIVE_OK=0
+drive_ok && DRIVE_OK=1
+TMPD=$(mktemp -d)
+LEVE_TMP=""
+trap 'rm -rf "$TMPD" ${LEVE_TMP:+"$LEVE_TMP"}' EXIT
+say "== $(date '+%F %T')$([ "$DRY" = 1 ] && echo ' (dry-run)')"
 
 apagar() {
   local alvo=$1
@@ -31,6 +60,67 @@ apagar() {
 
 # True when nothing under the path changed in the last N days, so no job is using it.
 parado() { [ -z "$(find "$1" -mmin -$(( $2 * 1440 )) -print -quit 2>/dev/null)" ]; }
+# Same, but ignores text files, which metric and comment routines keep editing.
+midia_parada() {
+  [ -z "$(find "$1" -type f -mmin -$(( $2 * 1440 )) ! -name '*.md' ! -name '*.yaml' ! -name '*.json' ! -name '*.txt' ! -name '*.md5' -print -quit 2>/dev/null)" ]
+}
+
+# Replaces a video with a light AV1 copy made on the GPU: 1080p at most, about 0.04 bits per pixel,
+# same name, frame rate, audio and date. The copy replaces the file only when it decodes whole and
+# lasts as long. A file already near that bitrate is left alone, so a second run does nothing.
+# Sets ESCALA and ALVO for a video. Returns 0 when it is heavier than its light target, 1 when it is
+# already light, and 2 when ffprobe cannot read it.
+medir() {
+  local f=$1 w h fps br
+  # Some files list their video stream twice, so only the first line counts.
+  IFS=, read -r w h fps < <(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate -of csv=p=0 "$f" 2>/dev/null | head -1)
+  br=$(ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "$f" 2>/dev/null)
+  [[ ${br:-} =~ ^[0-9]+$ && ${w:-} =~ ^[0-9]+$ && ${h:-} =~ ^[0-9]+$ ]] || return 2
+  ESCALA=""
+  local curto=$(( w < h ? w : h ))
+  if [ "$curto" -gt 1080 ]; then
+    if [ "$w" -ge "$h" ]; then ESCALA="scale=-2:1080,"; w=$(( w * 1080 / h )); h=1080
+    else ESCALA="scale=1080:-2,"; h=$(( h * 1080 / w )); w=1080; fi
+  fi
+  ALVO=$(awk -v w="$w" -v h="$h" -v f="$fps" 'BEGIN { split(f, r, "/"); q = r[2] ? r[1] / r[2] : 30; b = w * h * q * 0.04; print int(b < 1500000 ? 1500000 : b) }')
+  [ "$br" -gt $(( ALVO * 3 / 2 )) ]
+}
+
+# Returns 1 when a heavy video could not be read or replaced, so the caller can retry later.
+# An optional second argument is the file's stat mark from before the caller checked it.
+leve() {
+  local f=$1 marca=${2:-}
+  medir "$f"
+  case $? in
+    # Already light. With a mark, the file must still be the one the caller checked.
+    1) [ -z "$marca" ] || [ "$(stat -c '%s %Y %i' "$f")" = "$marca" ]; return ;;
+    2) say "  sem leitura: $f"; return 1 ;;
+  esac
+  say "  leve $(du -h "$f" | cut -f1)	$f"
+  [ "$DRY" = 1 ] && return 0
+  local tmp
+  [ -n "$marca" ] || marca=$(stat -c '%s %Y %i' "$f")
+  # The lock makes a temp file left by a killed run safe to remove.
+  find "$(dirname "$f")" -maxdepth 1 -name '.leve-*.mp4' -delete 2>/dev/null
+  tmp=$(mktemp -p "$(dirname "$f")" --suffix .mp4 .leve-XXXXXX) || return 1
+  LEVE_TMP=$tmp
+  if ffmpeg -nostdin -v error -y -vaapi_device /dev/dri/renderD128 -i "$f" -map 0:v:0 -map '0:a?' \
+      -vf "${ESCALA}format=nv12,hwupload" -c:v av1_vaapi -rc_mode VBR -b:v "$ALVO" -maxrate $(( ALVO * 2 )) \
+      -c:a copy -movflags +faststart "$tmp" \
+    && [ -z "$(ffmpeg -nostdin -v error -i "$tmp" -f null - 2>&1 | head -1)" ] \
+    && awk -v a="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f")" \
+           -v b="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$tmp")" 'BEGIN { exit !(a - b < 0.5 && b - a < 0.5) }' \
+    && [ "$(stat -c '%s %Y %i' "$f")" = "$marca" ] \
+    && touch -r "$f" "$tmp" && chmod --reference="$f" "$tmp" && mv -f -- "$tmp" "${f%.*}.mp4"; then
+    LEVE_TMP=""
+    [ "$f" = "${f%.*}.mp4" ] || rm -f -- "$f"
+    say "       -> $(du -h "${f%.*}.mp4" | cut -f1)"
+  else
+    rm -f -- "$tmp"; LEVE_TMP=""
+    say "  falhou, o original fica: $f"
+    return 1
+  fi
+}
 
 antes=$(livre_gb)
 say "Livre antes: ${antes} GB"
@@ -38,6 +128,24 @@ say "Livre antes: ${antes} GB"
 say "Caches temporários parados há 3 dias:"
 for d in "$HOME/.cache/canais-dark-tmp"/* "$HOME/.cache/hf-tmp" "$HOME/.cache/yay"/*; do
   [ -e "$d" ] && parado "$d" 3 && apagar "$d"
+done
+
+say "Cache do DaVinci Resolve parado há $LEVE_DIAS dias:"
+for d in "$HOME/Videos/CacheClip"/*; do
+  [ -e "$d" ] && parado "$d" "$LEVE_DIAS" && apagar "$d"
+done
+
+say "Clipes e Whisper do canais-dark sem uso há 30 dias:"
+if [ -d "$HOME/.cache/canais-dark" ]; then
+  n=$(find "$HOME/.cache/canais-dark/clipes" "$HOME/.cache/canais-dark/whisper" -type f -mtime +30 2>/dev/null | wc -l)
+  [ "$n" -gt 0 ] && say "  $n arquivos"
+  [ "$DRY" = 1 ] || find "$HOME/.cache/canais-dark/clipes" "$HOME/.cache/canais-dark/whisper" -type f -mtime +30 -delete 2>/dev/null
+fi
+
+say "Testes do canais-dark parados há 30 dias, menos backup*:"
+for d in "$CANAIS"/test/*; do
+  case $(basename "$d") in backup*) continue ;; esac
+  [ -e "$d" ] && parado "$d" 30 && apagar "$d"
 done
 
 say "tmp/ de episódios publicados, medidos ou descartados, parados há 2 dias:"
@@ -48,6 +156,162 @@ for ep in "$CANAIS"/episodios/*/*/; do
     publicado|medido|descartado) parado "$ep/tmp" 2 && apagar "${ep%/}/tmp" ;;
   esac
 done
+
+# Episode 000 holds a series' shared scenes, such as the Lá em Casa CTA, so it never takes part.
+# quadros/, clipes/ and audio/ stay on the SSD, so any episode can be rendered again without new API costs.
+# final/ stays on the SSD as light copies because src/temporada.ts and the upload flow read it. qa/ goes.
+say "Episódios publicados, medidos ou descartados, parados há $LEVE_DIAS dias: qa/ sai, vídeos leves:"
+for ep in "$CANAIS"/episodios/*/*/; do
+  ep=${ep%/}
+  case $ep in */000) continue ;; esac
+  status=$(grep -m1 '^status:' "$ep/episodio.yaml" 2>/dev/null | awk '{print $2}')
+  case $status in publicado|medido|descartado) ;; *) continue ;; esac
+  midia_parada "$ep" "$LEVE_DIAS" || continue
+  apagar "$ep/qa"
+  for f in "$ep"/final/*.mp4; do [ -f "$f" ] && leve "$f"; done
+done
+
+# Sorts a Berteckle path relative to its video folder. "final" is a posted video, which goes to the
+# archive and then turns light on the SSD. "derivado" is media that tools make again from the sources.
+# "texto" is text in renders/, which stays. Everything else is a source and goes to the archive.
+# B-roll and work/ are sources: b-roll comes from new downloads, and work/ holds generated stills and scripts.
+tipo_berteckle() {
+  local r=$1
+  case $r in
+    renders/*)
+      if [[ $r =~ ^renders/(shorts/)?[^/]+\.mp4$ ]]; then echo final
+      elif [[ ${r,,} =~ \.(mp4|mov|mkv|webm|wav|mp3|m4a|flac|png|jpg)$ ]]; then
+        if [[ $r == renders/review/* ]]; then echo derivado; else echo fonte; fi
+      else echo texto; fi ;;
+    footage/proxy/*|audio/stems/*) echo derivado ;;
+    graphics/*/renders/*|graphics/*/stills/*) echo derivado ;;
+    *)
+      if [[ $r =~ ^footage/[^/]+-cfr\.[^/]+$ ]]; then echo derivado; else echo fonte; fi ;;
+  esac
+}
+
+# Warns about sources of the current video ($v, $rel, $TMPD/fontes) that are not in its manifest.
+novos_sem_copia() {
+  local n
+  n=$(comm -13 <(cut -c35- "$v/arquivo.md5" | sort) <(sort "$TMPD/fontes") | wc -l)
+  [ "$n" = 0 ] && return 0
+  avisar "$rel: $n arquivos novos depois do arquivo ficam no SSD sem cópia. Peça a um agente para arquivar de novo"
+  return 1
+}
+
+# Checks a manifest of "md5  videos/<video>/path" lines against that video's folder in an archive.
+# With --one-way, files the folder has beyond the list do not count.
+confere() {
+  local l
+  while IFS= read -r l; do
+    [[ ${l:34} == "$3"/* ]] || return 1
+    printf '%s\n' "${l:0:34}${l:35+${#3}}"
+  done < "$1" > "$TMPD/confere"
+  rclone checksum md5 "$TMPD/confere" "$2/$3" --one-way -q >> "$LOG" 2>&1
+}
+
+# A published Berteckle video loses its -master files at once, because the posted mp4 files replace them.
+# After LEVE_DIAS quiet days, derived media goes. Sources and posted videos are copied to the HD and to
+# Google Drive and checked by md5, which writes arquivo.md5 and arquivo.txt in the video folder.
+# CONFERIR_DIAS later, a second check against both copies lets the sources leave the SSD. Posted videos
+# stay on the SSD as light copies. Without a writable HD or a working Drive, the sources stay on the SSD.
+if [ -d "$BERTECKLE/.git" ]; then
+  say "Vídeos publicados do Berteckle:"
+  [ "$HD_OK" = 1 ] || say "  HD $HD não está gravável, as fontes ficam no SSD"
+  [ "$DRIVE_OK" = 1 ] || say "  Drive $DRIVE não responde, as fontes ficam no SSD"
+  esperando=0
+  for v in "$BERTECKLE"/videos/*/; do
+    v=${v%/}
+    grep -qE '^status: *published *(#.*)?$' "$v/video.yaml" 2>/dev/null || continue
+    rel=${v#"$BERTECKLE"/}
+    quieto=0
+    midia_parada "$v" "$LEVE_DIAS" && quieto=1
+    : > "$TMPD/fontes"
+    while IFS= read -r -d '' p; do
+      [ -L "$BERTECKLE/$p" ] && continue
+      case $p in *.env|*/.env|*/node_modules/*|*/__pycache__/*|*/arquivo.md5|*/arquivo-leve.md5|*/arquivo.txt|*/.leve-*.mp4) continue ;; esac
+      # A video master is a render such as renders/x-v1-master.mov, x-master-v2.mov or shorts/x-master-test-0-150.mov.
+      if [[ ${p#"$rel"/} =~ ^renders/(shorts/)?[^/]*-master(-v[0-9]+|-test-[0-9-]+)?\.(mov|mxf|mkv)$ ]]; then apagar "$BERTECKLE/$p"; continue; fi
+      case $(tipo_berteckle "${p#"$rel"/}") in
+        derivado) [ "$quieto" = 0 ] || apagar "$BERTECKLE/$p" ;;
+        fonte|final) printf '%s\n' "$p" >> "$TMPD/fontes" ;;
+      esac
+    done < <(git -C "$BERTECKLE" ls-files -z --others --ignored --exclude-standard -- "$rel")
+    estado="$v/arquivo.txt"
+    if ! [ -f "$estado" ]; then
+      [ "$quieto" = 1 ] && [ -s "$TMPD/fontes" ] || continue
+      say "  $rel: $(wc -l < "$TMPD/fontes") arquivos, $(sed "s|^|$BERTECKLE/|" "$TMPD/fontes" | xargs -r -d '\n' du -b 2>/dev/null | awk '{s += $1} END {printf "%.1f GB", s/1e9}') para o HD e o Drive"
+      [ "$DRY" = 1 ] && continue
+      [ "$HD_OK" = 1 ] && [ "$DRIVE_OK" = 1 ] || { esperando=$((esperando + 1)); continue; }
+      (cd "$BERTECKLE" && rclone md5sum . --files-from-raw "$TMPD/fontes" > "$TMPD/md5") || { avisar "$rel: md5 local falhou"; continue; }
+      rsync -rt --ignore-existing --no-perms --no-owner --no-group --files-from="$TMPD/fontes" "$BERTECKLE/" "$HD/Berteckle/" ||
+        { avisar "$rel: cópia para o HD falhou"; continue; }
+      rclone copy "$BERTECKLE" "$DRIVE/Berteckle" --files-from-raw "$TMPD/fontes" --ignore-existing --drive-stop-on-upload-limit -q ||
+        { avisar "$rel: envio ao Drive parou, tenta de novo na próxima execução"; continue; }
+      if confere "$TMPD/md5" "$HD/Berteckle" "$rel" && confere "$TMPD/md5" "$DRIVE/Berteckle" "$rel"; then
+        cp "$TMPD/md5" "$v/.arquivo.md5.tmp" && mv -f "$v/.arquivo.md5.tmp" "$v/arquivo.md5" &&
+          printf 'arquivado: %s\nhd: %s/Berteckle\ndrive: %s/Berteckle\n' "$(date +%F)" "$HD" "$DRIVE" > "$estado.tmp" &&
+          mv -f "$estado.tmp" "$estado" || { avisar "$rel: não consegui gravar o estado do arquivo"; continue; }
+        say "  $rel: arquivado e conferido no HD e no Drive"
+      else
+        avisar "$rel: a conferência do arquivo falhou, nada saiu do SSD. Detalhes em $LOG"
+      fi
+    elif grep -q '^limpo:' "$estado"; then
+      [ "$DRY" = 1 ] || novos_sem_copia
+    else
+      quando=$(sed -n 's/^arquivado: *//p' "$estado")
+      [ -n "$quando" ] && date -d "$quando" >/dev/null 2>&1 || { avisar "$rel: $estado não tem uma data de arquivo válida"; continue; }
+      [ "$(date -d "$quando + $CONFERIR_DIAS days" +%s)" -le "$(date +%s)" ] || continue
+      if [ "$DRY" = 1 ]; then say "  $rel: segunda conferência pendente"; continue; fi
+      [ "$HD_OK" = 1 ] && [ "$DRIVE_OK" = 1 ] || { esperando=$((esperando + 1)); continue; }
+      say "  $rel: segunda conferência"
+      if confere "$v/arquivo.md5" "$HD/Berteckle" "$rel" && confere "$v/arquivo.md5" "$DRIVE/Berteckle" "$rel"; then
+        # Each source is checked against the manifest right before it goes, so a file that changed after
+        # the archive stays. A file already gone left on an earlier run, so an interrupted run resumes.
+        falta=0
+        while IFS= read -r linha; do
+          soma=${linha:0:32} p=${linha:34}
+          [[ $soma =~ ^[0-9a-f]{32}$ && ${linha:32:2} == "  " && -n $p ]] || { falta=1; continue; }
+          f="$BERTECKLE/$p"
+          [ -e "$f" ] || continue
+          # A file added to git after the archive is no longer media this script owns.
+          git -C "$BERTECKLE" --literal-pathspecs ls-files --error-unmatch -- "$p" >/dev/null 2>&1 && continue
+          marca=$(stat -c '%s %Y %i' "$f")
+          atual=$(md5sum < "$f" | cut -c1-32)
+          if [ "$(tipo_berteckle "${p#"$rel"/}")" = final ]; then
+            # A posted video that differs from the manifest must be the light copy an earlier run made and
+            # recorded in arquivo-leve.md5. Anything else is a new render that was never archived.
+            if [ "$atual" = "$soma" ]; then
+              if leve "$f" "$marca"; then
+                novo=$(md5sum < "$f" | cut -c1-32)
+                [ "$novo" = "$soma" ] || printf '%s  %s\n' "$novo" "$p" >> "$v/arquivo-leve.md5"
+              else falta=1; fi
+            elif ! grep -qxF "$atual  $p" "$v/arquivo-leve.md5" 2>/dev/null; then
+              avisar "$rel: $p mudou no SSD depois do arquivo e fica. Peça a um agente para arquivar de novo"
+              falta=1
+            fi
+          elif [ "$atual" = "$soma" ]; then
+            apagar "$f" || { avisar "$rel: não consegui apagar $p"; falta=1; }
+          else
+            avisar "$rel: $p mudou no SSD depois do arquivo e fica. Peça a um agente para arquivar de novo"
+            falta=1
+          fi
+        done < "$v/arquivo.md5"
+        find "$v" -mindepth 1 -type d -empty -delete 2>/dev/null
+        novos_sem_copia || falta=1
+        if [ "$falta" = 0 ]; then
+          echo "limpo: $(date +%F)" >> "$estado"
+          say "  $rel: fontes saíram do SSD, ficam no HD e no Drive"
+        else
+          say "  $rel: limpeza incompleta, tenta de novo na próxima execução"
+        fi
+      else
+        avisar "$rel: a segunda conferência falhou, as fontes ficam no SSD. Detalhes em $LOG"
+      fi
+    fi
+  done
+  [ "$esperando" = 0 ] || avisar "$esperando vídeos do Berteckle esperam arquivo. Destrave o HD $HD e confira o rclone em $DRIVE"
+fi
 
 if [ "$DRY" = 0 ]; then
   say "Caches de pacotes:"
@@ -65,5 +329,9 @@ say "Livre depois: ${depois} GB"
 if [ "$depois" -lt "$LIMITE_GB" ] && command -v notify-send >/dev/null; then
   notify-send -u critical "Disco com ${depois} GB livres" \
     "A limpeza automática não basta. Peça a um agente para revisar jogos, Downloads e masters de vídeo."
+fi
+if [ "$HD_OK" = 1 ] && [ "$(livre_gb "$HD")" -lt "$HD_LIMITE_GB" ] && command -v notify-send >/dev/null; then
+  notify-send -u critical "HD Social Media com $(livre_gb "$HD") GB livres" \
+    "Peça a um agente para limpar a mídia dos vídeos publicados no HD."
 fi
 exit 0
