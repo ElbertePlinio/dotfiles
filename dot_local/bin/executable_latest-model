@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Print the newest Codex model slug of one family, such as sol or astra. Usage:
+#   latest-model <family>
+# Asks the Codex CLI on PATH for its model catalog, so the slug works with that binary.
+# The shared ~/.codex/models_cache.json is not used: older Codex clients rewrite it
+# with an older model list. If Codex fails, it prints the fallback and a warning.
+set -euo pipefail
+
+family=${1:-}
+case "$family" in
+  sol) fallback=gpt-6.1-sol ;;
+  astra) fallback=gpt-6-astra ;;
+  *) echo "usage: latest-model sol|astra" >&2; exit 64 ;;
+esac
+
+newest='
+import json, re, sys
+pattern = re.compile(r"gpt-(\d+(?:\.\d+)*)-" + re.escape(sys.argv[1]))
+best = None
+for model in json.load(sys.stdin).get("models", []):
+    match = pattern.fullmatch(model.get("slug", ""))
+    if match and model.get("visibility", "list") == "list":
+        version = tuple(int(part) for part in match.group(1).split("."))
+        if best is None or version > best[0]:
+            best = (version, model["slug"])
+if best:
+    print(best[1])
+'
+slug=$( (codex debug models | python3 -c "$newest" "$family") 2>/dev/null || true)
+
+if [[ -z "$slug" ]]; then
+  echo "latest-model: no $family model from codex debug models; using $fallback" >&2
+  slug=$fallback
+fi
+printf '%s\n' "$slug"
