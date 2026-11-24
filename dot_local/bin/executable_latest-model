@@ -19,7 +19,7 @@ pattern = re.compile(r"gpt-(\d+(?:\.\d+)*)-" + re.escape(sys.argv[1]))
 best = None
 for model in json.load(sys.stdin).get("models", []):
     match = pattern.fullmatch(model.get("slug", ""))
-    if match and model.get("visibility", "list") == "list":
+    if match and model.get("visibility") == "list":
         version = tuple(int(part) for part in match.group(1).split("."))
         if best is None or version > best[0]:
             best = (version, model["slug"])

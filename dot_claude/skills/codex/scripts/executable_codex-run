@@ -25,18 +25,7 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$repo" ]] || usage
 [[ -n "$model" ]] || model=sol
-# Sol follows the newest version. Astra stays pinned for cost, with a notice when a newer one exists.
-latest_model() { "$HOME/.local/bin/latest-model" "$1"; }
-case "$model" in
-  sol) slug=$(latest_model sol) ;;
-  astra)
-    slug=gpt-6-astra
-    newest=$(latest_model astra 2>/dev/null || true)
-    [[ -z "$newest" || "$newest" == "$slug" ]] \
-      || echo "codex-run: $newest is newer than the pinned $slug; ask the user before changing the pin" >&2
-    ;;
-  *) echo "codex-run: model must be sol or astra" >&2; exit 64 ;;
-esac
+case "$model" in sol|astra) ;; *) echo "codex-run: model must be sol or astra" >&2; exit 64 ;; esac
 case "$effort" in low|medium|high|xhigh) ;; *) echo "codex-run: effort must be low, medium, high, or xhigh" >&2; exit 64 ;; esac
 
 repo=$(git -C "$repo" rev-parse --show-toplevel)
@@ -68,6 +57,18 @@ else
   }
   trap cleanup EXIT
   rules="$rules This is an assessment of revision $sha, checked out at $workdir. Run tests and tools freely, but do not edit, create, or delete files in the repository and do not commit. Put scratch files under ${TMPDIR:-/tmp}."
+fi
+
+# Resolve the slug in the workdir, where a mise shim may pick a different Codex version.
+# Sol follows the newest version. Astra stays pinned for cost, with a notice when a newer one exists.
+latest_model() { (cd "$workdir" && "$HOME/.local/bin/latest-model" "$1"); }
+if [[ "$model" == sol ]]; then
+  slug=$(latest_model sol)
+else
+  slug=gpt-6-astra
+  newest=$(latest_model astra 2>/dev/null || true)
+  [[ -z "$newest" || "$newest" == "$slug" ]] \
+    || echo "codex-run: $newest is newer than the pinned $slug; ask the user before changing the pin" >&2
 fi
 
 args=(--json -m "$slug" -c "model_reasoning_effort=$effort" -c mcp_servers.pickforge-lanes.enabled=false
