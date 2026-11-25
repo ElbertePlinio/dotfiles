@@ -52,6 +52,17 @@ def run(*cmd, check=True):
     return subprocess.run(cmd, check=check, capture_output=True, text=True)
 
 
+def check_complete(raw):
+    """Fail unless every frame in the capture's index reads; a cut at a frame edge logs no error."""
+    out = run_clean("ffprobe", "-v", "error", "-ignore_editlist", "1", "-select_streams", "v:0", "-count_packets",
+                    "-show_entries", "stream=nb_read_packets,nb_frames", "-of", "json", str(raw)).stdout
+    stream = (json.loads(out).get("streams") or [{}])[0]
+    read, indexed = int(stream.get("nb_read_packets", 0)), stream.get("nb_frames", "")
+    if read < 1 or (indexed.isdigit() and int(indexed) != read):
+        raise subprocess.CalledProcessError(1, ["ffprobe", str(raw)], "",
+                                            f"the capture is cut short: {read} of {indexed or '?'} frames read")
+
+
 def run_clean(*cmd):
     """Run ffmpeg or ffprobe at -v error and fail on any logged error; both exit 0 after read errors."""
     result = run(*cmd)
@@ -243,12 +254,13 @@ class Android:
                 raise SystemExit("could not read sysui_demo_allowed, so demo mode could not be undone")
             self.demo_flag = read.stdout.strip()
         self.shell("settings", "put", "global", "sysui_demo_allowed", "1", check=False)
-        self.demo_entered = getattr(self, "demo_entered", False) or demo("enter")
-        for command, *extras in (("clock", "-e", "hhmm", "0941"),
+        for command, *extras in (("enter",), ("clock", "-e", "hhmm", "0941"),
                                  ("battery", "-e", "level", "100", "-e", "plugged", "false"),
                                  ("network", "-e", "fully", "true"), ("network", "-e", "wifi", "show", "-e", "level", "4"),
                                  ("network", "-e", "mobile", "hide"), ("notifications", "-e", "visible", "false")):
-            demo(command, *extras)
+            # SystemUI enters demo mode on any demo command, so one that lands is enough to need an exit.
+            if demo(command, *extras):
+                self.demo_entered = True
 
     def restore_demo_flag(self):
         flag = getattr(self, "demo_flag", "1")
@@ -297,18 +309,16 @@ class Android:
             self.proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self.proc.kill()
-        self.adb("pull", self.device_file, str(raw))
         try:
+            self.adb("pull", self.device_file, str(raw))
             size = self.shell("stat", "-c", "%s", self.device_file).stdout.strip()
             if size != str(raw.stat().st_size):
-                raise ValueError("the pull is incomplete")
-            probe(raw)
-            packets = run_clean("ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
-                                "stream=nb_read_packets", "-of", "csv=p=0", str(raw)).stdout.strip()
-            if not packets.isdigit() or int(packets) < 1:
-                raise ValueError("no video packets")
-        except (subprocess.CalledProcessError, KeyError, IndexError, ValueError):
-            raise SystemExit(f"the pulled recording is not readable; the device keeps {self.device_file}") from None
+                raise ValueError(f"pulled {raw.stat().st_size} of {size} bytes")
+            check_complete(raw)
+        except (subprocess.CalledProcessError, OSError, ValueError) as err:
+            reason = (err.stderr or "").strip() if isinstance(err, subprocess.CalledProcessError) else err
+            raise SystemExit(f"the recording did not come back whole ({reason}); "
+                             f"the device keeps {self.device_file}") from None
         self.shell("rm", "-f", self.device_file, check=False)
         return early
 
@@ -449,6 +459,7 @@ def duration(path):
 
 def encode(raw, mp4, taps, end, device):
     """Encode the raw capture to mp4, padded to the real end, with a dot on each tap in taps."""
+    check_complete(raw)
     with tempfile.TemporaryDirectory() as tmp:
         if raw.suffix == ".mov":
             # simctl can write bad decode timestamps at the end of the .mov, and ffmpeg then runs the screens
@@ -496,7 +507,7 @@ def replacing(dest):
     try:
         yield new
         if not new.stat().st_size:
-            raise SystemExit(f"ffmpeg wrote nothing for {dest}")
+            raise SystemExit(f"nothing was written for {dest}")
         os.replace(new, dest)
     finally:
         new.unlink(missing_ok=True)
@@ -594,15 +605,16 @@ def finish(flow, partial, name, end, draw_taps):
     sheet = video_dir / f"{name}-sheet.png"
     stage = "encode the take"
     try:
-        with replacing(mp4) as new_mp4, replacing(sheet) as new_sheet:
+        with replacing(mp4) as new_mp4, replacing(sheet) as new_sheet, \
+                replacing(video_dir / f"{name}.events.json") as new_events:
             encode(partial, new_mp4, taps, end, flow.device)
             stage = "make the frame sheet"
             contact_sheet(new_mp4, new_sheet)
+            new_events.write_text(json.dumps(flow.events, indent=1))
     except subprocess.CalledProcessError as err:
         sys.exit(f"could not {stage}; the last take is unchanged and this one is at {partial}: "
                  f"{(err.stderr or '').strip()}")
     os.replace(partial, video_dir / f"{name}.raw{flow.device.raw_suffix}")
-    (video_dir / f"{name}.events.json").write_text(json.dumps(flow.events, indent=1))
     report(mp4, sheet)
 
 
