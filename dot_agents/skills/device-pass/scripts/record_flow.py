@@ -23,13 +23,13 @@ A recording writes raw/video/<name>.raw.<ext>, <name>.events.json, <name>-sheet.
 step that fails. --sheet only writes a frame sheet beside any video, such as a browser recording.
 """
 import argparse
+import contextlib
 import json
 import math
 import os
 import random
 import uuid
 import re
-import shutil
 import signal
 import subprocess
 import sys
@@ -220,12 +220,15 @@ class Android:
     def clean_status_bar(self, on):
         """Demo mode: 9:41, full battery, full wifi, no mobile icon, no notifications."""
         def demo(command, *extras):
-            self.shell("am", "broadcast", "-a", "com.android.systemui.demo", "-e", "command", command, *extras,
-                       check=False)
+            return self.shell("am", "broadcast", "-a", "com.android.systemui.demo", "-e", "command", command,
+                              *extras, check=False).returncode == 0
 
         if not on:
-            demo("exit")
-            self.restore_demo_flag()
+            if hasattr(self, "demo_flag"):  # only undo what this run changed
+                if not demo("exit"):
+                    print("warning: could not leave demo mode; run `adb shell am broadcast -a "
+                          "com.android.systemui.demo -e command exit`", file=sys.stderr)
+                self.restore_demo_flag()
             return
         if not hasattr(self, "demo_flag"):
             read = self.shell("settings", "get", "global", "sysui_demo_allowed", check=False)
@@ -289,6 +292,10 @@ class Android:
         self.adb("pull", self.device_file, str(raw))
         try:
             probe(raw)
+            packets = run("ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
+                          "stream=nb_read_packets", "-of", "csv=p=0", str(raw)).stdout.strip()
+            if not packets.isdigit() or int(packets) < 1:
+                raise ValueError("no video packets")
         except (subprocess.CalledProcessError, KeyError, IndexError, ValueError):
             raise SystemExit(f"the pulled recording is not readable; the device keeps {self.device_file}") from None
         self.shell("rm", "-f", self.device_file, check=False)
@@ -419,8 +426,14 @@ def duration(path):
         return float(out)
     out = run("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time,duration_time",
               "-of", "csv=p=0", str(path)).stdout
-    ends = [sum(float(x) for x in line.split(",") if re.fullmatch(r"-?\d+(\.\d+)?", x)) for line in out.splitlines()]
-    return max(ends, default=0) or probe(path)[2]
+    packets = [[float(x) for x in line.split(",") if re.fullmatch(r"-?\d+(\.\d+)?", x)] for line in out.splitlines()]
+    packets = [p for p in packets if p]
+    if packets:
+        first = min(p[0] for p in packets)
+        end = max(sum(p) for p in packets) - first
+        if end > 0:
+            return end
+    return probe(path)[2]
 
 
 def encode(raw, mp4, taps, end, device):
@@ -458,8 +471,25 @@ def encode_video(raw, mp4, taps, end, device, tap_png):
             x, y = round(e["x"] * scale - r), round(e["y"] * scale - r)
             graph.append(f"[v{i}][d{i}]overlay={x}:{y}:enable='between(t,{a:.3f},{b:.3f})'[v{i + 1}]")
     graph.append(f"[v{len(taps)}]scale='min({MAX_WIDTH},iw)':-2,format=yuv420p[out]")
-    run("ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(graph), "-map", "[out]",
-        "-c:v", "libx264", "-preset", "slow", "-crf", "26", "-movflags", "+faststart", "-an", str(mp4))
+    with replacing(mp4) as new:
+        run("ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(graph), "-map", "[out]",
+            "-c:v", "libx264", "-preset", "slow", "-crf", "26", "-movflags", "+faststart", "-an", "-f", "mp4",
+            str(new))
+
+
+@contextlib.contextmanager
+def replacing(dest):
+    """Yield a temp path beside dest; replace dest with it only when the block succeeds."""
+    fd, name = tempfile.mkstemp(prefix=f".{dest.name}.", suffix=".tmp", dir=dest.parent)
+    os.close(fd)
+    new = Path(name)
+    try:
+        yield new
+        if not new.stat().st_size:
+            raise SystemExit(f"ffmpeg wrote nothing for {dest}")
+        os.replace(new, dest)
+    finally:
+        new.unlink(missing_ok=True)
 
 
 def contact_sheet(video, sheet):
@@ -470,13 +500,10 @@ def contact_sheet(video, sheet):
     frames = min(SHEET_FRAMES, max(1, math.ceil(seconds)))
     cols = min(6, frames)
     rows = math.ceil(frames / cols)
-    with tempfile.TemporaryDirectory() as tmp:
-        new = Path(tmp) / "sheet.png"
+    with replacing(sheet) as new:
         run("ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf",
-            f"fps={cols * rows / seconds:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1", str(new))
-        if not new.is_file():
-            raise SystemExit(f"ffmpeg wrote no frame sheet for {video}")
-        shutil.move(new, sheet)
+            f"fps={cols * rows / seconds:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1",
+            "-f", "image2", "-c:v", "png", str(new))
 
 
 def report(mp4, sheet):
@@ -555,11 +582,16 @@ def finish(flow, partial, name, end, draw_taps):
     mp4 = video_dir.parent.parent / "videos" / f"{name}.mp4"
     mp4.parent.mkdir(exist_ok=True)
     taps = [e for e in flow.events if e["action"] == "tap"] if draw_taps else []
-    encode(partial, mp4, taps, end, flow.device)
+    sheet = video_dir / f"{name}-sheet.png"
+    stage = "encode the take"
+    try:
+        encode(partial, mp4, taps, end, flow.device)
+        stage = "make the frame sheet"
+        contact_sheet(mp4, sheet)
+    except subprocess.CalledProcessError as err:
+        sys.exit(f"could not {stage}; the raw take is kept at {partial}: {(err.stderr or '').strip()}")
     os.replace(partial, video_dir / f"{name}.raw{flow.device.raw_suffix}")
     (video_dir / f"{name}.events.json").write_text(json.dumps(flow.events, indent=1))
-    sheet = video_dir / f"{name}-sheet.png"
-    contact_sheet(mp4, sheet)
     report(mp4, sheet)
 
 
@@ -613,10 +645,7 @@ def take(args):
     if args.dry_run:
         print("dry run passed; put the app back at the first screen, then record")
         return
-    try:
-        finish(flow, partial, name, end, not args.no_taps)
-    except subprocess.CalledProcessError as err:
-        sys.exit(f"could not encode the take, kept at {partial}: {(err.stderr or '').strip()}")
+    finish(flow, partial, name, end, not args.no_taps)
 
 
 if __name__ == "__main__":
