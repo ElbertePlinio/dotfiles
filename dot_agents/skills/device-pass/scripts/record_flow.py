@@ -583,7 +583,11 @@ def main():
         return
     if not args.flow or not (args.udid or args.serial):
         ap.error("give a flow file and --udid or --serial, or --sheet <video>")
+    take(args)
 
+
+def take(args):
+    """Rehearse or record one flow file."""
     flow_path = args.flow.expanduser().resolve()
     steps = json.loads(flow_path.read_text())
     name = flow_path.name.removesuffix(".flow.json")
