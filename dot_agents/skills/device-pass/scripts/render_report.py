@@ -442,6 +442,26 @@ def frame_html(images, p, alt, extra=''):
     return f'<div class="frame{extra}" style="{style}"><img {source} alt="{text(alt)}"></div>'
 
 
+def export_zoom(panes):
+    """One shared zoom that fits every pane on one row of the exported card; the page keeps its slider."""
+    room = EXPORT_WIDTH - EXPORT_CHROME - PANE_GAP * (len(panes) - 1)
+    zoom = min(DEFAULT_ZOOM, math.floor(room / sum(p["w"] for p in panes) * 1000) / 1000)
+    return f' style="--zoom:{zoom:g}"'
+
+
+def overlay_html(images, panes):
+    """An opacity overlay of the first device pane on the first Figma pane, when the card has both."""
+    first = {}
+    for p in panes:
+        first.setdefault(p['kind'], p)
+    if 'device' not in first or 'figma' not in first:
+        return ''
+    d, f = first['device'], first['figma']
+    return (f'<details class="overlay"><summary>Overlay {text(d["label"])} on {text(f["label"])}</summary>'
+            f'<label>{text(d["label"])} opacity <input type="range" min="0" max="100" value="50"></label>'
+            f'<div class="stack">{frame_html(images, f, "")}{frame_html(images, d, "", " top")}</div></details>')
+
+
 def card_html(images, card, defaults, export=False):
     if not isinstance(card.get('id'), str) or not CARD_ID.fullmatch(card['id']):
         raise ValueError(f"Card id must be lowercase letters, digits and dashes: {card.get('id')!r}")
@@ -458,21 +478,8 @@ def card_html(images, card, defaults, export=False):
             f'<figure class="pane" data-kind="{p["kind"]}" style="--w:{fmt(p["w"])}"><figcaption><b>{text(p["label"])}</b>'
             f'<span class="dim">{fmt(p["w"])} × {fmt(p["h"])} pt</span>{caption}</figcaption>'
             f'<button class="open" type="button" aria-label="Open {text(alt)}">{frame_html(images, p, alt)}</button></figure>')
-    overlay, style = '', ''
-    if export:
-        # One shared zoom fits every pane on one row of the exported card; the page keeps its slider.
-        room = EXPORT_WIDTH - EXPORT_CHROME - PANE_GAP * (len(panes) - 1)
-        zoom = min(DEFAULT_ZOOM, math.floor(room / sum(p["w"] for p in panes) * 1000) / 1000)
-        style = f' style="--zoom:{zoom:g}"'
-    first = {}
-    for p in panes:
-        first.setdefault(p['kind'], p)
-    if 'device' in first and 'figma' in first and not export:
-        d, f = first['device'], first['figma']
-        overlay = (
-            f'<details class="overlay"><summary>Overlay {text(d["label"])} on {text(f["label"])}</summary>'
-            f'<label>{text(d["label"])} opacity <input type="range" min="0" max="100" value="50"></label>'
-            f'<div class="stack">{frame_html(images, f, "")}{frame_html(images, d, "", " top")}</div></details>')
+    style = export_zoom(panes) if export else ''
+    overlay = '' if export else overlay_html(images, panes)
     desc = f'<p class="desc">{text(card["desc"])}</p>' if card.get('desc') else ''
     note = f'<p class="note">{text(card["note"])}</p>' if card.get('note') else ''
     return (f'<section class="card" id="card-{card["id"]}"{style}><h2>{text(card["title"])}</h2>{desc}'
