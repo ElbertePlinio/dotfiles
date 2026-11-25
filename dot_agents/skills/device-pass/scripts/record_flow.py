@@ -58,7 +58,7 @@ def check_complete(raw):
                     "-show_entries", "stream=nb_read_packets,nb_frames", "-of", "json", str(raw)).stdout
     stream = (json.loads(out).get("streams") or [{}])[0]
     read, indexed = int(stream.get("nb_read_packets", 0)), stream.get("nb_frames", "")
-    if read < 1 or (indexed.isdigit() and int(indexed) != read):
+    if read < 1 or (indexed.isdigit() and read < int(indexed)):
         raise subprocess.CalledProcessError(1, ["ffprobe", str(raw)], "",
                                             f"the capture is cut short: {read} of {indexed or '?'} frames read")
 
@@ -316,7 +316,9 @@ class Android:
                 raise ValueError(f"pulled {raw.stat().st_size} of {size} bytes")
             check_complete(raw)
         except (subprocess.CalledProcessError, OSError, ValueError) as err:
-            reason = (err.stderr or "").strip() if isinstance(err, subprocess.CalledProcessError) else err
+            reason = err
+            if isinstance(err, subprocess.CalledProcessError):
+                reason = (err.stderr or "").strip() or f"{err.cmd[0]} exited {err.returncode}"
             raise SystemExit(f"the recording did not come back whole ({reason}); "
                              f"the device keeps {self.device_file}") from None
         self.shell("rm", "-f", self.device_file, check=False)
@@ -605,15 +607,16 @@ def finish(flow, partial, name, end, draw_taps):
     sheet = video_dir / f"{name}-sheet.png"
     stage = "encode the take"
     try:
-        with replacing(mp4) as new_mp4, replacing(sheet) as new_sheet, \
-                replacing(video_dir / f"{name}.events.json") as new_events:
+        # Managers replace in reverse order, so every size check passes before the events file moves.
+        with replacing(video_dir / f"{name}.events.json") as new_events, replacing(mp4) as new_mp4, \
+                replacing(sheet) as new_sheet:
             encode(partial, new_mp4, taps, end, flow.device)
             stage = "make the frame sheet"
             contact_sheet(new_mp4, new_sheet)
             new_events.write_text(json.dumps(flow.events, indent=1))
-    except subprocess.CalledProcessError as err:
-        sys.exit(f"could not {stage}; the last take is unchanged and this one is at {partial}: "
-                 f"{(err.stderr or '').strip()}")
+    except (subprocess.CalledProcessError, SystemExit) as err:
+        detail = (err.stderr or "").strip() if isinstance(err, subprocess.CalledProcessError) else err
+        sys.exit(f"could not {stage}; the last take is unchanged and this one is at {partial}: {detail}")
     os.replace(partial, video_dir / f"{name}.raw{flow.device.raw_suffix}")
     report(mp4, sheet)
 
