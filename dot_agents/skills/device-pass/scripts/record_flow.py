@@ -52,6 +52,14 @@ def run(*cmd, check=True):
     return subprocess.run(cmd, check=check, capture_output=True, text=True)
 
 
+def run_clean(*cmd):
+    """Run ffmpeg or ffprobe at -v error and fail on any logged error; both exit 0 after read errors."""
+    result = run(*cmd)
+    if result.stderr.strip():
+        raise subprocess.CalledProcessError(1, cmd, result.stdout, result.stderr)
+    return result
+
+
 class IOS:
     """iOS Simulator through simctl and idb. Coordinates are in points."""
 
@@ -224,11 +232,10 @@ class Android:
                               *extras, check=False).returncode == 0
 
         if not on:
-            if hasattr(self, "demo_flag"):  # only undo what this run changed
-                if not demo("exit"):
-                    print("warning: could not leave demo mode; run `adb shell am broadcast -a "
-                          "com.android.systemui.demo -e command exit`", file=sys.stderr)
-                self.restore_demo_flag()
+            if getattr(self, "demo_entered", False) and not demo("exit"):  # only undo what this run did
+                print("warning: could not leave demo mode; run `adb shell am broadcast -a "
+                      "com.android.systemui.demo -e command exit`", file=sys.stderr)
+            self.restore_demo_flag()
             return
         if not hasattr(self, "demo_flag"):
             read = self.shell("settings", "get", "global", "sysui_demo_allowed", check=False)
@@ -236,7 +243,8 @@ class Android:
                 raise SystemExit("could not read sysui_demo_allowed, so demo mode could not be undone")
             self.demo_flag = read.stdout.strip()
         self.shell("settings", "put", "global", "sysui_demo_allowed", "1", check=False)
-        for command, *extras in (("enter",), ("clock", "-e", "hhmm", "0941"),
+        self.demo_entered = getattr(self, "demo_entered", False) or demo("enter")
+        for command, *extras in (("clock", "-e", "hhmm", "0941"),
                                  ("battery", "-e", "level", "100", "-e", "plugged", "false"),
                                  ("network", "-e", "fully", "true"), ("network", "-e", "wifi", "show", "-e", "level", "4"),
                                  ("network", "-e", "mobile", "hide"), ("notifications", "-e", "visible", "false")):
@@ -291,9 +299,12 @@ class Android:
             self.proc.kill()
         self.adb("pull", self.device_file, str(raw))
         try:
+            size = self.shell("stat", "-c", "%s", self.device_file).stdout.strip()
+            if size != str(raw.stat().st_size):
+                raise ValueError("the pull is incomplete")
             probe(raw)
-            packets = run("ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
-                          "stream=nb_read_packets", "-of", "csv=p=0", str(raw)).stdout.strip()
+            packets = run_clean("ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
+                                "stream=nb_read_packets", "-of", "csv=p=0", str(raw)).stdout.strip()
             if not packets.isdigit() or int(packets) < 1:
                 raise ValueError("no video packets")
         except (subprocess.CalledProcessError, KeyError, IndexError, ValueError):
@@ -443,7 +454,7 @@ def encode(raw, mp4, taps, end, device):
             # simctl can write bad decode timestamps at the end of the .mov, and ffmpeg then runs the screens
             # ahead of the tap log. A stream copy into .mkv keeps the real frame times.
             remux = Path(tmp) / "raw.mkv"
-            run("ffmpeg", "-v", "error", "-y", "-i", str(raw), "-c", "copy", str(remux))
+            run_clean("ffmpeg", "-v", "error", "-y", "-i", str(raw), "-c", "copy", str(remux))
             raw = remux
         encode_video(raw, mp4, taps, end, device, Path(tmp) / "tap.png")
 
@@ -471,10 +482,9 @@ def encode_video(raw, mp4, taps, end, device, tap_png):
             x, y = round(e["x"] * scale - r), round(e["y"] * scale - r)
             graph.append(f"[v{i}][d{i}]overlay={x}:{y}:enable='between(t,{a:.3f},{b:.3f})'[v{i + 1}]")
     graph.append(f"[v{len(taps)}]scale='min({MAX_WIDTH},iw)':-2,format=yuv420p[out]")
-    with replacing(mp4) as new:
-        run("ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(graph), "-map", "[out]",
-            "-c:v", "libx264", "-preset", "slow", "-crf", "26", "-movflags", "+faststart", "-an", "-f", "mp4",
-            str(new))
+    run_clean("ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(graph), "-map", "[out]",
+              "-c:v", "libx264", "-preset", "slow", "-crf", "26", "-movflags", "+faststart", "-an", "-f", "mp4",
+              str(mp4))
 
 
 @contextlib.contextmanager
@@ -493,17 +503,16 @@ def replacing(dest):
 
 
 def contact_sheet(video, sheet):
-    """Write up to 24 evenly spaced frames as one image; the old sheet stays until the new one exists."""
+    """Write up to 24 evenly spaced frames as one image."""
     seconds = duration(video)
     if seconds <= 0:
         raise SystemExit(f"video has no duration: {video}")
     frames = min(SHEET_FRAMES, max(1, math.ceil(seconds)))
     cols = min(6, frames)
     rows = math.ceil(frames / cols)
-    with replacing(sheet) as new:
-        run("ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf",
-            f"fps={cols * rows / seconds:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1",
-            "-f", "image2", "-c:v", "png", str(new))
+    run("ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf",
+        f"fps={cols * rows / seconds:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1",
+        "-f", "image2", "-c:v", "png", str(sheet))
 
 
 def report(mp4, sheet):
@@ -577,7 +586,7 @@ def show_labels(device):
 
 
 def finish(flow, partial, name, end, draw_taps):
-    """Encode the take, then replace the last raw capture, so a bad take never replaces a good one."""
+    """Make the video and sheet in temp files, then replace the last take, so a bad take changes nothing."""
     video_dir = partial.parent
     mp4 = video_dir.parent.parent / "videos" / f"{name}.mp4"
     mp4.parent.mkdir(exist_ok=True)
@@ -585,11 +594,13 @@ def finish(flow, partial, name, end, draw_taps):
     sheet = video_dir / f"{name}-sheet.png"
     stage = "encode the take"
     try:
-        encode(partial, mp4, taps, end, flow.device)
-        stage = "make the frame sheet"
-        contact_sheet(mp4, sheet)
+        with replacing(mp4) as new_mp4, replacing(sheet) as new_sheet:
+            encode(partial, new_mp4, taps, end, flow.device)
+            stage = "make the frame sheet"
+            contact_sheet(new_mp4, new_sheet)
     except subprocess.CalledProcessError as err:
-        sys.exit(f"could not {stage}; the raw take is kept at {partial}: {(err.stderr or '').strip()}")
+        sys.exit(f"could not {stage}; the last take is unchanged and this one is at {partial}: "
+                 f"{(err.stderr or '').strip()}")
     os.replace(partial, video_dir / f"{name}.raw{flow.device.raw_suffix}")
     (video_dir / f"{name}.events.json").write_text(json.dumps(flow.events, indent=1))
     report(mp4, sheet)
@@ -610,7 +621,8 @@ def main():
     if args.sheet:
         video = args.sheet.expanduser().resolve()
         sheet = video.with_name(video.stem + "-sheet.png")
-        contact_sheet(video, sheet)
+        with replacing(sheet) as new:
+            contact_sheet(video, new)
         print(f"wrote {sheet}")
         return
     if not args.flow or not (args.udid or args.serial):
