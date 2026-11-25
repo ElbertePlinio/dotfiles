@@ -635,19 +635,26 @@ def export_cards(manifest):
             page.write_text(page_html, encoding='utf-8')
             chrome(binary, page, f'--window-size={found[1]},{found[2]}', '--force-device-scale-factor=2',
                    f'--screenshot={png}')
-            if not png.is_file() or image_mime(png.read_bytes()[:8]) != 'image/png':
+            if not png.is_file() or validate_image(png.read_bytes(), png.name) != 'image/png':
                 raise ValueError(f"Chrome did not write the card {card['id']}")
             staged.append(png)
         out.mkdir(exist_ok=True)
-        for old in out.iterdir():
-            if re.fullmatch(r'\d{2,}-[a-z0-9-]+\.png', old.name) and old.is_file() and not old.is_symlink():
-                old.unlink()
-        written = []
-        for png in staged:
-            target = out / png.name
-            shutil.move(png, target)
-            written.append(target)
-    return written
+        # Every write, rename and removal goes through one descriptor of cards/, so no symlink can redirect it.
+        fd = os.open(out, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            for png in staged:
+                temp = f'.{png.name}.tmp'
+                handle = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=fd)
+                with os.fdopen(handle, 'wb') as target:
+                    target.write(png.read_bytes())
+                os.rename(temp, png.name, src_dir_fd=fd, dst_dir_fd=fd)
+            keep = {png.name for png in staged}
+            for name in os.listdir(fd):
+                if name not in keep and re.fullmatch(r'\d{2,}-[a-z0-9-]+\.png', name):
+                    os.unlink(name, dir_fd=fd)
+        finally:
+            os.close(fd)
+    return [out / png.name for png in staged]
 
 
 def size(count):

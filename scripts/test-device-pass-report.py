@@ -415,7 +415,15 @@ class DevicePassReportTests(unittest.TestCase):
 
     @unittest.skipUnless(any(shutil.which(c) or os.path.exists(c) for c in module.CHROMES), "needs Chrome or Chromium")
     def test_cards_export_one_png_per_card(self):
+        outside = self.base / "outside.png"
+        outside.write_bytes(b"outside")
+        (self.root / "cards").mkdir()
+        (self.root / "cards/01-home.png").symlink_to(outside)
+        (self.root / "cards/09-stale.png").write_bytes(png(2, 2, (1, 1, 1)))
         written = module.export_cards(self.manifest)
+        self.assertEqual(outside.read_bytes(), b"outside")
+        self.assertFalse((self.root / "cards/01-home.png").is_symlink())
+        self.assertFalse((self.root / "cards/09-stale.png").exists())
         self.assertEqual([p.name for p in written], ["01-home.png", "02-menu.png", "03-receipt.png"])
         for path in written:
             data = path.read_bytes()

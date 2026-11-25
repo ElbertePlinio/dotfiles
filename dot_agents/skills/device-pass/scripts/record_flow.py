@@ -27,6 +27,7 @@ import json
 import math
 import os
 import random
+import uuid
 import re
 import signal
 import subprocess
@@ -98,8 +99,7 @@ class IOS:
         return value if re.fullmatch(r"[a-z-]+", value) else None
 
     def restore_text_size(self, saved):
-        if saved:
-            run("xcrun", "simctl", "ui", self.udid, "content_size", saved, check=False)
+        run("xcrun", "simctl", "ui", self.udid, "content_size", saved)
 
     def clean_status_bar(self, on):
         if on:
@@ -133,6 +133,8 @@ class IOS:
             self.proc.send_signal(signal.SIGINT)
         self.proc.wait(timeout=60)
         return early
+
+    early_stop = "simctl recordVideo stopped before the flow ended"
 
     def labels_hint(self):
         return "AXLabel from `idb ui describe-all`"
@@ -210,9 +212,9 @@ class Android:
 
     def restore_text_size(self, saved):
         if saved == "unset":
-            self.shell("settings", "delete", "system", "font_scale", check=False)
-        elif saved:
-            self.shell("settings", "put", "system", "font_scale", saved, check=False)
+            self.shell("settings", "delete", "system", "font_scale")
+        else:
+            self.shell("settings", "put", "system", "font_scale", saved)
 
     def clean_status_bar(self, on):
         """Demo mode: 9:41, full battery, full wifi, no mobile icon, no notifications."""
@@ -222,7 +224,13 @@ class Android:
 
         if not on:
             demo("exit")
+            if self.demo_allowed in ("null", ""):
+                self.shell("settings", "delete", "global", "sysui_demo_allowed", check=False)
+            elif self.demo_allowed != "1":
+                self.shell("settings", "put", "global", "sysui_demo_allowed", self.demo_allowed, check=False)
             return
+        if not hasattr(self, "demo_allowed"):
+            self.demo_allowed = self.shell("settings", "get", "global", "sysui_demo_allowed", check=False).stdout.strip()
         self.shell("settings", "put", "global", "sysui_demo_allowed", "1", check=False)
         demo("enter")
         demo("clock", "-e", "hhmm", "0941")
@@ -237,7 +245,7 @@ class Android:
 
     def start_recording(self, raw):
         # A file and a process of this run only, so another capture on the device is never touched.
-        self.device_file = f"/sdcard/device-pass-{os.getpid()}-{int(time.time())}.mp4"
+        self.device_file = f"/sdcard/device-pass-{uuid.uuid4().hex}.mp4"
         self.proc = subprocess.Popen(
             ["adb", "-s", self.serial, "shell",
              f"screenrecord --bit-rate 8000000 --time-limit 180 {self.device_file} & echo $!; wait"],
@@ -259,6 +267,8 @@ class Android:
         deadline = time.monotonic() + 30
         while self.alive() and time.monotonic() < deadline:
             time.sleep(0.3)
+        if self.alive():
+            raise SystemExit(f"screenrecord did not finish within 30 s; its file is still on the device: {self.device_file}")
         try:
             self.proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
@@ -266,6 +276,8 @@ class Android:
         self.adb("pull", self.device_file, str(raw))
         self.shell("rm", "-f", self.device_file, check=False)
         return early
+
+    early_stop = "screenrecord stopped before the flow ended; it records at most 180 s"
 
     def labels_hint(self):
         return "content-desc or text from `adb exec-out uiautomator dump /dev/tty`"
@@ -368,7 +380,11 @@ def probe(path):
 
 
 def duration(path):
-    """Container duration, or the end of the last video packet when the container has none."""
+    """The video stream's duration, else the container's, else the end of the last video packet."""
+    out = run("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration",
+              "-of", "csv=p=0", str(path)).stdout.strip()
+    if re.fullmatch(r"\d+(\.\d+)?", out) and float(out) > 0:
+        return float(out)
     _, _, value = probe(path)
     if value:
         return value
@@ -417,6 +433,8 @@ def encode(raw, mp4, events, end, device, draw_taps, tap_png):
 
 
 def contact_sheet(video, sheet):
+    started = time.time() - 1
+    sheet.unlink(missing_ok=True)
     seconds = duration(video)
     if seconds <= 0:
         raise SystemExit(f"video has no duration: {video}")
@@ -426,6 +444,8 @@ def contact_sheet(video, sheet):
     frames = cols * rows
     run("ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf",
         f"fps={frames / seconds:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1", str(sheet))
+    if not sheet.is_file() or sheet.stat().st_mtime < started:
+        raise SystemExit(f"ffmpeg wrote no frame sheet for {video}")
 
 
 def report(mp4, sheet):
@@ -465,19 +485,24 @@ def main():
     video_dir = flow_path.parent
     evidence = video_dir.parent.parent
     device = IOS(args.udid) if args.udid else Android(args.serial)
+    # Record to a partial file, so a failed take never replaces the last good raw capture.
+    partial = video_dir / f"{name}.raw.partial{device.raw_suffix}"
     raw = video_dir / f"{name}.raw{device.raw_suffix}"
     mp4 = evidence / "videos" / f"{name}.mp4"
 
     flow = Flow(device, args.dry_run, args.seed)
     device.elements()
-    saved_size = device.save_text_size()
+    changes_size = any("textSize" in s for s in steps)
+    saved_size = device.save_text_size() if changes_size else None
+    if changes_size and not saved_size:
+        sys.exit("could not read the current text size, so it could not be restored; textSize steps refused")
     recording = False
     failed = None
     end = 0
     try:
         if not args.dry_run:
             device.clean_status_bar(True)
-            device.start_recording(raw)
+            device.start_recording(partial)
             recording = True
             flow.t0 = flow.last_action = time.monotonic()
         for i, step in enumerate(steps, 1):
@@ -494,26 +519,33 @@ def main():
         try:
             if recording:
                 end = time.monotonic() - flow.t0
-                if device.stop_recording(raw) and not failed:
-                    failed = "the recorder stopped before the flow ended (Android screenrecord stops at 180 s)"
+                if device.stop_recording(partial) and not failed:
+                    failed = device.early_stop
         finally:
             if not args.dry_run:
                 device.clean_status_bar(False)
-            if any("textSize" in s for s in steps):
-                device.restore_text_size(saved_size)
+            if changes_size:
+                try:
+                    device.restore_text_size(saved_size)
+                except subprocess.CalledProcessError:
+                    print(f"warning: could not restore the text size to {saved_size}; set it by hand", file=sys.stderr)
 
     if failed:
-        labels = sorted({text for text, _ in device.elements()})
         print(failed, file=sys.stderr)
-        print(f"labels on screen ({device.labels_hint()}): "
-              + " | ".join(l.replace("\n", " ") for l in labels[:40]), file=sys.stderr)
         if recording:
-            print(f"raw video kept for a look: {raw}", file=sys.stderr)
+            print(f"raw video kept for a look: {partial}", file=sys.stderr)
+        try:
+            labels = sorted({text for text, _ in device.elements()})
+            print(f"labels on screen ({device.labels_hint()}): "
+                  + " | ".join(l.replace("\n", " ") for l in labels[:40]), file=sys.stderr)
+        except (StepFailed, subprocess.CalledProcessError):
+            pass
         sys.exit(1)
     if args.dry_run:
         print("dry run passed; put the app back at the first screen, then record")
         return
 
+    os.replace(partial, raw)
     (video_dir / f"{name}.events.json").write_text(json.dumps(flow.events, indent=1))
     mp4.parent.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
