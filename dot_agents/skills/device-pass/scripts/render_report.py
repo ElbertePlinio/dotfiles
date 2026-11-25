@@ -610,50 +610,71 @@ MEASURE = ("<script>addEventListener('load',()=>{const r=document.querySelector(
            "document.body.dataset.size=Math.ceil(r.right+24)+'x'+Math.ceil(r.bottom+24)})</script></body>")
 
 
+def stage_cards(manifest, cards, folder):
+    """Render every card to a validated PNG in folder; return the PNG paths in card order."""
+    binary = find_chrome()
+    staged = []
+    for n, card in enumerate(cards, 1):
+        page_html, _ = render(manifest, only=card['id'])
+        page = folder / f"{card['id']}.html"
+        page.write_text(page_html.replace('</body>', MEASURE), encoding='utf-8')
+        found = re.search(r'data-size="(\d+)x(\d+)"', chrome(binary, page, f'--window-size={EXPORT_WIDTH},8000', '--dump-dom'))
+        if not found:
+            raise ValueError(f"Could not measure card {card['id']}")
+        png = folder / f"{n:02d}-{card['id']}.png"
+        page.write_text(page_html, encoding='utf-8')
+        chrome(binary, page, f'--window-size={found[1]},{found[2]}', '--force-device-scale-factor=2', f'--screenshot={png}')
+        if not png.is_file() or validate_image(png.read_bytes(), png.name) != 'image/png':
+            raise ValueError(f"Chrome did not write the card {card['id']}")
+        staged.append(png)
+    return staged
+
+
+def publish_cards(out, staged):
+    """Replace the card PNGs in out with staged ones and prune stale cards.
+
+    Every write, rename and removal goes through one O_NOFOLLOW descriptor of out, so no symlink can redirect it.
+    All new cards are written under unique temporary names before any old card is replaced.
+    """
+    fd = os.open(out, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    temps = {}
+    try:
+        for png in staged:
+            temp = f'.{png.name}.{os.getpid()}-{len(temps)}-{os.urandom(4).hex()}.tmp'
+            handle = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=fd)
+            temps[temp] = png.name
+            with os.fdopen(handle, 'wb') as target:
+                target.write(png.read_bytes())
+        for temp, name in list(temps.items()):
+            os.rename(temp, name, src_dir_fd=fd, dst_dir_fd=fd)
+            del temps[temp]
+        keep = {png.name for png in staged}
+        for name in os.listdir(fd):
+            if name not in keep and re.fullmatch(r'\d{2,}-[a-z0-9-]+\.png', name):
+                os.unlink(name, dir_fd=fd)
+    finally:
+        for temp in temps:
+            try:
+                os.unlink(temp, dir_fd=fd)
+            except OSError:
+                pass
+        os.close(fd)
+
+
 def export_cards(manifest):
     """Write cards/<nn>-<id>.png beside the manifest: one dark PNG per card, at 2x, cropped to the card.
 
-    Every card is rendered into a temporary folder first. Old card PNGs are replaced only after all new ones are
-    valid, so a failed export keeps the previous cards.
+    Every card is rendered and validated in a temporary folder first, so a failed export keeps the previous cards.
     """
     manifest = Path(manifest)
     data = load(manifest)
-    binary = find_chrome()
     out = manifest.parent / 'cards'
     if out.is_symlink() or (out.exists() and not out.is_dir()):
         raise ValueError(f'Card output must be a real folder: {out}')
     with tempfile.TemporaryDirectory() as tmp:
-        staged = []
-        for n, card in enumerate(data['cards'], 1):
-            page_html, _ = render(manifest, only=card['id'])
-            page = Path(tmp) / f"{card['id']}.html"
-            page.write_text(page_html.replace('</body>', MEASURE), encoding='utf-8')
-            found = re.search(r'data-size="(\d+)x(\d+)"', chrome(binary, page, f'--window-size={EXPORT_WIDTH},8000', '--dump-dom'))
-            if not found:
-                raise ValueError(f"Could not measure card {card['id']}")
-            png = Path(tmp) / f"{n:02d}-{card['id']}.png"
-            page.write_text(page_html, encoding='utf-8')
-            chrome(binary, page, f'--window-size={found[1]},{found[2]}', '--force-device-scale-factor=2',
-                   f'--screenshot={png}')
-            if not png.is_file() or validate_image(png.read_bytes(), png.name) != 'image/png':
-                raise ValueError(f"Chrome did not write the card {card['id']}")
-            staged.append(png)
+        staged = stage_cards(manifest, data['cards'], Path(tmp))
         out.mkdir(exist_ok=True)
-        # Every write, rename and removal goes through one descriptor of cards/, so no symlink can redirect it.
-        fd = os.open(out, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-        try:
-            for png in staged:
-                temp = f'.{png.name}.tmp'
-                handle = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=fd)
-                with os.fdopen(handle, 'wb') as target:
-                    target.write(png.read_bytes())
-                os.rename(temp, png.name, src_dir_fd=fd, dst_dir_fd=fd)
-            keep = {png.name for png in staged}
-            for name in os.listdir(fd):
-                if name not in keep and re.fullmatch(r'\d{2,}-[a-z0-9-]+\.png', name):
-                    os.unlink(name, dir_fd=fd)
-        finally:
-            os.close(fd)
+        publish_cards(out, staged)
     return [out / png.name for png in staged]
 
 

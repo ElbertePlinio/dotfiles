@@ -29,6 +29,7 @@ import os
 import random
 import uuid
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -162,17 +163,18 @@ class Android:
     def shell(self, *args, check=True):
         return self.adb("shell", *args, check=check)
 
-    def elements(self):
+    def dump(self):
         for _ in range(5):
             out = self.adb("exec-out", "uiautomator", "dump", "/dev/tty", check=False).stdout
             start, end = out.find("<?xml"), out.rfind("</hierarchy>")
             if start >= 0 and end > start:
-                break
+                return ET.fromstring(out[start:end + len("</hierarchy>")])
             time.sleep(0.5)  # uiautomator fails while the screen animates
-        else:
-            raise StepFailed("uiautomator dump returned no hierarchy; is the screen unlocked?")
+        raise StepFailed("uiautomator dump returned no hierarchy; is the screen unlocked?")
+
+    def elements(self):
         found = []
-        for node in ET.fromstring(out[start:end + len("</hierarchy>")]).iter("node"):
+        for node in self.dump().iter("node"):
             m = self.BOUNDS.fullmatch(node.get("bounds", ""))
             if not m:
                 continue
@@ -180,10 +182,9 @@ class Android:
             if self.screen is None:
                 self.screen = {"width": x2, "height": y2}
             cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-            if x2 <= x1 or y2 <= y1 or not (0 <= cx <= self.screen["width"] and 0 <= cy <= self.screen["height"]):
-                continue
-            for label in {node.get("content-desc") or "", node.get("text") or ""} - {""}:
-                found.append((label, (cx, cy)))
+            on_screen = 0 <= cx <= self.screen["width"] and 0 <= cy <= self.screen["height"]
+            if x2 > x1 and y2 > y1 and on_screen:
+                found += [(label, (cx, cy)) for label in {node.get("content-desc") or "", node.get("text") or ""} - {""}]
         return found
 
     def open(self, url):
@@ -224,24 +225,36 @@ class Android:
 
         if not on:
             demo("exit")
-            if self.demo_allowed in ("null", ""):
-                self.shell("settings", "delete", "global", "sysui_demo_allowed", check=False)
-            elif self.demo_allowed != "1":
-                self.shell("settings", "put", "global", "sysui_demo_allowed", self.demo_allowed, check=False)
+            self.restore_demo_flag()
             return
-        if not hasattr(self, "demo_allowed"):
-            self.demo_allowed = self.shell("settings", "get", "global", "sysui_demo_allowed", check=False).stdout.strip()
+        if not hasattr(self, "demo_flag"):
+            read = self.shell("settings", "get", "global", "sysui_demo_allowed", check=False)
+            if read.returncode or not read.stdout.strip():
+                raise SystemExit("could not read sysui_demo_allowed, so demo mode could not be undone")
+            self.demo_flag = read.stdout.strip()
         self.shell("settings", "put", "global", "sysui_demo_allowed", "1", check=False)
-        demo("enter")
-        demo("clock", "-e", "hhmm", "0941")
-        demo("battery", "-e", "level", "100", "-e", "plugged", "false")
-        demo("network", "-e", "fully", "true")
-        demo("network", "-e", "wifi", "show", "-e", "level", "4")
-        demo("network", "-e", "mobile", "hide")
-        demo("notifications", "-e", "visible", "false")
+        for command, *extras in (("enter",), ("clock", "-e", "hhmm", "0941"),
+                                 ("battery", "-e", "level", "100", "-e", "plugged", "false"),
+                                 ("network", "-e", "fully", "true"), ("network", "-e", "wifi", "show", "-e", "level", "4"),
+                                 ("network", "-e", "mobile", "hide"), ("notifications", "-e", "visible", "false")):
+            demo(command, *extras)
+
+    def restore_demo_flag(self):
+        flag = getattr(self, "demo_flag", "1")
+        if flag == "1":
+            return
+        command = ("delete", "global", "sysui_demo_allowed") if flag == "null" else ("put", "global", "sysui_demo_allowed", flag)
+        if self.shell("settings", *command, check=False).returncode:
+            print(f"warning: could not restore sysui_demo_allowed to {flag}; set it by hand", file=sys.stderr)
 
     def alive(self):
-        return self.shell("kill", "-0", self.pid, check=False).returncode == 0
+        """True while the recorder runs and False once it exited. Stops the run when adb cannot tell."""
+        out = self.shell(f"kill -0 {self.pid} 2>/dev/null && echo running || echo exited", check=False).stdout.split()
+        if out[-1:] == ["running"]:
+            return True
+        if out[-1:] == ["exited"]:
+            return False
+        raise SystemExit(f"adb could not check the recorder; its file is still on the device: {self.device_file}")
 
     def start_recording(self, raw):
         # A file and a process of this run only, so another capture on the device is never touched.
@@ -265,15 +278,19 @@ class Android:
             self.shell("kill", "-INT", self.pid, check=False)
         # screenrecord writes the mp4 trailer after SIGINT; pull only once it has exited on the device.
         deadline = time.monotonic() + 30
-        while self.alive() and time.monotonic() < deadline:
+        while self.alive():
+            if time.monotonic() > deadline:
+                raise SystemExit(f"screenrecord did not finish within 30 s; its file is still on the device: {self.device_file}")
             time.sleep(0.3)
-        if self.alive():
-            raise SystemExit(f"screenrecord did not finish within 30 s; its file is still on the device: {self.device_file}")
         try:
             self.proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self.proc.kill()
         self.adb("pull", self.device_file, str(raw))
+        try:
+            probe(raw)
+        except (subprocess.CalledProcessError, KeyError, IndexError, ValueError):
+            raise SystemExit(f"the pulled recording is not readable; the device keeps {self.device_file}") from None
         self.shell("rm", "-f", self.device_file, check=False)
         return early
 
@@ -325,49 +342,61 @@ class Flow:
         self.stamp("tap", x, y)
 
     def step(self, step):
+        for key, action in (("open", self.do_open), ("wait", self.do_wait), ("tap", self.do_tap),
+                            ("tapAt", self.do_tap_at), ("type", self.do_type), ("scroll", self.do_scroll),
+                            ("pause", self.do_pause), ("textSize", self.do_text_size)):
+            if key in step:
+                return action(step)
+        raise StepFailed(f"unknown step {step}")
+
+    def do_open(self, step):
+        self.device.open(step["open"])
+        self.stamp("open")
+
+    def do_wait(self, step):
+        self.find(step, "wait")
+
+    def do_tap(self, step):
+        x, y = self.find(step, "tap")
+        self.dwell(0.8, 1.3, floor=0.5)
+        self.tap(x, y)
+
+    def do_tap_at(self, step):
+        self.dwell(0.8, 1.3)
+        self.tap(*step["tapAt"])
+
+    def do_type(self, step):
+        text = step["type"]
+        if not text.isascii():
+            raise StepFailed("typing supports ASCII only")
+        self.dwell(0.5, 0.8)
+        for ch in text:
+            self.device.key(ch)
+            self.stamp("key")
+            self.dwell(0.06, 0.16)
+
+    def do_scroll(self, step):
         d = self.device
-        if "open" in step:
-            d.open(step["open"])
-            self.stamp("open")
-        elif "wait" in step:
-            self.find(step, "wait")
-        elif "tap" in step:
-            x, y = self.find(step, "tap")
-            self.dwell(0.8, 1.3, floor=0.5)
-            self.tap(x, y)
-        elif "tapAt" in step:
-            self.dwell(0.8, 1.3)
-            self.tap(*step["tapAt"])
-        elif "type" in step:
-            text = step["type"]
-            if not text.isascii():
-                raise StepFailed("typing supports ASCII only")
-            self.dwell(0.5, 0.8)
-            for ch in text:
-                d.key(ch)
-                self.stamp("key")
-                self.dwell(0.06, 0.16)
-        elif "scroll" in step:
-            if d.screen is None:
-                d.elements()
-            w, h = d.screen["width"], d.screen["height"]
-            dist = min(step.get("distance", h * 0.4), h * 0.7)
-            y1 = h * 0.65 if step["scroll"] == "down" else h * 0.35
-            y2 = y1 - dist if step["scroll"] == "down" else y1 + dist
-            self.dwell(0.8, 1.3)
-            d.swipe(w / 2, y1, y2)
-            self.stamp("scroll")
-        elif "pause" in step:
-            if not self.dry:
-                time.sleep(step["pause"])
-        elif "textSize" in step:
-            if step["textSize"] not in ("smallest", "default", "largest"):
-                raise StepFailed("textSize is smallest, default or largest")
-            self.dwell(0.8, 1.2)
-            d.text_size(step["textSize"], recording=self.t0 is not None)
-            self.stamp("textSize")
-        else:
-            raise StepFailed(f"unknown step {step}")
+        if d.screen is None:
+            d.elements()
+        w, h = d.screen["width"], d.screen["height"]
+        dist = min(step.get("distance", h * 0.4), h * 0.7)
+        y1 = h * 0.65 if step["scroll"] == "down" else h * 0.35
+        y2 = y1 - dist if step["scroll"] == "down" else y1 + dist
+        self.dwell(0.8, 1.3)
+        d.swipe(w / 2, y1, y2)
+        self.stamp("scroll")
+
+    def do_pause(self, step):
+        if not self.dry:
+            time.sleep(step["pause"])
+
+    def do_text_size(self, step):
+        if step["textSize"] not in ("smallest", "default", "largest"):
+            raise StepFailed("textSize is smallest, default or largest")
+        self.dwell(0.8, 1.2)
+        self.device.text_size(step["textSize"], recording=self.t0 is not None)
+        self.stamp("textSize")
 
 
 def probe(path):
@@ -380,34 +409,35 @@ def probe(path):
 
 
 def duration(path):
-    """The video stream's duration, else the container's, else the end of the last video packet."""
+    """The video stream's duration, else the end of its last packet, else the container's duration.
+
+    The container's duration comes last because a longer audio track can stretch it past the video.
+    """
     out = run("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration",
               "-of", "csv=p=0", str(path)).stdout.strip()
     if re.fullmatch(r"\d+(\.\d+)?", out) and float(out) > 0:
         return float(out)
-    _, _, value = probe(path)
-    if value:
-        return value
     out = run("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time,duration_time",
               "-of", "csv=p=0", str(path)).stdout
-    ends = []
-    for line in out.splitlines():
-        parts = [float(x) for x in line.split(",") if re.fullmatch(r"-?\d+(\.\d+)?", x)]
-        if parts:
-            ends.append(sum(parts))
-    return max(ends, default=0)
+    ends = [sum(float(x) for x in line.split(",") if re.fullmatch(r"-?\d+(\.\d+)?", x)) for line in out.splitlines()]
+    return max(ends, default=0) or probe(path)[2]
 
 
-def encode(raw, mp4, events, end, device, draw_taps, tap_png):
-    if raw.suffix == ".mov":
-        # simctl can write bad decode timestamps at the end of the .mov, and ffmpeg then runs the screens ahead
-        # of the tap log. A stream copy into .mkv keeps the real frame times.
-        remux = raw.with_suffix(".mkv")
-        run("ffmpeg", "-v", "error", "-y", "-i", str(raw), "-c", "copy", str(remux))
-        raw = remux
+def encode(raw, mp4, taps, end, device):
+    """Encode the raw capture to mp4, padded to the real end, with a dot on each tap in taps."""
+    with tempfile.TemporaryDirectory() as tmp:
+        if raw.suffix == ".mov":
+            # simctl can write bad decode timestamps at the end of the .mov, and ffmpeg then runs the screens
+            # ahead of the tap log. A stream copy into .mkv keeps the real frame times.
+            remux = Path(tmp) / "raw.mkv"
+            run("ffmpeg", "-v", "error", "-y", "-i", str(raw), "-c", "copy", str(remux))
+            raw = remux
+        encode_video(raw, mp4, taps, end, device, Path(tmp) / "tap.png")
+
+
+def encode_video(raw, mp4, taps, end, device, tap_png):
     vw, _, raw_duration = probe(raw)
     scale = vw / device.screen["width"]
-    taps = [e for e in events if e["action"] == "tap"] if draw_taps else []
     # A still screen gives one frame with no duration, which filters drop unless the input has a rate.
     inputs = ["-r", "30", "-i", str(raw)] if raw_duration == 0 else ["-i", str(raw)]
     # Both recorders write a frame only when the screen changes, so pad the still tail back to the real end.
@@ -433,19 +463,20 @@ def encode(raw, mp4, events, end, device, draw_taps, tap_png):
 
 
 def contact_sheet(video, sheet):
-    started = time.time() - 1
-    sheet.unlink(missing_ok=True)
+    """Write up to 24 evenly spaced frames as one image; the old sheet stays until the new one exists."""
     seconds = duration(video)
     if seconds <= 0:
         raise SystemExit(f"video has no duration: {video}")
     frames = min(SHEET_FRAMES, max(1, math.ceil(seconds)))
     cols = min(6, frames)
     rows = math.ceil(frames / cols)
-    frames = cols * rows
-    run("ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf",
-        f"fps={frames / seconds:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1", str(sheet))
-    if not sheet.is_file() or sheet.stat().st_mtime < started:
-        raise SystemExit(f"ffmpeg wrote no frame sheet for {video}")
+    with tempfile.TemporaryDirectory() as tmp:
+        new = Path(tmp) / "sheet.png"
+        run("ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf",
+            f"fps={cols * rows / seconds:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1", str(new))
+        if not new.is_file():
+            raise SystemExit(f"ffmpeg wrote no frame sheet for {video}")
+        shutil.move(new, sheet)
 
 
 def report(mp4, sheet):
@@ -456,6 +487,80 @@ def report(mp4, sheet):
     if size_mb > GITHUB_LIMIT_MB:
         print(f"warning: GitHub rejects attachments over {GITHUB_LIMIT_MB} MB; lower the quality, do not split",
               file=sys.stderr)
+
+
+def play(flow, steps):
+    """Run the steps; return the first failure, printed at once, or None."""
+    for i, step in enumerate(steps, 1):
+        print(f"{i:>3} {json.dumps(step)}", flush=True)
+        try:
+            flow.step(step)
+        except (StepFailed, subprocess.CalledProcessError) as err:
+            detail = err.stderr.strip() if isinstance(err, subprocess.CalledProcessError) else err
+            failed = f"step {i} failed: {detail}"
+            print(failed, file=sys.stderr, flush=True)
+            return failed
+    return None
+
+
+def record(flow, steps, partial, saved_size):
+    """Record the steps when not a dry run. Return (failure, seconds recorded) and always undo device changes."""
+    device = flow.device
+    recording = False
+    failed = None
+    end = 0
+    try:
+        if not flow.dry:
+            device.clean_status_bar(True)
+            device.start_recording(partial)
+            recording = True
+            flow.t0 = flow.last_action = time.monotonic()
+        failed = play(flow, steps)
+        if recording and not failed:
+            time.sleep(1.5)
+    finally:
+        try:
+            if recording:
+                end = time.monotonic() - flow.t0
+                if device.stop_recording(partial) and not failed:
+                    failed = device.early_stop
+                    print(failed, file=sys.stderr)
+        finally:
+            restore(flow, saved_size)
+    return failed, end
+
+
+def restore(flow, saved_size):
+    if not flow.dry:
+        flow.device.clean_status_bar(False)
+    if saved_size:
+        try:
+            flow.device.restore_text_size(saved_size)
+        except subprocess.CalledProcessError:
+            print(f"warning: could not restore the text size to {saved_size}; set it by hand", file=sys.stderr)
+
+
+def show_labels(device):
+    try:
+        labels = sorted({text for text, _ in device.elements()})
+    except (StepFailed, subprocess.CalledProcessError):
+        return
+    print(f"labels on screen ({device.labels_hint()}): " + " | ".join(l.replace("\n", " ") for l in labels[:40]),
+          file=sys.stderr)
+
+
+def finish(flow, partial, name, end, draw_taps):
+    """Encode the take, then replace the last raw capture, so a bad take never replaces a good one."""
+    video_dir = partial.parent
+    mp4 = video_dir.parent.parent / "videos" / f"{name}.mp4"
+    mp4.parent.mkdir(exist_ok=True)
+    taps = [e for e in flow.events if e["action"] == "tap"] if draw_taps else []
+    encode(partial, mp4, taps, end, flow.device)
+    os.replace(partial, video_dir / f"{name}.raw{flow.device.raw_suffix}")
+    (video_dir / f"{name}.events.json").write_text(json.dumps(flow.events, indent=1))
+    sheet = video_dir / f"{name}-sheet.png"
+    contact_sheet(mp4, sheet)
+    report(mp4, sheet)
 
 
 def main():
@@ -482,77 +587,32 @@ def main():
     flow_path = args.flow.expanduser().resolve()
     steps = json.loads(flow_path.read_text())
     name = flow_path.name.removesuffix(".flow.json")
-    video_dir = flow_path.parent
-    evidence = video_dir.parent.parent
     device = IOS(args.udid) if args.udid else Android(args.serial)
     # Record to a partial file, so a failed take never replaces the last good raw capture.
-    partial = video_dir / f"{name}.raw.partial{device.raw_suffix}"
-    raw = video_dir / f"{name}.raw{device.raw_suffix}"
-    mp4 = evidence / "videos" / f"{name}.mp4"
-
+    partial = flow_path.parent / f"{name}.raw.partial{device.raw_suffix}"
     flow = Flow(device, args.dry_run, args.seed)
     device.elements()
-    changes_size = any("textSize" in s for s in steps)
-    saved_size = device.save_text_size() if changes_size else None
-    if changes_size and not saved_size:
-        sys.exit("could not read the current text size, so it could not be restored; textSize steps refused")
-    recording = False
-    failed = None
-    end = 0
+    saved_size = None
+    if any("textSize" in s for s in steps):
+        saved_size = device.save_text_size()
+        if not saved_size:
+            sys.exit("could not read the current text size, so it could not be restored; textSize steps refused")
     try:
-        if not args.dry_run:
-            device.clean_status_bar(True)
-            device.start_recording(partial)
-            recording = True
-            flow.t0 = flow.last_action = time.monotonic()
-        for i, step in enumerate(steps, 1):
-            print(f"{i:>3} {json.dumps(step)}", flush=True)
-            try:
-                flow.step(step)
-            except (StepFailed, subprocess.CalledProcessError) as err:
-                detail = err.stderr.strip() if isinstance(err, subprocess.CalledProcessError) else err
-                failed = f"step {i} failed: {detail}"
-                break
-        if recording and not failed:
-            time.sleep(1.5)
-    finally:
-        try:
-            if recording:
-                end = time.monotonic() - flow.t0
-                if device.stop_recording(partial) and not failed:
-                    failed = device.early_stop
-        finally:
-            if not args.dry_run:
-                device.clean_status_bar(False)
-            if changes_size:
-                try:
-                    device.restore_text_size(saved_size)
-                except subprocess.CalledProcessError:
-                    print(f"warning: could not restore the text size to {saved_size}; set it by hand", file=sys.stderr)
-
+        failed, end = record(flow, steps, partial, saved_size)
+    except subprocess.CalledProcessError as err:
+        sys.exit(f"{' '.join(map(str, err.cmd[:4]))} failed: {(err.stderr or '').strip()}")
     if failed:
-        print(failed, file=sys.stderr)
-        if recording:
+        if not args.dry_run:
             print(f"raw video kept for a look: {partial}", file=sys.stderr)
-        try:
-            labels = sorted({text for text, _ in device.elements()})
-            print(f"labels on screen ({device.labels_hint()}): "
-                  + " | ".join(l.replace("\n", " ") for l in labels[:40]), file=sys.stderr)
-        except (StepFailed, subprocess.CalledProcessError):
-            pass
+        show_labels(device)
         sys.exit(1)
     if args.dry_run:
         print("dry run passed; put the app back at the first screen, then record")
         return
-
-    os.replace(partial, raw)
-    (video_dir / f"{name}.events.json").write_text(json.dumps(flow.events, indent=1))
-    mp4.parent.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp:
-        encode(raw, mp4, flow.events, end, device, not args.no_taps, Path(tmp) / "tap.png")
-    sheet = video_dir / f"{name}-sheet.png"
-    contact_sheet(mp4, sheet)
-    report(mp4, sheet)
+    try:
+        finish(flow, partial, name, end, not args.no_taps)
+    except subprocess.CalledProcessError as err:
+        sys.exit(f"could not encode the take, kept at {partial}: {(err.stderr or '').strip()}")
 
 
 if __name__ == "__main__":

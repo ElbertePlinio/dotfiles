@@ -420,10 +420,13 @@ class DevicePassReportTests(unittest.TestCase):
         (self.root / "cards").mkdir()
         (self.root / "cards/01-home.png").symlink_to(outside)
         (self.root / "cards/09-stale.png").write_bytes(png(2, 2, (1, 1, 1)))
+        (self.root / "cards/.02-menu.png.tmp").write_bytes(b"left by a crash")
         written = module.export_cards(self.manifest)
         self.assertEqual(outside.read_bytes(), b"outside")
         self.assertFalse((self.root / "cards/01-home.png").is_symlink())
         self.assertFalse((self.root / "cards/09-stale.png").exists())
+        self.assertEqual(sorted(p.name for p in (self.root / "cards").iterdir()),
+                         [".02-menu.png.tmp", "01-home.png", "02-menu.png", "03-receipt.png"])
         self.assertEqual([p.name for p in written], ["01-home.png", "02-menu.png", "03-receipt.png"])
         for path in written:
             data = path.read_bytes()
