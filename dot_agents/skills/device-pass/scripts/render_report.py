@@ -290,6 +290,8 @@ def artifact_name(filename):
     path = PurePosixPath(name)
     if path.is_absolute() or has_unsafe_parts(name, path):
         raise ValueError(f"Artifact must stay inside the evidence folder: {filename}")
+    if path.parts[0] == "cards":
+        raise ValueError(f"cards/ holds the exported cards, which the next export replaces; keep evidence elsewhere: {filename}")
     return path
 
 

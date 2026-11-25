@@ -49,7 +49,8 @@ class StepFailed(Exception):
 
 
 def run(*cmd, check=True):
-    return subprocess.run(cmd, check=check, capture_output=True, text=True)
+    # Its own session keeps a terminal Ctrl-C from killing a cleanup command; the recorder exits after cleanup.
+    return subprocess.run(cmd, check=check, capture_output=True, text=True, start_new_session=True)
 
 
 def check_complete(raw):
@@ -70,10 +71,13 @@ def check_complete(raw):
     declared = data.get("format", {}).get("duration", "")
     if indexed.isdigit() or not re.fullmatch(r"\d+(\.\d+)?", declared):
         return
-    # A WebM has no frame index, but the emulator writes its length in the header when it finishes.
-    times = run("ffprobe", "-v", "error", "-show_entries", "packet=pts_time", "-of", "csv=p=0", str(raw)).stdout.split()
-    last = max((float(t) for t in times if re.fullmatch(r"\d+(\.\d+)?", t)), default=0)
-    if last < float(declared) - 1:
+    # A WebM has no frame index, but the emulator writes its length in the header when it finishes,
+    # and its last packet ends within 0.02 s of that length.
+    rows = run("ffprobe", "-v", "error", "-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0",
+               str(raw)).stdout.splitlines()
+    numbers = [[float(x) for x in row.split(",")[:2] if re.fullmatch(r"\d+(\.\d+)?", x)] for row in rows]
+    last = max((sum(n) for n in numbers if n), default=0)
+    if last < float(declared) - 0.1:
         raise subprocess.CalledProcessError(1, ["ffprobe", str(raw)], "",
                                             f"the capture is cut short: its data ends at {last:.1f} s of {declared} s")
 
@@ -180,7 +184,7 @@ class IOS:
     def start_recording(self, raw):
         self.proc = subprocess.Popen(
             ["xcrun", "simctl", "io", self.udid, "recordVideo", "--codec=h264", "--force", str(raw)],
-            stderr=subprocess.PIPE, text=True)
+            stderr=subprocess.PIPE, text=True, start_new_session=True)
         started = threading.Event()
 
         def watch():
@@ -355,7 +359,7 @@ class Android:
         self.proc = subprocess.Popen(
             ["adb", "-s", self.serial, "shell",
              f"screenrecord --bit-rate 8000000 --time-limit 180 {self.device_file} & echo $!; wait"],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
         self.pid = (self.proc.stdout.readline() or "").strip()
         if not self.pid.isdigit():
             self.proc.kill()
@@ -454,6 +458,7 @@ class Flow:
         self.t0 = None
         self.last_action = time.monotonic()
         self.events = []
+        self.text_size_from = None
 
     def find(self, step, key):
         label = step[key]
@@ -546,6 +551,11 @@ class Flow:
         if step["textSize"] not in ("smallest", "default", "largest"):
             raise StepFailed("textSize is smallest, default or largest")
         self.dwell(0.8, 1.2)
+        if not self.text_size_from:
+            # Read just before the first change, so cleanup puts back what was there and touches nothing else.
+            self.text_size_from = self.device.save_text_size()
+            if not self.text_size_from:
+                raise StepFailed("could not read the current text size, so it could not be restored")
         self.device.text_size(step["textSize"], recording=self.t0 is not None)
         self.stamp("textSize")
 
@@ -574,9 +584,7 @@ def duration(path):
     packets = [p for p in packets if p]
     if packets:
         first = min(p[0] for p in packets)
-        end = max(sum(p) for p in packets) - first
-        if end > 0:
-            return end
+        return max(sum(p) for p in packets) - first  # 0 for one frame; an audio track must not stand in
     return probe(path)[2]
 
 
@@ -637,6 +645,8 @@ def publish(pairs):
         if not new.stat().st_size:
             raise SystemExit(f"nothing was written for {dest}")
         os.chmod(new, 0o644)  # mkstemp makes the file private; evidence is shared
+        if dest.is_dir() and not dest.is_symlink():
+            raise SystemExit(f"{dest} is a folder, so the take cannot replace it")
     with held():
         for done, (new, dest) in enumerate(pairs):
             try:
@@ -694,7 +704,7 @@ def play(flow, steps):
     return None
 
 
-def record(flow, steps, partial, saved_size):
+def record(flow, steps, partial):
     """Record the steps when not a dry run. Return (failure, seconds recorded) and always undo device changes."""
     device = flow.device
     recording = False
@@ -710,11 +720,11 @@ def record(flow, steps, partial, saved_size):
         if recording and not failed:
             time.sleep(1.5)
     finally:
-        failed, end = stop_and_restore(flow, partial, recording, failed, saved_size)
+        failed, end = stop_and_restore(flow, partial, recording, failed)
     return failed, end
 
 
-def stop_and_restore(flow, partial, recording, failed, saved_size):
+def stop_and_restore(flow, partial, recording, failed):
     """Stop the recording and undo device changes; a signal waits until both are done."""
     end = 0
     with held():
@@ -725,13 +735,14 @@ def stop_and_restore(flow, partial, recording, failed, saved_size):
                     failed = flow.device.early_stop
                     print(failed, file=sys.stderr)
         finally:
-            restore(flow, saved_size)
+            restore(flow)
     return failed, end
 
 
-def restore(flow, saved_size):
+def restore(flow):
     if not flow.dry:
         flow.device.clean_status_bar(False)
+    saved_size = flow.text_size_from
     if saved_size:
         try:
             flow.device.restore_text_size(saved_size)
@@ -825,13 +836,10 @@ def take(args):
     partial = flow_path.parent / f"{name}.raw.partial{device.raw_suffix}"
     flow = Flow(device, args.dry_run, args.seed)
     device.elements()
-    saved_size = None
-    if any("textSize" in s for s in steps):
-        saved_size = device.save_text_size()
-        if not saved_size:
-            sys.exit("could not read the current text size, so it could not be restored; textSize steps refused")
+    if any("textSize" in s for s in steps) and not device.save_text_size():
+        sys.exit("could not read the current text size, so it could not be restored; textSize steps refused")
     try:
-        failed, end = record(flow, steps, partial, saved_size)
+        failed, end = record(flow, steps, partial)
     except subprocess.CalledProcessError as err:
         sys.exit(f"{' '.join(map(str, err.cmd[:4]))} failed: {(err.stderr or '').strip()}")
     if failed:

@@ -209,6 +209,9 @@ class DevicePassReportTests(unittest.TestCase):
         self.assert_rejected("shots", "regular file")
         self.assert_rejected(".", "inside the evidence folder")
         self.assert_rejected("./", "inside the evidence folder")
+        (self.root / "cards").mkdir()
+        (self.root / "cards/04-old.png").write_bytes(png(2, 2, (1, 1, 1)))
+        self.assert_rejected("cards/04-old.png", "cards/ holds the exported cards")
 
     def test_directory_swapped_for_symlink_cannot_redirect_the_read(self):
         outside = self.base / "outside"
