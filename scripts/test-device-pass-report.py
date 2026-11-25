@@ -257,10 +257,12 @@ class DevicePassReportTests(unittest.TestCase):
         tampered = bytearray(sample)
         tampered[-20] ^= 0xFF
         no_idat = sample[:33] + sample[-12:]
+        vp8 = WEBP[20:30]  # frame header only: the first partition it announces is missing
+        header_only = b"RIFF" + struct.pack("<I", 4 + 8 + len(vp8)) + b"WEBPVP8 " + struct.pack("<I", len(vp8)) + vp8
         cases = {
             "PNG": [sample[:8], sample[:-12], sample[:len(sample) // 2], bytes(tampered), no_idat, sample + b"extra"],
             "JPEG": [JPEG[:3], JPEG[:-2], JPEG[:len(JPEG) // 2], JPEG[:2] + JPEG[-2:]],
-            "WebP": [WEBP[:12], WEBP[:-4], WEBP[:len(WEBP) // 2], WEBP[:12] + b"ABCD" + WEBP[16:]],
+            "WebP": [WEBP[:12], WEBP[:-4], WEBP[:len(WEBP) // 2], WEBP[:12] + b"ABCD" + WEBP[16:], header_only],
         }
         for label, samples in cases.items():
             for index, data in enumerate(samples):
@@ -376,6 +378,35 @@ class DevicePassReportTests(unittest.TestCase):
         self.assertNotIn("shots/desktop", re.sub(r'<script type="application/json".*?</script>', "", copied, flags=re.S).replace("shots/run.webm", ""))
         self.assertEqual(len(embedded(copied)), 5)
 
+    def test_cli_replaces_a_symlinked_page_without_following_it(self):
+        outside = self.base / "outside.html"
+        outside.write_text("keep")
+        (self.root / "pass.html").symlink_to(outside)
+        subprocess.run([sys.executable, str(SOURCE), str(self.manifest)], capture_output=True, text=True, check=True)
+        self.assertEqual(outside.read_text(), "keep")
+        self.assertFalse((self.root / "pass.html").is_symlink())
+        self.assertIn("<!doctype html>", (self.root / "pass.html").read_text(encoding="utf-8"))
+        self.assertEqual([p.name for p in self.root.glob(".pass.html.*")], [])
+
+    def test_old_scenarios_manifest_names_the_migration(self):
+        self.manifest.write_text(json.dumps({"title": "t", "revision": "r", "target": "x", "scenarios": []}))
+        with self.assertRaisesRegex(ValueError, "old scenarios format"):
+            module.render(self.manifest)
+
+    def test_export_fits_wide_panes_on_one_row(self):
+        (self.root / "shots/wide-a.png").write_bytes(png(2880, 20, (1, 2, 3)))
+        (self.root / "shots/wide-b.png").write_bytes(png(2880, 20, (3, 2, 1)))
+        self.edit(lambda d: d["cards"].append({"id": "wide", "title": "Wide", "device": {"src": "shots/wide-a.png",
+                  "scale": 2, "cropTopPt": 0}, "figma": {"src": "shots/wide-b.png", "scale": 2}}))
+        page, _ = module.render(self.manifest, only="wide")
+        zoom = float(re.search(r'id="card-wide" style="--zoom:([0-9.]+)"', page)[1])
+        room = module.EXPORT_WIDTH - module.EXPORT_CHROME - module.PANE_GAP
+        self.assertLessEqual(2 * 1440 * zoom, room)
+        self.assertNotIn('class="overlay"', page)
+        page, _ = module.render(self.manifest)
+        self.assertNotIn('style="--zoom:', page)
+        self.assertIn('class="overlay"', page)
+
     def test_cli_reports_errors_without_writing(self):
         self.set_first_file("../x.png")
         result = subprocess.run([sys.executable, str(SOURCE), str(self.manifest)], capture_output=True, text=True)
@@ -441,6 +472,13 @@ class DevicePassReportTests(unittest.TestCase):
             module.export_cards(self.manifest)
         self.assertEqual({p.name: p.read_bytes() for p in (self.root / "cards").glob("*.png")}, before)
         self.assertEqual((self.root / "cards/notes.txt").read_text(), "keep")
+        self.edit(lambda d: (d["cards"][1].pop("widget"), d["cards"][0].update(title="Changed")))
+        (self.root / "cards/03-receipt.png").unlink()
+        (self.root / "cards/03-receipt.png").mkdir()
+        with self.assertRaisesRegex(ValueError, "is a folder"):
+            module.export_cards(self.manifest)
+        self.assertEqual((self.root / "cards/01-home.png").read_bytes(), before["01-home.png"])
+        self.assertEqual([p.name for p in (self.root / "cards").glob(".*.tmp")], [".02-menu.png.tmp"])
 
     def test_cards_folder_symlink_is_rejected(self):
         elsewhere = self.base / "elsewhere"

@@ -23,6 +23,7 @@ import base64
 import hashlib
 import html
 import json
+import math
 import os
 import re
 import shutil
@@ -44,6 +45,9 @@ LABELS = {'device': 'Device', 'figma': 'Figma', 'widget': 'Widget'}
 CARD_ID = re.compile(r'[a-z0-9][a-z0-9-]{0,79}')
 VIDEO_TYPES = {'.mp4': 'video/mp4', '.webm': 'video/webm'}
 EXPORT_WIDTH = 1600
+EXPORT_CHROME = 146  # page and card padding and borders around the panes, in CSS px (report.css)
+PANE_GAP = 24
+DEFAULT_ZOOM = 0.8
 CHROMES = (
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
@@ -196,12 +200,13 @@ def riff_chunks(data, pos, end):
 
 
 def webp_bitstream_is_valid(kind, payload):
-    """VP8 needs its frame start code and a nonzero size; VP8L needs its signature."""
+    """VP8 needs its frame start code, a nonzero size and its whole first partition; VP8L needs its signature."""
     if kind == b'VP8 ':
         if len(payload) < 10 or payload[3:6] != b'\x9d\x01\x2a':
             return False
         width, height = struct.unpack('<HH', payload[6:10])
-        return bool(width & 0x3FFF and height & 0x3FFF)
+        first_partition = int.from_bytes(payload[0:3], 'little') >> 5
+        return bool(width & 0x3FFF and height & 0x3FFF) and 10 + first_partition <= len(payload)
     return kind == b'VP8L' and len(payload) >= 5 and payload[0] == 0x2F
 
 
@@ -437,7 +442,7 @@ def frame_html(images, p, alt, extra=''):
     return f'<div class="frame{extra}" style="{style}"><img {source} alt="{text(alt)}"></div>'
 
 
-def card_html(images, card, defaults):
+def card_html(images, card, defaults, export=False):
     if not isinstance(card.get('id'), str) or not CARD_ID.fullmatch(card['id']):
         raise ValueError(f"Card id must be lowercase letters, digits and dashes: {card.get('id')!r}")
     if not isinstance(card.get('title'), str):
@@ -453,11 +458,16 @@ def card_html(images, card, defaults):
             f'<figure class="pane" data-kind="{p["kind"]}" style="--w:{fmt(p["w"])}"><figcaption><b>{text(p["label"])}</b>'
             f'<span class="dim">{fmt(p["w"])} × {fmt(p["h"])} pt</span>{caption}</figcaption>'
             f'<button class="open" type="button" aria-label="Open {text(alt)}">{frame_html(images, p, alt)}</button></figure>')
-    overlay = ''
+    overlay, style = '', ''
+    if export:
+        # One shared zoom fits every pane on one row of the exported card; the page keeps its slider.
+        room = EXPORT_WIDTH - EXPORT_CHROME - PANE_GAP * (len(panes) - 1)
+        zoom = min(DEFAULT_ZOOM, math.floor(room / sum(p["w"] for p in panes) * 1000) / 1000)
+        style = f' style="--zoom:{zoom:g}"'
     first = {}
     for p in panes:
         first.setdefault(p['kind'], p)
-    if 'device' in first and 'figma' in first:
+    if 'device' in first and 'figma' in first and not export:
         d, f = first['device'], first['figma']
         overlay = (
             f'<details class="overlay"><summary>Overlay {text(d["label"])} on {text(f["label"])}</summary>'
@@ -465,7 +475,7 @@ def card_html(images, card, defaults):
             f'<div class="stack">{frame_html(images, f, "")}{frame_html(images, d, "", " top")}</div></details>')
     desc = f'<p class="desc">{text(card["desc"])}</p>' if card.get('desc') else ''
     note = f'<p class="note">{text(card["note"])}</p>' if card.get('note') else ''
-    return (f'<section class="card" id="card-{card["id"]}"><h2>{text(card["title"])}</h2>{desc}'
+    return (f'<section class="card" id="card-{card["id"]}"{style}><h2>{text(card["title"])}</h2>{desc}'
             f'<div class="panes">{"".join(figures)}</div>{overlay}{note}</section>')
 
 
@@ -542,6 +552,9 @@ def load(manifest):
         if not isinstance(data.get(key), str) or not data[key].strip():
             raise ValueError(f"Manifest needs {key}")
     cards = data.get('cards')
+    if 'scenarios' in data and cards is None:
+        raise ValueError('This manifest uses the old scenarios format; move each screenshot into a card '
+                         'and each outcome into journeys, as references/gallery.md shows')
     if not isinstance(cards, list) or not cards:
         raise ValueError('Manifest needs at least one card')
     ids = [card.get('id') for card in cards if isinstance(card, dict)]
@@ -568,7 +581,7 @@ def render(manifest, standalone=True, only=None):
     assets = Path(__file__).parent
     css = (assets / 'report.css').read_text(encoding='utf-8')
     cards = [card for card in data['cards'] if only is None or card['id'] == only]
-    cards_html = ''.join(card_html(images, card, data.get('defaults', {})) for card in cards)
+    cards_html = ''.join(card_html(images, card, data.get('defaults', {}), only is not None) for card in cards)
     if only is not None:
         return (f'<!doctype html><html lang="en" class="export"><head><meta charset="utf-8">'
                 f'<style>{css}</style></head><body><main>{cards_html}</main></body></html>'), images
@@ -645,6 +658,13 @@ def publish_cards(out, staged):
             temps[temp] = png.name
             with os.fdopen(handle, 'wb') as target:
                 target.write(png.read_bytes())
+        for name in temps.values():
+            try:
+                mode = os.lstat(name, dir_fd=fd).st_mode
+            except FileNotFoundError:
+                continue
+            if stat.S_ISDIR(mode):  # a rename replaces a file or a link, but fails on a folder
+                raise ValueError(f'cards/{name} is a folder; the previous cards are unchanged')
         for temp, name in list(temps.items()):
             os.rename(temp, name, src_dir_fd=fd, dst_dir_fd=fd)
             del temps[temp]
@@ -694,7 +714,14 @@ def main():
     try:
         report, images = render(args.manifest, standalone=not args.linked)
         output = args.manifest.with_suffix('.html')
-        output.write_text(report, encoding='utf-8')
+        handle, temp = tempfile.mkstemp(prefix=f'.{output.name}.', suffix='.tmp', dir=output.parent)
+        try:
+            with os.fdopen(handle, 'w', encoding='utf-8') as target:
+                target.write(report)
+            os.chmod(temp, 0o644)
+            os.replace(temp, output)
+        finally:
+            Path(temp).unlink(missing_ok=True)
         print(output)
         print(f'size: {size(output.stat().st_size)}')
         if args.linked:

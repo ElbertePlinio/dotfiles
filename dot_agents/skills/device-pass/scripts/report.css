@@ -199,15 +199,21 @@ h2 {
   color: var(--mute);
   font-size: 12px;
 }
+/* Captions share one grid row, so a wrapped caption never shifts one image below the others. */
 .panes {
-  display: flex;
-  gap: 24px;
-  align-items: flex-start;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: auto auto;
+  justify-content: start;
+  column-gap: 24px;
   overflow-x: auto;
   padding-bottom: 4px;
 }
 .pane {
-  flex: 0 0 auto;
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  align-items: start;
   margin: 0;
 }
 .pane figcaption {
@@ -327,18 +333,18 @@ dialog::backdrop {
   display: none;
 }
 .export .panes {
-  flex-wrap: wrap;
   overflow: visible;
 }
+/* The card export screenshots at the card's own width, which can be narrow; it keeps its padding. */
 @media (max-width: 640px) {
-  .topbar,
-  main {
+  :root:not(.export) .topbar,
+  :root:not(.export) main {
     padding-left: 16px;
     padding-right: 16px;
   }
-  .summary,
-  .card,
-  .video {
+  :root:not(.export) .summary,
+  :root:not(.export) .card,
+  :root:not(.export) .video {
     padding: 16px;
   }
 }

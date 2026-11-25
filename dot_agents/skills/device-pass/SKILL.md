@@ -34,11 +34,11 @@ Record one video of the main changed journey at the default text size. Record mo
 
 1. Drive the journey by hand first and note each element's label: the iOS `AXLabel` from `idb ui describe-all`, or the Android `content-desc` or `text` from `adb exec-out uiautomator dump /dev/tty`.
 2. Write `raw/video/<journey>.flow.json` as a JSON list of steps. The script's docstring lists them. Start from a screen you can reach again, such as a deep link.
-3. Rehearse with `python3 <skill-directory>/scripts/record_flow.py --udid <udid> --dry-run <flow>`, or `--serial <serial>` for Android. A failed step prints the labels on screen.
+3. Rehearse with `python3 <skill-directory>/scripts/record_flow.py --udid <udid> --dry-run <flow>`, or `--serial <serial>` for Android. A failed step prints the labels on screen. On an emulator, the script records with the emulator's own recorder, because `screenrecord` drops frames there. Start a Linux emulator with `-gpu host`; software rendering is too slow for a smooth video.
 4. Put the app back on the first screen and run the same command without `--dry-run`.
 5. Read `raw/video/<journey>-sheet.png` and check that each step shows.
 
-For a browser journey, record with the active browser tool's recording feature, save the file in `videos/`, and run `record_flow.py --sheet <video>` to make the frame sheet.
+For a browser journey, record with the active browser tool's recording feature and save the file in `videos/`. Run `record_flow.py --sheet <video>`, which writes `<video>-sheet.png` beside it, then move the sheet to `raw/video/`.
 
 Write the manifest as the [gallery reference](references/gallery.md) describes, then run `python3 <skill-directory>/scripts/render_report.py <manifest.json> --cards`. Open the page and every card PNG, and check that each crop starts at the app bar. Cards go on the PR, so they show facts only: no status, verdict, or open question. Journey outcomes, findings, and limitations go in the manifest, where the page shows them above the cards. Link the page, the cards, and the videos in the handoff; do not commit evidence to application documentation. Publishing, uploading, or attaching evidence to a PR needs the user's request.
 

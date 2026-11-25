@@ -53,12 +53,17 @@ def run(*cmd, check=True):
 
 
 def check_complete(raw):
-    """Fail unless every frame in the capture's index reads; a cut at a frame edge logs no error."""
+    """Fail unless every frame in the capture's index reads and decodes; a cut at a frame edge logs no error.
+
+    ffprobe decodes each frame without a muxer, which would reject the repeated timestamps simctl writes.
+    """
     out = run_clean("ffprobe", "-v", "error", "-ignore_editlist", "1", "-select_streams", "v:0", "-count_packets",
-                    "-show_entries", "stream=nb_read_packets,nb_frames", "-of", "json", str(raw)).stdout
+                    "-count_frames", "-show_entries", "stream=nb_read_packets,nb_read_frames,nb_frames", "-of", "json",
+                    str(raw)).stdout
     stream = (json.loads(out).get("streams") or [{}])[0]
-    read, indexed = int(stream.get("nb_read_packets", 0)), stream.get("nb_frames", "")
-    if read < 1 or (indexed.isdigit() and read < int(indexed)):
+    read, decoded = int(stream.get("nb_read_packets", 0)), int(stream.get("nb_read_frames", 0))
+    indexed = stream.get("nb_frames", "")
+    if decoded < 1 or (indexed.isdigit() and read < int(indexed)):
         raise subprocess.CalledProcessError(1, ["ffprobe", str(raw)], "",
                                             f"the capture is cut short: {read} of {indexed or '?'} frames read")
 
@@ -122,13 +127,21 @@ class IOS:
         run("xcrun", "simctl", "ui", self.udid, "content_size", saved)
 
     def clean_status_bar(self, on):
-        if on:
-            run("xcrun", "simctl", "status_bar", self.udid, "override", "--time", "9:41",
-                "--dataNetwork", "wifi", "--wifiMode", "active", "--wifiBars", "3",
-                "--cellularMode", "active", "--cellularBars", "4",
-                "--batteryState", "charged", "--batteryLevel", "100")
-        else:
-            run("xcrun", "simctl", "status_bar", self.udid, "clear", check=False)
+        if not on:
+            if getattr(self, "overridden", False) and run("xcrun", "simctl", "status_bar", self.udid, "clear",
+                                                          check=False).returncode:
+                print(f"warning: could not clear the status bar; run `xcrun simctl status_bar {self.udid} clear`",
+                      file=sys.stderr)
+            return
+        listed = run("xcrun", "simctl", "status_bar", self.udid, "list").stdout.splitlines()
+        if any(line.strip() and not line.strip().startswith(("Current Status Bar", "=")) for line in listed):
+            print("note: the simulator already has a status bar override; the recorder keeps it", file=sys.stderr)
+            return
+        self.overridden = True  # before the call, so an interrupt during it still clears it
+        run("xcrun", "simctl", "status_bar", self.udid, "override", "--time", "9:41",
+            "--dataNetwork", "wifi", "--wifiMode", "active", "--wifiBars", "3",
+            "--cellularMode", "active", "--cellularBars", "4",
+            "--batteryState", "charged", "--batteryLevel", "100")
 
     def start_recording(self, raw):
         self.proc = subprocess.Popen(
@@ -142,16 +155,23 @@ class IOS:
                     started.set()
 
         threading.Thread(target=watch, daemon=True).start()
-        if not started.wait(20):
+        try:
+            if not started.wait(20):
+                raise SystemExit("simctl recordVideo did not start within 20 s")
+        except BaseException:
             self.proc.send_signal(signal.SIGINT)
-            raise SystemExit("simctl recordVideo did not start within 20 s")
+            raise
 
     def stop_recording(self, raw):
         """Stop the recorder; return True when it had already stopped on its own."""
         early = self.proc.poll() is not None
         if not early:
             self.proc.send_signal(signal.SIGINT)
-        self.proc.wait(timeout=60)
+        try:
+            self.proc.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            raise SystemExit("simctl recordVideo did not finish within 60 s; the take is incomplete") from None
         return early
 
     early_stop = "simctl recordVideo stopped before the flow ended"
@@ -249,18 +269,34 @@ class Android:
             self.restore_demo_flag()
             return
         if not hasattr(self, "demo_flag"):
-            read = self.shell("settings", "get", "global", "sysui_demo_allowed", check=False)
-            if read.returncode or not read.stdout.strip():
+            if self.demo_mode_on():
+                print("note: demo mode was already on; the recorder leaves it as it is", file=sys.stderr)
+                self.demo_flag = "1"  # nothing to restore
+                return
+            flag = self.shell("settings", "get", "global", "sysui_demo_allowed", check=False).stdout.strip()
+            if flag not in ("0", "1", "null"):
                 raise SystemExit("could not read sysui_demo_allowed, so demo mode could not be undone")
-            self.demo_flag = read.stdout.strip()
-        self.shell("settings", "put", "global", "sysui_demo_allowed", "1", check=False)
+            self.demo_flag = flag
+            if flag != "1" and self.shell("settings", "put", "global", "sysui_demo_allowed", "1",
+                                          check=False).returncode:
+                raise SystemExit("could not allow demo mode (sysui_demo_allowed)")
+            self.demo_entered = True  # before the broadcasts, so an interrupt during them still exits
+        if not getattr(self, "demo_entered", False):
+            return
         for command, *extras in (("enter",), ("clock", "-e", "hhmm", "0941"),
                                  ("battery", "-e", "level", "100", "-e", "plugged", "false"),
                                  ("network", "-e", "fully", "true"), ("network", "-e", "wifi", "show", "-e", "level", "4"),
                                  ("network", "-e", "mobile", "hide"), ("notifications", "-e", "visible", "false")):
-            # SystemUI enters demo mode on any demo command, so one that lands is enough to need an exit.
-            if demo(command, *extras):
-                self.demo_entered = True
+            demo(command, *extras)
+
+    def demo_mode_on(self):
+        """SystemUI's own state; the demo broadcast does not touch the sysui_tuner_demo_on setting."""
+        dump = self.shell("dumpsys", "activity", "service", "com.android.systemui/.SystemUIService", "DemoModeController",
+                          check=False).stdout
+        found = re.search(r"isInDemoMode=(true|false)", dump)
+        if found:
+            return found[1] == "true"
+        return self.shell("settings", "get", "global", "sysui_tuner_demo_on", check=False).stdout.strip() == "1"
 
     def restore_demo_flag(self):
         flag = getattr(self, "demo_flag", "1")
@@ -290,9 +326,13 @@ class Android:
         if not self.pid.isdigit():
             self.proc.kill()
             raise SystemExit(f"screenrecord did not start: {self.proc.stderr.read().strip()}")
-        time.sleep(0.5)
-        if not self.alive():
-            raise SystemExit(f"screenrecord stopped at once: {self.proc.stderr.read().strip()}")
+        try:
+            time.sleep(0.5)
+            if not self.alive():
+                raise SystemExit(f"screenrecord stopped at once: {self.proc.stderr.read().strip()}")
+        except BaseException:
+            self.shell("kill", "-INT", self.pid, check=False)
+            raise
 
     def stop_recording(self, raw):
         """Stop the recorder; return True when it had already stopped, such as at the 180 s limit."""
@@ -328,6 +368,43 @@ class Android:
 
     def labels_hint(self):
         return "content-desc or text from `adb exec-out uiautomator dump /dev/tty`"
+
+
+class Emulator(Android):
+    """An Android emulator. It records with its own recorder, because screenrecord drops most frames when
+    the emulator renders on the host GPU."""
+
+    raw_suffix = ".webm"
+    early_stop = "the emulator recorder stopped before the flow ended; it records at most 180 s"
+
+    def console(self, *args):
+        out = self.adb("emu", *args).stdout
+        if any(line.startswith("KO") for line in out.splitlines()):
+            raise SystemExit(f"adb emu {' '.join(args)} failed: {out.strip()}")
+        return out
+
+    def start_recording(self, raw):
+        try:
+            self.console("screenrecord", "start", "--time-limit", "180", "--fps", "30", str(raw.resolve()))
+        except BaseException:
+            self.adb("emu", "screenrecord", "stop", check=False)
+            raise
+
+    def stop_recording(self, raw):
+        early = "already stopped" in self.console("screenrecord", "stop")
+        # The emulator still writes the file for a moment after it answers; wait until the size holds.
+        deadline, size, steady = time.monotonic() + 30, -1, 0
+        while steady < 4:
+            if time.monotonic() > deadline:
+                raise SystemExit(f"the emulator did not finish writing {raw} within 30 s")
+            time.sleep(0.25)
+            new = raw.stat().st_size if raw.exists() else -1
+            steady, size = (steady + 1, size) if new == size and new > 0 else (0, new)
+        try:
+            check_complete(raw)
+        except subprocess.CalledProcessError as err:
+            raise SystemExit(f"the emulator recording is not readable: {(err.stderr or '').strip()}") from None
+        return early
 
 
 class Flow:
@@ -410,8 +487,10 @@ class Flow:
         if d.screen is None:
             d.elements()
         w, h = d.screen["width"], d.screen["height"]
-        dist = min(step.get("distance", h * 0.4), h * 0.7)
-        y1 = h * 0.65 if step["scroll"] == "down" else h * 0.35
+        if step["scroll"] not in ("down", "up"):
+            raise StepFailed(f'scroll must be "down" or "up", not {step["scroll"]!r}')
+        dist = min(step.get("distance", h * 0.4), h * 0.6)
+        y1 = h * 0.8 if step["scroll"] == "down" else h * 0.2
         y2 = y1 - dist if step["scroll"] == "down" else y1 + dist
         self.dwell(0.8, 1.3)
         d.swipe(w / 2, y1, y2)
@@ -510,6 +589,7 @@ def replacing(dest):
         yield new
         if not new.stat().st_size:
             raise SystemExit(f"nothing was written for {dest}")
+        os.chmod(new, 0o644)  # mkstemp makes the file private; evidence is shared
         os.replace(new, dest)
     finally:
         new.unlink(missing_ok=True)
@@ -523,7 +603,7 @@ def contact_sheet(video, sheet):
     frames = min(SHEET_FRAMES, max(1, math.ceil(seconds)))
     cols = min(6, frames)
     rows = math.ceil(frames / cols)
-    run("ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf",
+    run_clean("ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf",
         f"fps={cols * rows / seconds:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1",
         "-f", "image2", "-c:v", "png", str(sheet))
 
@@ -636,8 +716,12 @@ def main():
     if args.sheet:
         video = args.sheet.expanduser().resolve()
         sheet = video.with_name(video.stem + "-sheet.png")
-        with replacing(sheet) as new:
-            contact_sheet(video, new)
+        try:
+            check_complete(video)
+            with replacing(sheet) as new:
+                contact_sheet(video, new)
+        except subprocess.CalledProcessError as err:
+            sys.exit(f"{video} is not readable, so the sheet was not written: {(err.stderr or '').strip()}")
         print(f"wrote {sheet}")
         return
     if not args.flow or not (args.udid or args.serial):
@@ -647,10 +731,14 @@ def main():
 
 def take(args):
     """Rehearse or record one flow file."""
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
     flow_path = args.flow.expanduser().resolve()
     steps = json.loads(flow_path.read_text())
     name = flow_path.name.removesuffix(".flow.json")
-    device = IOS(args.udid) if args.udid else Android(args.serial)
+    if args.udid:
+        device = IOS(args.udid)
+    else:
+        device = Emulator(args.serial) if re.fullmatch(r"emulator-\d+", args.serial) else Android(args.serial)
     # Record to a partial file, so a failed take never replaces the last good raw capture.
     partial = flow_path.parent / f"{name}.raw.partial{device.raw_suffix}"
     flow = Flow(device, args.dry_run, args.seed)
