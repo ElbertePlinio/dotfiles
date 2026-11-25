@@ -48,6 +48,7 @@ EXPORT_WIDTH = 1600
 EXPORT_CHROME = 146  # page and card padding and borders around the panes, in CSS px (report.css)
 PANE_GAP = 24
 DEFAULT_ZOOM = 0.8
+MIN_EXPORT_ZOOM = 0.15
 CHROMES = (
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
@@ -442,10 +443,12 @@ def frame_html(images, p, alt, extra=''):
     return f'<div class="frame{extra}" style="{style}"><img {source} alt="{text(alt)}"></div>'
 
 
-def export_zoom(panes):
+def export_zoom(card, panes):
     """One shared zoom that fits every pane on one row of the exported card; the page keeps its slider."""
     room = EXPORT_WIDTH - EXPORT_CHROME - PANE_GAP * (len(panes) - 1)
     zoom = min(DEFAULT_ZOOM, math.floor(room / sum(p["w"] for p in panes) * 1000) / 1000)
+    if zoom < MIN_EXPORT_ZOOM:
+        raise ValueError(f"Card {card['id']} has {len(panes)} panes, too wide for one exported card; split it")
     return f' style="--zoom:{zoom:g}"'
 
 
@@ -478,7 +481,7 @@ def card_html(images, card, defaults, export=False):
             f'<figure class="pane" data-kind="{p["kind"]}" style="--w:{fmt(p["w"])}"><figcaption><b>{text(p["label"])}</b>'
             f'<span class="dim">{fmt(p["w"])} × {fmt(p["h"])} pt</span>{caption}</figcaption>'
             f'<button class="open" type="button" aria-label="Open {text(alt)}">{frame_html(images, p, alt)}</button></figure>')
-    style = export_zoom(panes) if export else ''
+    style = export_zoom(card, panes) if export else ''
     overlay = '' if export else overlay_html(images, panes)
     desc = f'<p class="desc">{text(card["desc"])}</p>' if card.get('desc') else ''
     note = f'<p class="note">{text(card["note"])}</p>' if card.get('note') else ''
@@ -677,7 +680,8 @@ def publish_cards(out, staged):
             del temps[temp]
         keep = {png.name for png in staged}
         for name in os.listdir(fd):
-            if name not in keep and re.fullmatch(r'\d{2,}-[a-z0-9-]+\.png', name):
+            if name not in keep and re.fullmatch(r'\d{2,}-[a-z0-9-]+\.png', name) \
+                    and not stat.S_ISDIR(os.lstat(name, dir_fd=fd).st_mode):
                 os.unlink(name, dir_fd=fd)
     finally:
         for temp in temps:

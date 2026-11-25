@@ -58,14 +58,48 @@ def check_complete(raw):
     ffprobe decodes each frame without a muxer, which would reject the repeated timestamps simctl writes.
     """
     out = run_clean("ffprobe", "-v", "error", "-ignore_editlist", "1", "-select_streams", "v:0", "-count_packets",
-                    "-count_frames", "-show_entries", "stream=nb_read_packets,nb_read_frames,nb_frames", "-of", "json",
-                    str(raw)).stdout
-    stream = (json.loads(out).get("streams") or [{}])[0]
+                    "-count_frames", "-show_entries", "stream=nb_read_packets,nb_read_frames,nb_frames:format=duration",
+                    "-of", "json", str(raw)).stdout
+    data = json.loads(out)
+    stream = (data.get("streams") or [{}])[0]
     read, decoded = int(stream.get("nb_read_packets", 0)), int(stream.get("nb_read_frames", 0))
     indexed = stream.get("nb_frames", "")
     if decoded < 1 or (indexed.isdigit() and read < int(indexed)):
         raise subprocess.CalledProcessError(1, ["ffprobe", str(raw)], "",
                                             f"the capture is cut short: {read} of {indexed or '?'} frames read")
+    declared = data.get("format", {}).get("duration", "")
+    if indexed.isdigit() or not re.fullmatch(r"\d+(\.\d+)?", declared):
+        return
+    # A WebM has no frame index, but the emulator writes its length in the header when it finishes.
+    times = run("ffprobe", "-v", "error", "-show_entries", "packet=pts_time", "-of", "csv=p=0", str(raw)).stdout.split()
+    last = max((float(t) for t in times if re.fullmatch(r"\d+(\.\d+)?", t)), default=0)
+    if last < float(declared) - 1:
+        raise subprocess.CalledProcessError(1, ["ffprobe", str(raw)], "",
+                                            f"the capture is cut short: its data ends at {last:.1f} s of {declared} s")
+
+
+HOLD = {"depth": 0, "pending": None}
+
+
+def on_signal(signum, frame):
+    """Exit through the finally blocks, or right after the held section that is running."""
+    if HOLD["depth"]:
+        HOLD["pending"] = signum
+        return
+    sys.exit(128 + signum)
+
+
+@contextlib.contextmanager
+def held():
+    """Defer SIGINT and SIGTERM, so a start, a cleanup or a publish never stops halfway."""
+    HOLD["depth"] += 1
+    try:
+        yield
+    finally:
+        HOLD["depth"] -= 1
+        if not HOLD["depth"] and HOLD["pending"]:
+            signum, HOLD["pending"] = HOLD["pending"], None
+            sys.exit(128 + signum)
 
 
 def run_clean(*cmd):
@@ -269,8 +303,10 @@ class Android:
             self.restore_demo_flag()
             return
         if not hasattr(self, "demo_flag"):
-            if self.demo_mode_on():
-                print("note: demo mode was already on; the recorder leaves it as it is", file=sys.stderr)
+            state = self.demo_mode_on()
+            if state is not False:
+                print("note: demo mode was on or its state was unknown; the recorder leaves the status bar as it is",
+                      file=sys.stderr)
                 self.demo_flag = "1"  # nothing to restore
                 return
             flag = self.shell("settings", "get", "global", "sysui_demo_allowed", check=False).stdout.strip()
@@ -290,13 +326,11 @@ class Android:
             demo(command, *extras)
 
     def demo_mode_on(self):
-        """SystemUI's own state; the demo broadcast does not touch the sysui_tuner_demo_on setting."""
+        """SystemUI's own state, or None when it does not say; the demo broadcast leaves sysui_tuner_demo_on alone."""
         dump = self.shell("dumpsys", "activity", "service", "com.android.systemui/.SystemUIService", "DemoModeController",
                           check=False).stdout
         found = re.search(r"isInDemoMode=(true|false)", dump)
-        if found:
-            return found[1] == "true"
-        return self.shell("settings", "get", "global", "sysui_tuner_demo_on", check=False).stdout.strip() == "1"
+        return None if not found else found[1] == "true"
 
     def restore_demo_flag(self):
         flag = getattr(self, "demo_flag", "1")
@@ -384,27 +418,32 @@ class Emulator(Android):
         return out
 
     def start_recording(self, raw):
-        try:
-            self.console("screenrecord", "start", "--time-limit", "180", "--fps", "30", str(raw.resolve()))
-        except BaseException:
-            self.adb("emu", "screenrecord", "stop", check=False)
-            raise
+        raw.unlink(missing_ok=True)  # a failed take's file would pass the size wait in stop_recording
+        self.console("screenrecord", "start", "--time-limit", "180", "--fps", "30", str(raw.resolve()))
 
     def stop_recording(self, raw):
         early = "already stopped" in self.console("screenrecord", "stop")
-        # The emulator still writes the file for a moment after it answers; wait until the size holds.
-        deadline, size, steady = time.monotonic() + 30, -1, 0
+        # The emulator still writes the file for a moment after it answers; on a busy host it can pause.
+        deadline = time.monotonic() + 30
+        while True:
+            self.settle(raw, deadline)
+            try:
+                check_complete(raw)
+                return early
+            except subprocess.CalledProcessError as err:
+                if time.monotonic() > deadline:
+                    raise SystemExit(f"the emulator recording is not readable: {(err.stderr or '').strip()}") from None
+
+    @staticmethod
+    def settle(raw, deadline):
+        """Wait until the file's size holds for a second."""
+        size, steady = -1, 0
         while steady < 4:
             if time.monotonic() > deadline:
                 raise SystemExit(f"the emulator did not finish writing {raw} within 30 s")
             time.sleep(0.25)
             new = raw.stat().st_size if raw.exists() else -1
             steady, size = (steady + 1, size) if new == size and new > 0 else (0, new)
-        try:
-            check_complete(raw)
-        except subprocess.CalledProcessError as err:
-            raise SystemExit(f"the emulator recording is not readable: {(err.stderr or '').strip()}") from None
-        return early
 
 
 class Flow:
@@ -489,7 +528,10 @@ class Flow:
         w, h = d.screen["width"], d.screen["height"]
         if step["scroll"] not in ("down", "up"):
             raise StepFailed(f'scroll must be "down" or "up", not {step["scroll"]!r}')
-        dist = min(step.get("distance", h * 0.4), h * 0.6)
+        dist = step.get("distance", h * 0.4)
+        if isinstance(dist, bool) or not isinstance(dist, (int, float)) or not 0 < dist < math.inf:
+            raise StepFailed(f"scroll distance must be a positive number, not {dist!r}")
+        dist = min(dist, h * 0.6)
         y1 = h * 0.8 if step["scroll"] == "down" else h * 0.2
         y2 = y1 - dist if step["scroll"] == "down" else y1 + dist
         self.dwell(0.8, 1.3)
@@ -552,7 +594,7 @@ def encode(raw, mp4, taps, end, device):
 
 
 def encode_video(raw, mp4, taps, end, device, tap_png):
-    vw, _, raw_duration = probe(raw)
+    vw, raw_duration = probe(raw)[0], duration(raw)  # an audio track can run past the last frame
     scale = vw / device.screen["width"]
     # A still screen gives one frame with no duration, which filters drop unless the input has a rate.
     inputs = ["-r", "30", "-i", str(raw)] if raw_duration == 0 else ["-i", str(raw)]
@@ -579,18 +621,38 @@ def encode_video(raw, mp4, taps, end, device, tap_png):
               str(mp4))
 
 
-@contextlib.contextmanager
-def replacing(dest):
-    """Yield a temp path beside dest; replace dest with it only when the block succeeds."""
+def staging(dest):
     fd, name = tempfile.mkstemp(prefix=f".{dest.name}.", suffix=".tmp", dir=dest.parent)
     os.close(fd)
-    new = Path(name)
-    try:
-        yield new
+    return Path(name)
+
+
+class PartlySaved(SystemExit):
+    """A rename failed after others had replaced their files."""
+
+
+def publish(pairs):
+    """Replace each destination with its staged file, all in one step that signals do not interrupt."""
+    for new, dest in pairs:
         if not new.stat().st_size:
             raise SystemExit(f"nothing was written for {dest}")
         os.chmod(new, 0o644)  # mkstemp makes the file private; evidence is shared
-        os.replace(new, dest)
+    with held():
+        for done, (new, dest) in enumerate(pairs):
+            try:
+                os.replace(new, dest)
+            except OSError as err:
+                replaced = ", ".join(str(d) for _, d in pairs[:done]) or "none"
+                raise PartlySaved(f"could not replace {dest} ({err}); already replaced: {replaced}") from None
+
+
+@contextlib.contextmanager
+def replacing(dest):
+    """Yield a temp path beside dest; replace dest with it only when the block succeeds."""
+    new = staging(dest)
+    try:
+        yield new
+        publish([(new, dest)])
     finally:
         new.unlink(missing_ok=True)
 
@@ -637,22 +699,30 @@ def record(flow, steps, partial, saved_size):
     device = flow.device
     recording = False
     failed = None
-    end = 0
     try:
         if not flow.dry:
-            device.clean_status_bar(True)
-            device.start_recording(partial)
-            recording = True
-            flow.t0 = flow.last_action = time.monotonic()
+            with held():
+                device.clean_status_bar(True)
+                device.start_recording(partial)
+                recording = True
+                flow.t0 = flow.last_action = time.monotonic()
         failed = play(flow, steps)
         if recording and not failed:
             time.sleep(1.5)
     finally:
+        failed, end = stop_and_restore(flow, partial, recording, failed, saved_size)
+    return failed, end
+
+
+def stop_and_restore(flow, partial, recording, failed, saved_size):
+    """Stop the recording and undo device changes; a signal waits until both are done."""
+    end = 0
+    with held():
         try:
             if recording:
                 end = time.monotonic() - flow.t0
-                if device.stop_recording(partial) and not failed:
-                    failed = device.early_stop
+                if flow.device.stop_recording(partial) and not failed:
+                    failed = flow.device.early_stop
                     print(failed, file=sys.stderr)
         finally:
             restore(flow, saved_size)
@@ -685,20 +755,31 @@ def finish(flow, partial, name, end, draw_taps):
     mp4.parent.mkdir(exist_ok=True)
     taps = [e for e in flow.events if e["action"] == "tap"] if draw_taps else []
     sheet = video_dir / f"{name}-sheet.png"
+    events = video_dir / f"{name}.events.json"
+    staged = {dest: staging(dest) for dest in (mp4, sheet, events)}
     stage = "encode the take"
     try:
-        # Managers replace in reverse order, so every size check passes before the events file moves.
-        with replacing(video_dir / f"{name}.events.json") as new_events, replacing(mp4) as new_mp4, \
-                replacing(sheet) as new_sheet:
-            encode(partial, new_mp4, taps, end, flow.device)
-            stage = "make the frame sheet"
-            contact_sheet(new_mp4, new_sheet)
-            new_events.write_text(json.dumps(flow.events, indent=1))
+        encode(partial, staged[mp4], taps, end, flow.device)
+        stage = "make the frame sheet"
+        contact_sheet(staged[mp4], staged[sheet])
+        staged[events].write_text(json.dumps(flow.events, indent=1))
+        stage = "save the take"
+        publish([*((new, dest) for dest, new in staged.items()),
+                 (partial, video_dir / f"{name}.raw{flow.device.raw_suffix}")])
     except (subprocess.CalledProcessError, SystemExit) as err:
-        detail = (err.stderr or "").strip() if isinstance(err, subprocess.CalledProcessError) else err
-        sys.exit(f"could not {stage}; the last take is unchanged and this one is at {partial}: {detail}")
-    os.replace(partial, video_dir / f"{name}.raw{flow.device.raw_suffix}")
+        take_not_saved(err, stage, partial)
+    finally:
+        for new in staged.values():
+            new.unlink(missing_ok=True)
     report(mp4, sheet)
+
+
+def take_not_saved(err, stage, partial):
+    """Exit saying the last take is unchanged, unless a partial save or a deferred signal says otherwise."""
+    if isinstance(err, PartlySaved) or isinstance(err, SystemExit) and not isinstance(err.code, str):
+        raise err  # a partial save names its files; a deferred signal comes after the publish finished
+    detail = (err.stderr or "").strip() if isinstance(err, subprocess.CalledProcessError) else err
+    sys.exit(f"could not {stage}; the last take is unchanged and this one is at {partial}: {detail}")
 
 
 def main():
@@ -731,7 +812,8 @@ def main():
 
 def take(args):
     """Rehearse or record one flow file."""
-    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
+    signal.signal(signal.SIGTERM, on_signal)
+    signal.signal(signal.SIGINT, on_signal)
     flow_path = args.flow.expanduser().resolve()
     steps = json.loads(flow_path.read_text())
     name = flow_path.name.removesuffix(".flow.json")

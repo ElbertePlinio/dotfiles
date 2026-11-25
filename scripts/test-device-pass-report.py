@@ -406,6 +406,10 @@ class DevicePassReportTests(unittest.TestCase):
         page, _ = module.render(self.manifest)
         self.assertNotIn('style="--zoom:', page)
         self.assertIn('class="overlay"', page)
+        self.edit(lambda d: d["cards"][-1].update(device=[{"src": "shots/wide-a.png", "scale": 2, "cropTopPt": 0}] * 12))
+        module.render(self.manifest)
+        with self.assertRaisesRegex(ValueError, "Card wide has 13 panes, too wide"):
+            module.render(self.manifest, only="wide")
 
     def test_cli_reports_errors_without_writing(self):
         self.set_first_file("../x.png")
@@ -452,12 +456,13 @@ class DevicePassReportTests(unittest.TestCase):
         (self.root / "cards/01-home.png").symlink_to(outside)
         (self.root / "cards/09-stale.png").write_bytes(png(2, 2, (1, 1, 1)))
         (self.root / "cards/.02-menu.png.tmp").write_bytes(b"left by a crash")
+        (self.root / "cards/08-old.png").mkdir()
         written = module.export_cards(self.manifest)
         self.assertEqual(outside.read_bytes(), b"outside")
         self.assertFalse((self.root / "cards/01-home.png").is_symlink())
         self.assertFalse((self.root / "cards/09-stale.png").exists())
         self.assertEqual(sorted(p.name for p in (self.root / "cards").iterdir()),
-                         [".02-menu.png.tmp", "01-home.png", "02-menu.png", "03-receipt.png"])
+                         [".02-menu.png.tmp", "01-home.png", "02-menu.png", "03-receipt.png", "08-old.png"])
         self.assertEqual([p.name for p in written], ["01-home.png", "02-menu.png", "03-receipt.png"])
         for path in written:
             data = path.read_bytes()
@@ -470,7 +475,7 @@ class DevicePassReportTests(unittest.TestCase):
         self.edit(lambda d: d["cards"][1].update(widget="shots/nope.png"))
         with self.assertRaisesRegex(ValueError, "Missing evidence artifact"):
             module.export_cards(self.manifest)
-        self.assertEqual({p.name: p.read_bytes() for p in (self.root / "cards").glob("*.png")}, before)
+        self.assertEqual({p.name: p.read_bytes() for p in (self.root / "cards").glob("*.png") if p.is_file()}, before)
         self.assertEqual((self.root / "cards/notes.txt").read_text(), "keep")
         self.edit(lambda d: (d["cards"][1].pop("widget"), d["cards"][0].update(title="Changed")))
         (self.root / "cards/03-receipt.png").unlink()
