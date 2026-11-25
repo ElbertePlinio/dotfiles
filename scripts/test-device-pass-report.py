@@ -131,6 +131,12 @@ class DevicePassReportTests(unittest.TestCase):
         self.assertIn("<dt>Environment</dt><dd>Chromium 140, 390x844 at DPR 3, touch</dd>", report)
         self.assertIn('<a href="https://example.com/pr/1" target="_blank" rel="noopener">PR</a>', report)
 
+    def test_card_ids_cannot_shadow_page_elements(self):
+        self.edit(lambda d: d["cards"][0].update(id="images"))
+        report, _ = module.render(self.manifest)
+        self.assertIn('<section class="card" id="card-images">', report)
+        self.assertEqual(report.count('id="images"'), 1)
+
     def test_cards_carry_no_status(self):
         report, _ = module.render(self.manifest)
         for card in re.findall(r'<section class="card".*?</section>', report, re.S):
@@ -170,7 +176,7 @@ class DevicePassReportTests(unittest.TestCase):
             (lambda d: d["cards"][0].update(device={"src": "shots/desktop-home.png", "scale": 0}), "scale must be"),
             (lambda d: d.update(links=[{"label": "x", "url": "javascript:alert(1)"}]), "http or https"),
             (lambda d: d["journeys"][0].update(status="ok"), "Invalid journey status"),
-            (lambda d: d["videos"][0].update(src="shots/desktop-home.png"), "MP4, WebM, or MOV"),
+            (lambda d: d["videos"][0].update(src="shots/desktop-home.png"), "MP4 or WebM"),
             (lambda d: d.pop("revision"), "needs revision"),
         ]
         original = self.manifest.read_text(encoding="utf-8")
@@ -399,9 +405,11 @@ class DevicePassReportTests(unittest.TestCase):
     def test_export_page_holds_one_card_without_script(self):
         page, _ = module.render(self.manifest, only="menu")
         self.assertEqual(page.count('<section class="card"'), 1)
-        self.assertIn('id="menu"', page)
-        self.assertIn(f'<base href="{self.root.resolve().as_uri()}/">', page)
-        self.assertIn('<img src="shots/mobile-menu.png"', page)
+        self.assertIn('id="card-menu"', page)
+        menu = (self.root / "shots/mobile-menu.png").read_bytes()
+        self.assertIn(f'<img src="data:image/png;base64,{base64.b64encode(menu).decode()}"', page)
+        self.assertNotIn("shots/", page)
+        self.assertNotIn("<base", page)
         self.assertNotIn("<script", page)
         self.assertNotIn("Desktop checkout", page)
 
@@ -415,6 +423,23 @@ class DevicePassReportTests(unittest.TestCase):
             width, height = module.image_size(data, "image/png")
             self.assertLess(width, module.EXPORT_WIDTH * 2)
             self.assertGreater(height, 100)
+        before = {p.name: p.read_bytes() for p in written}
+        (self.root / "cards/notes.txt").write_text("keep")
+        self.edit(lambda d: d["cards"][1].update(widget="shots/nope.png"))
+        with self.assertRaisesRegex(ValueError, "Missing evidence artifact"):
+            module.export_cards(self.manifest)
+        self.assertEqual({p.name: p.read_bytes() for p in (self.root / "cards").glob("*.png")}, before)
+        self.assertEqual((self.root / "cards/notes.txt").read_text(), "keep")
+
+    def test_cards_folder_symlink_is_rejected(self):
+        elsewhere = self.base / "elsewhere"
+        elsewhere.mkdir()
+        (elsewhere / "01-old.png").write_bytes(png(2, 2, (1, 1, 1)))
+        (self.root / "cards").symlink_to(elsewhere, target_is_directory=True)
+        with mock.patch.object(module, "find_chrome", return_value="chrome"):
+            with self.assertRaisesRegex(ValueError, "real folder"):
+                module.export_cards(self.manifest)
+        self.assertTrue((elsewhere / "01-old.png").exists())
 
 
 if __name__ == "__main__":

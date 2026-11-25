@@ -42,7 +42,7 @@ STATUSES = ('pass', 'fail', 'blocked')
 KINDS = ('device', 'figma', 'widget')
 LABELS = {'device': 'Device', 'figma': 'Figma', 'widget': 'Widget'}
 CARD_ID = re.compile(r'[a-z0-9][a-z0-9-]{0,79}')
-VIDEO_TYPES = {'.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime'}
+VIDEO_TYPES = {'.mp4': 'video/mp4', '.webm': 'video/webm'}
 EXPORT_WIDTH = 1600
 CHROMES = (
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -349,9 +349,10 @@ def read_artifact(fd, filename):
 class Images:
     """Embedded screenshot payloads, stored once per unique content hash."""
 
-    def __init__(self, root, standalone):
+    def __init__(self, root, standalone, inline=False):
         self.root = root
         self.standalone = standalone
+        self.inline = inline
         self.payloads = {}
         self.total = 0
 
@@ -361,6 +362,8 @@ class Images:
         data = read_artifact(fd, filename)
         mime = validate_image(data, filename)
         width, height = image_size(data, mime)
+        if self.inline:
+            return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}", width, height
         if not self.standalone:
             return quote(relative.as_posix(), safe='/'), width, height
         digest = hashlib.sha256(data).hexdigest()
@@ -462,7 +465,7 @@ def card_html(images, card, defaults):
             f'<div class="stack">{frame_html(images, f, "")}{frame_html(images, d, "", " top")}</div></details>')
     desc = f'<p class="desc">{text(card["desc"])}</p>' if card.get('desc') else ''
     note = f'<p class="note">{text(card["note"])}</p>' if card.get('note') else ''
-    return (f'<section class="card" id="{card["id"]}"><h2>{text(card["title"])}</h2>{desc}'
+    return (f'<section class="card" id="card-{card["id"]}"><h2>{text(card["title"])}</h2>{desc}'
             f'<div class="panes">{"".join(figures)}</div>{overlay}{note}</section>')
 
 
@@ -472,7 +475,7 @@ def video_html(images, video, omitted):
     relative = check_artifact(images.root, video['src'])
     kind = VIDEO_TYPES.get(relative.suffix.lower())
     if not kind:
-        raise ValueError(f"Video must be MP4, WebM, or MOV: {video['src']}")
+        raise ValueError(f"Video must be MP4 or WebM: {video['src']}")
     src = quote(relative.as_posix(), safe='/')
     if images.standalone:
         omitted.append(relative.as_posix())
@@ -555,19 +558,19 @@ def load(manifest):
 def render(manifest, standalone=True, only=None):
     """Return (html, images) for a manifest; never writes any file.
 
-    only=<card id> renders that card alone, linked and without page chrome, for the PNG export.
+    only=<card id> renders that card alone, with its images inlined from the validated bytes and without page
+    chrome, for the PNG export. Chrome then never reopens an evidence path.
     """
     manifest = Path(manifest)
     data = load(manifest)
     root = manifest.parent.resolve()
-    images = Images(root, standalone and only is None)
+    images = Images(root, standalone and only is None, inline=only is not None)
     assets = Path(__file__).parent
     css = (assets / 'report.css').read_text(encoding='utf-8')
     cards = [card for card in data['cards'] if only is None or card['id'] == only]
     cards_html = ''.join(card_html(images, card, data.get('defaults', {})) for card in cards)
     if only is not None:
-        base = text(root.as_uri() + '/')
-        return (f'<!doctype html><html lang="en" class="export"><head><meta charset="utf-8"><base href="{base}">'
+        return (f'<!doctype html><html lang="en" class="export"><head><meta charset="utf-8">'
                 f'<style>{css}</style></head><body><main>{cards_html}</main></body></html>'), images
     omitted = []
     videos = ''.join(video_html(images, video, omitted) for video in data.get('videos') or [])
@@ -599,7 +602,7 @@ def find_chrome():
 
 def chrome(binary, page, *args):
     command = [binary, '--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run',
-               '--allow-file-access-from-files', '--virtual-time-budget=4000', *args, page.as_uri()]
+               '--virtual-time-budget=4000', *args, page.as_uri()]
     return subprocess.run(command, check=True, capture_output=True, text=True, timeout=120).stdout
 
 
@@ -608,16 +611,19 @@ MEASURE = ("<script>addEventListener('load',()=>{const r=document.querySelector(
 
 
 def export_cards(manifest):
-    """Write cards/<nn>-<id>.png beside the manifest: one dark PNG per card, at 2x, cropped to the card."""
+    """Write cards/<nn>-<id>.png beside the manifest: one dark PNG per card, at 2x, cropped to the card.
+
+    Every card is rendered into a temporary folder first. Old card PNGs are replaced only after all new ones are
+    valid, so a failed export keeps the previous cards.
+    """
     manifest = Path(manifest)
     data = load(manifest)
     binary = find_chrome()
     out = manifest.parent / 'cards'
-    out.mkdir(exist_ok=True)
-    for old in out.glob('*.png'):
-        old.unlink()
-    written = []
+    if out.is_symlink() or (out.exists() and not out.is_dir()):
+        raise ValueError(f'Card output must be a real folder: {out}')
     with tempfile.TemporaryDirectory() as tmp:
+        staged = []
         for n, card in enumerate(data['cards'], 1):
             page_html, _ = render(manifest, only=card['id'])
             page = Path(tmp) / f"{card['id']}.html"
@@ -625,11 +631,22 @@ def export_cards(manifest):
             found = re.search(r'data-size="(\d+)x(\d+)"', chrome(binary, page, f'--window-size={EXPORT_WIDTH},8000', '--dump-dom'))
             if not found:
                 raise ValueError(f"Could not measure card {card['id']}")
-            png = out / f"{n:02d}-{card['id']}.png"
+            png = Path(tmp) / f"{n:02d}-{card['id']}.png"
             page.write_text(page_html, encoding='utf-8')
             chrome(binary, page, f'--window-size={found[1]},{found[2]}', '--force-device-scale-factor=2',
                    f'--screenshot={png}')
-            written.append(png)
+            if not png.is_file() or image_mime(png.read_bytes()[:8]) != 'image/png':
+                raise ValueError(f"Chrome did not write the card {card['id']}")
+            staged.append(png)
+        out.mkdir(exist_ok=True)
+        for old in out.iterdir():
+            if re.fullmatch(r'\d{2,}-[a-z0-9-]+\.png', old.name) and old.is_file() and not old.is_symlink():
+                old.unlink()
+        written = []
+        for png in staged:
+            target = out / png.name
+            shutil.move(png, target)
+            written.append(target)
     return written
 
 

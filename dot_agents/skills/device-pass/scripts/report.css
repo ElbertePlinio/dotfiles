@@ -258,13 +258,12 @@ h2 {
   font-size: 13px;
 }
 .stack {
-  position: relative;
-  display: inline-block;
+  display: inline-grid;
+}
+.stack > .frame {
+  grid-area: 1 / 1;
 }
 .stack .top {
-  position: absolute;
-  top: 0;
-  left: 0;
   opacity: 0.5;
 }
 dialog {

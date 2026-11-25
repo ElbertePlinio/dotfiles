@@ -25,11 +25,13 @@ step that fails. --sheet only writes a frame sheet beside any video, such as a b
 import argparse
 import json
 import math
+import os
 import random
 import re
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -92,10 +94,12 @@ class IOS:
         run("xcrun", "simctl", "ui", self.udid, "content_size", self.TEXT_SIZES[size])
 
     def save_text_size(self):
-        return None
+        value = run("xcrun", "simctl", "ui", self.udid, "content_size", check=False).stdout.strip()
+        return value if re.fullmatch(r"[a-z-]+", value) else None
 
     def restore_text_size(self, saved):
-        pass
+        if saved:
+            run("xcrun", "simctl", "ui", self.udid, "content_size", saved, check=False)
 
     def clean_status_bar(self, on):
         if on:
@@ -123,8 +127,12 @@ class IOS:
             raise SystemExit("simctl recordVideo did not start within 20 s")
 
     def stop_recording(self, raw):
-        self.proc.send_signal(signal.SIGINT)
+        """Stop the recorder; return True when it had already stopped on its own."""
+        early = self.proc.poll() is not None
+        if not early:
+            self.proc.send_signal(signal.SIGINT)
         self.proc.wait(timeout=60)
+        return early
 
     def labels_hint(self):
         return "AXLabel from `idb ui describe-all`"
@@ -135,7 +143,6 @@ class Android:
 
     FONT_SCALES = {"smallest": "0.85", "default": "1.0", "largest": "2.0"}
     BOUNDS = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
-    DEVICE_FILE = "/sdcard/device-pass-recording.mp4"
     raw_suffix = ".mp4"
 
     def __init__(self, serial):
@@ -197,10 +204,14 @@ class Android:
 
     def save_text_size(self):
         value = self.shell("settings", "get", "system", "font_scale", check=False).stdout.strip()
+        if value == "null":
+            return "unset"
         return value if re.fullmatch(r"\d+(\.\d+)?", value) else None
 
     def restore_text_size(self, saved):
-        if saved:
+        if saved == "unset":
+            self.shell("settings", "delete", "system", "font_scale", check=False)
+        elif saved:
             self.shell("settings", "put", "system", "font_scale", saved, check=False)
 
     def clean_status_bar(self, on):
@@ -221,31 +232,40 @@ class Android:
         demo("network", "-e", "mobile", "hide")
         demo("notifications", "-e", "visible", "false")
 
+    def alive(self):
+        return self.shell("kill", "-0", self.pid, check=False).returncode == 0
+
     def start_recording(self, raw):
-        self.shell("rm", "-f", self.DEVICE_FILE, check=False)
+        # A file and a process of this run only, so another capture on the device is never touched.
+        self.device_file = f"/sdcard/device-pass-{os.getpid()}-{int(time.time())}.mp4"
         self.proc = subprocess.Popen(
-            ["adb", "-s", self.serial, "shell", "screenrecord", "--bit-rate", "8000000", "--time-limit", "180",
-             self.DEVICE_FILE],
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-        deadline = time.monotonic() + 10
-        while self.shell("pidof", "screenrecord", check=False).returncode != 0:
-            if self.proc.poll() is not None or time.monotonic() > deadline:
-                self.proc.kill()
-                raise SystemExit(f"screenrecord did not start: {self.proc.stderr.read().strip()}")
-            time.sleep(0.2)
+            ["adb", "-s", self.serial, "shell",
+             f"screenrecord --bit-rate 8000000 --time-limit 180 {self.device_file} & echo $!; wait"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.pid = (self.proc.stdout.readline() or "").strip()
+        if not self.pid.isdigit():
+            self.proc.kill()
+            raise SystemExit(f"screenrecord did not start: {self.proc.stderr.read().strip()}")
+        time.sleep(0.5)
+        if not self.alive():
+            raise SystemExit(f"screenrecord stopped at once: {self.proc.stderr.read().strip()}")
 
     def stop_recording(self, raw):
-        self.shell("pkill", "-INT", "screenrecord", check=False)
+        """Stop the recorder; return True when it had already stopped, such as at the 180 s limit."""
+        early = not self.alive()
+        if not early:
+            self.shell("kill", "-INT", self.pid, check=False)
         # screenrecord writes the mp4 trailer after SIGINT; pull only once it has exited on the device.
         deadline = time.monotonic() + 30
-        while self.shell("pidof", "screenrecord", check=False).returncode == 0 and time.monotonic() < deadline:
+        while self.alive() and time.monotonic() < deadline:
             time.sleep(0.3)
         try:
             self.proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self.proc.kill()
-        self.adb("pull", self.DEVICE_FILE, str(raw))
-        self.shell("rm", "-f", self.DEVICE_FILE, check=False)
+        self.adb("pull", self.device_file, str(raw))
+        self.shell("rm", "-f", self.device_file, check=False)
+        return early
 
     def labels_hint(self):
         return "content-desc or text from `adb exec-out uiautomator dump /dev/tty`"
@@ -344,6 +364,21 @@ def probe(path):
     return s["width"], s["height"], float(data["format"].get("duration", 0))
 
 
+def duration(path):
+    """Container duration, or the end of the last video packet when the container has none."""
+    _, _, value = probe(path)
+    if value:
+        return value
+    out = run("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time,duration_time",
+              "-of", "csv=p=0", str(path)).stdout
+    ends = []
+    for line in out.splitlines():
+        parts = [float(x) for x in line.split(",") if re.fullmatch(r"-?\d+(\.\d+)?", x)]
+        if parts:
+            ends.append(sum(parts))
+    return max(ends, default=0)
+
+
 def encode(raw, mp4, events, end, device, draw_taps, tap_png):
     if raw.suffix == ".mov":
         # simctl can write bad decode timestamps at the end of the .mov, and ffmpeg then runs the screens ahead
@@ -379,15 +414,15 @@ def encode(raw, mp4, events, end, device, draw_taps, tap_png):
 
 
 def contact_sheet(video, sheet):
-    _, _, duration = probe(video)
-    if duration <= 0:
+    seconds = duration(video)
+    if seconds <= 0:
         raise SystemExit(f"video has no duration: {video}")
-    frames = min(SHEET_FRAMES, max(1, math.ceil(duration)))
+    frames = min(SHEET_FRAMES, max(1, math.ceil(seconds)))
     cols = min(6, frames)
     rows = math.ceil(frames / cols)
     frames = cols * rows
     run("ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf",
-        f"fps={frames / duration:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1", str(sheet))
+        f"fps={frames / seconds:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1", str(sheet))
 
 
 def report(mp4, sheet):
@@ -453,13 +488,16 @@ def main():
         if recording and not failed:
             time.sleep(1.5)
     finally:
-        if recording:
-            end = time.monotonic() - flow.t0
-            device.stop_recording(raw)
-        if not args.dry_run:
-            device.clean_status_bar(False)
-        if any("textSize" in s for s in steps):
-            device.restore_text_size(saved_size)
+        try:
+            if recording:
+                end = time.monotonic() - flow.t0
+                if device.stop_recording(raw) and not failed:
+                    failed = "the recorder stopped before the flow ended (Android screenrecord stops at 180 s)"
+        finally:
+            if not args.dry_run:
+                device.clean_status_bar(False)
+            if any("textSize" in s for s in steps):
+                device.restore_text_size(saved_size)
 
     if failed:
         labels = sorted({text for text, _ in device.elements()})
@@ -475,8 +513,8 @@ def main():
 
     (video_dir / f"{name}.events.json").write_text(json.dumps(flow.events, indent=1))
     mp4.parent.mkdir(exist_ok=True)
-    encode(raw, mp4, flow.events, end, device, not args.no_taps, video_dir / "_tap.png")
-    (video_dir / "_tap.png").unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        encode(raw, mp4, flow.events, end, device, not args.no_taps, Path(tmp) / "tap.png")
     sheet = video_dir / f"{name}-sheet.png"
     contact_sheet(mp4, sheet)
     report(mp4, sheet)
