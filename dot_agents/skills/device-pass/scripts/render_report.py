@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Render a device-pass manifest as an HTML evidence gallery.
+"""Render a device-pass manifest as an HTML evidence page of comparison cards.
 
-Required: title, revision, target, scenarios.
-Each scenario: name, mode, browser, viewport, status (pass/fail/blocked),
-steps (strings), screenshots ({file, caption}); optional video (file) and
-findings (strings). Optional top-level findings and limitations are lists of
-strings. Artifact paths must be relative regular files inside the manifest
-directory, with no symlinks. Screenshots must be structurally complete PNG,
-JPEG, or WebP images.
+Usage: render_report.py <manifest.json> [--linked] [--cards]
 
-By default the report is a single self-contained HTML file with every
-screenshot embedded once. Use --linked for the older report that links to
-the evidence files beside it. Video is never embedded.
+Required: title, revision, target, cards. Each card has an id, a title, and
+at least one pane among device, figma, and widget. A pane is a path or an
+object with src and optional scale, cropTopPt, cropBottomPt, caption, and
+label; a kind can hold a list of panes. Optional: intro, environment,
+links, defaults, videos, journeys, findings, limitations. See
+references/gallery.md for the schema.
+
+By default the page is one self-contained HTML file with every image
+embedded once. --linked links the files beside it instead. Videos are never
+embedded; they play when the page sits in the evidence folder. --cards also
+exports each card as cards/<nn>-<id>.png with headless Chrome or Chromium.
+Artifact paths must be relative regular files inside the manifest folder,
+with no symlinks, and images must be complete PNG, JPEG, or WebP files.
 """
 
 import argparse
@@ -21,9 +25,12 @@ import html
 import json
 import os
 import re
+import shutil
 import stat
 import struct
+import subprocess
 import sys
+import tempfile
 import zlib
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
@@ -32,11 +39,22 @@ MAX_IMAGE_BYTES = 32 * 1024 * 1024
 MAX_TOTAL_IMAGE_BYTES = 256 * 1024 * 1024
 MAX_PNG_RAW_BYTES = 1024 * 1024 * 1024
 STATUSES = ('pass', 'fail', 'blocked')
-DEFAULT_SUBTITLE = 'A visual record of the tested journeys. Open any capture for a closer look.'
+KINDS = ('device', 'figma', 'widget')
+LABELS = {'device': 'Device', 'figma': 'Figma', 'widget': 'Widget'}
+CARD_ID = re.compile(r'[a-z0-9][a-z0-9-]{0,79}')
+VIDEO_TYPES = {'.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime'}
+EXPORT_WIDTH = 1600
+CHROMES = (
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    'google-chrome-stable', 'google-chrome', 'chromium', 'chromium-browser',
+)
 
 
 def text(value):
     return html.escape(str(value), quote=True)
+
+
 
 
 def image_mime(data):
@@ -211,6 +229,37 @@ def webp_is_valid(data):
     return webp_frame_is_valid(data, 30, len(data), bool(payload[0] & 0x02))
 
 
+def jpeg_size(data):
+    pos = 2
+    while pos + 4 <= len(data) - 2:
+        start = pos
+        marker, pos = jpeg_segment(data, pos)
+        if marker in JPEG_FRAMES:
+            height, width = struct.unpack('>HH', data[start + 5:start + 9])
+            return width, height
+    raise ValueError('JPEG has no frame header')
+
+
+def webp_size(data):
+    kind, payload = next(riff_chunks(data, 12, len(data)))
+    if kind == b'VP8 ':
+        width, height = struct.unpack('<HH', payload[6:10])
+        return width & 0x3FFF, height & 0x3FFF
+    if kind == b'VP8L':
+        bits = int.from_bytes(payload[1:5], 'little')
+        return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+    return int.from_bytes(payload[4:7], 'little') + 1, int.from_bytes(payload[7:10], 'little') + 1
+
+
+def image_size(data, mime):
+    """Pixel width and height of an image that already passed validation."""
+    if mime == 'image/png':
+        return struct.unpack('>II', data[16:24])
+    if mime == 'image/jpeg':
+        return jpeg_size(data)
+    return webp_size(data)
+
+
 IMAGE_CHECKS = {'image/png': ('PNG', png_is_valid), 'image/jpeg': ('JPEG', jpeg_is_valid), 'image/webp': ('WebP', webp_is_valid)}
 
 
@@ -307,11 +356,13 @@ class Images:
         self.total = 0
 
     def add(self, filename):
+        """Return (reference, width, height) for a validated image."""
         fd, relative = open_artifact(self.root, filename)
         data = read_artifact(fd, filename)
         mime = validate_image(data, filename)
+        width, height = image_size(data, mime)
         if not self.standalone:
-            return quote(relative.as_posix(), safe='/')
+            return quote(relative.as_posix(), safe='/'), width, height
         digest = hashlib.sha256(data).hexdigest()
         if digest not in self.payloads:
             self.total += len(data)
@@ -320,7 +371,7 @@ class Images:
                     f"Embedded screenshots exceed the {MAX_TOTAL_IMAGE_BYTES // (1024 * 1024)} MiB total limit "
                     f"at {filename}. Use --linked or split the pass; images are never downscaled or dropped.")
             self.payloads[digest] = {'mime': mime, 'data': base64.b64encode(data).decode('ascii')}
-        return digest
+        return digest, width, height
 
     def data_block(self):
         if not self.standalone:
@@ -338,74 +389,143 @@ def string_list(value, label):
     return value
 
 
-def screenshot_html(images, screenshot, index):
-    ref = images.add(screenshot['file'])
-    caption = text(screenshot['caption'])
+def number(value, label, minimum):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < minimum:
+        raise ValueError(f"{label} must be a number of at least {minimum}")
+    return value
+
+
+def fmt(value):
+    return f'{value:.1f}'.rstrip('0').rstrip('.')
+
+
+def pane_specs(card, kind, defaults):
+    """Yield merged pane settings for one kind of a card."""
+    specs = card.get(kind)
+    if not specs:
+        return
+    for spec in specs if isinstance(specs, list) else [specs]:
+        if isinstance(spec, str):
+            spec = {'src': spec}
+        if not isinstance(spec, dict) or not isinstance(spec.get('src'), str):
+            raise ValueError(f"Card {card['id']}: each {kind} pane needs a src path")
+        yield {**defaults.get(kind, {}), **spec}
+
+
+def pane(images, card, kind, spec):
+    ref, width, height = images.add(spec['src'])
+    label = f"Card {card['id']} {kind}"
+    scale = number(spec.get('scale', 1), f'{label} scale', 0.1)
+    top = number(spec.get('cropTopPt', 0), f'{label} cropTopPt', 0)
+    bottom = number(spec.get('cropBottomPt', 0), f'{label} cropBottomPt', 0)
+    w, h = width / scale, height / scale - top - bottom
+    if h <= 0:
+        raise ValueError(f"{label}: the crop removes the whole image ({spec['src']})")
+    return {'kind': kind, 'ref': ref, 'w': w, 'h': h, 'top': top, 'label': spec.get('label', LABELS[kind]),
+            'caption': spec.get('caption', '')}
+
+
+def frame_html(images, p, alt, extra=''):
     if images.standalone:
-        link, image = '#', f'<img data-img="{ref}" alt="{caption}">'
+        source = f'data-img="{p["ref"]}"'
     else:
-        link, image = ref, f'<img src="{ref}" alt="{caption}">'
-    return f'<figure class="shot"><a href="{link}" aria-label="Open {caption}"><div class="image-stage">{image}</div><figcaption><span class="shot-number">{index:02d}</span><span>{caption}</span></figcaption></a></figure>'
+        source = f'src="{text(p["ref"])}"'
+    style = f'--w:{fmt(p["w"])};--h:{fmt(p["h"])};--top:{fmt(p["top"])}'
+    return f'<div class="frame{extra}" style="{style}"><img {source} alt="{text(alt)}"></div>'
 
 
-def scenario_html(images, scenario, omitted):
-    status = scenario['status']
-    if status not in STATUSES:
-        raise ValueError(f"Invalid scenario status: {status}")
-    screenshots = scenario.get('screenshots', [])
-    if status == 'pass' and not screenshots:
-        raise ValueError(f"Passing scenario needs screenshots: {scenario['name']}")
-    details = ' · '.join(text(scenario[key]) for key in ('mode', 'browser', 'viewport'))
-    steps = ''.join(f'<li>{text(step)}</li>' for step in scenario['steps'])
-    shots = ''.join(screenshot_html(images, shot, i + 1) for i, shot in enumerate(screenshots))
-    findings = ''.join(f'<li>{text(item)}</li>' for item in string_list(scenario.get('findings'), f"Findings for {scenario['name']}"))
-    findings = f'<div class="findings"><p class="eyebrow">Findings</p><ul>{findings}</ul></div>' if findings else ''
-    video = ''
-    if scenario.get('video'):
-        relative = check_artifact(images.root, scenario['video'])
-        if images.standalone:
-            omitted.append(f"video {relative.as_posix()}")
-            video = f'<p class="video-note">Video not included in this portable file: {text(relative.as_posix())}</p>'
-        else:
-            video = f'<video controls preload="metadata" src="{quote(relative.as_posix(), safe="/")}"></video>'
-    mode = 'mobile' if 'mobile' in scenario['mode'].lower() else 'desktop'
-    return f'<section class="scenario {mode}" data-mode="{mode}"><div class="scenario-head"><div><h3>{text(scenario["name"])}</h3><p class="scenario-meta">{details}</p></div><span class="badge {status}">{status}</span></div><details class="steps"><summary>Journey · {len(scenario["steps"])} recorded steps</summary><ol>{steps}</ol></details>{findings}<div class="images">{shots}</div>{video}</section>'
+def card_html(images, card, defaults):
+    if not isinstance(card.get('id'), str) or not CARD_ID.fullmatch(card['id']):
+        raise ValueError(f"Card id must be lowercase letters, digits and dashes: {card.get('id')!r}")
+    if not isinstance(card.get('title'), str):
+        raise ValueError(f"Card {card['id']} needs a title")
+    panes = [pane(images, card, kind, spec) for kind in KINDS for spec in pane_specs(card, kind, defaults)]
+    if not panes:
+        raise ValueError(f"Card {card['id']} needs a device, figma, or widget pane")
+    figures = []
+    for p in panes:
+        caption = f'<span class="cap">{text(p["caption"])}</span>' if p['caption'] else ''
+        alt = f'{p["label"]}: {card["title"]}'
+        figures.append(
+            f'<figure class="pane" data-kind="{p["kind"]}" style="--w:{fmt(p["w"])}"><figcaption><b>{text(p["label"])}</b>'
+            f'<span class="dim">{fmt(p["w"])} × {fmt(p["h"])} pt</span>{caption}</figcaption>'
+            f'<button class="open" type="button" aria-label="Open {text(alt)}">{frame_html(images, p, alt)}</button></figure>')
+    overlay = ''
+    first = {}
+    for p in panes:
+        first.setdefault(p['kind'], p)
+    if 'device' in first and 'figma' in first:
+        d, f = first['device'], first['figma']
+        overlay = (
+            f'<details class="overlay"><summary>Overlay {text(d["label"])} on {text(f["label"])}</summary>'
+            f'<label>{text(d["label"])} opacity <input type="range" min="0" max="100" value="50"></label>'
+            f'<div class="stack">{frame_html(images, f, "")}{frame_html(images, d, "", " top")}</div></details>')
+    desc = f'<p class="desc">{text(card["desc"])}</p>' if card.get('desc') else ''
+    note = f'<p class="note">{text(card["note"])}</p>' if card.get('note') else ''
+    return (f'<section class="card" id="{card["id"]}"><h2>{text(card["title"])}</h2>{desc}'
+            f'<div class="panes">{"".join(figures)}</div>{overlay}{note}</section>')
 
 
-def outcome_summary(scenarios):
-    counts = {status: sum(item['status'] == status for item in scenarios) for status in STATUSES}
-    return ' · '.join(f'{counts[status]} {status}' for status in STATUSES)
+def video_html(images, video, omitted):
+    if not isinstance(video, dict) or not isinstance(video.get('src'), str):
+        raise ValueError('Each video needs a src path')
+    relative = check_artifact(images.root, video['src'])
+    kind = VIDEO_TYPES.get(relative.suffix.lower())
+    if not kind:
+        raise ValueError(f"Video must be MP4, WebM, or MOV: {video['src']}")
+    src = quote(relative.as_posix(), safe='/')
+    if images.standalone:
+        omitted.append(relative.as_posix())
+    title = text(video.get('title', relative.name))
+    desc = f'<p class="desc">{text(video["desc"])}</p>' if video.get('desc') else ''
+    return (f'<section class="video"><h2>{title}</h2>{desc}<video controls muted playsinline preload="metadata">'
+            f'<source src="{src}" type="{kind}"></video><p class="file mono">{text(relative.as_posix())}</p></section>')
 
 
-def report_context(data, standalone, omitted):
-    def block(title, items):
-        if not items:
-            return ''
-        return f'<p class="eyebrow">{title}</p><ul>' + ''.join(f'<li>{text(item)}</li>' for item in items) + '</ul>'
-
-    limitations = string_list(data.get('limitations'), 'limitations')
-    findings = string_list(data.get('findings'), 'findings')
-    body = f'<p class="revision mono">{text(data["revision"])}</p><p>{text(data["target"])}</p><p>Outcomes: {outcome_summary(data["scenarios"])}</p>'
-    body += block('Findings', findings) + block('Limitations', limitations)
-    if standalone:
-        body += block('Not included in this file', omitted)
-        return f'<details class="context" open><summary>Test environment, revision, findings & limitations</summary><div class="context-body">{body}</div></details>'
-    return f'<details class="context"><summary>Test environment, revision & limitations</summary><div class="context-body">{body}</div></details>'
-
-
-def report_stats(data, standalone):
-    scenarios = data['scenarios']
-    passed = sum(item['status'] == 'pass' for item in scenarios)
-    captures = sum(len(item.get('screenshots', [])) for item in scenarios)
-    source = '<strong>Embedded</strong><span>Self-contained file</span>' if standalone else '<strong>Local</strong><span>Evidence source</span>'
-    return f'<div class="stats"><div class="stat"><strong>{passed}/{len(scenarios)}</strong><span>Journeys passed</span></div><div class="stat"><strong>{captures:02d}</strong><span>Saved captures</span></div><div class="stat">{source}</div></div>'
+def journey_html(journey):
+    for key in ('name', 'mode', 'browser', 'viewport', 'status'):
+        if not isinstance(journey.get(key), str):
+            raise ValueError(f"Each journey needs {key}")
+    if journey['status'] not in STATUSES:
+        raise ValueError(f"Invalid journey status: {journey['status']}")
+    steps = ''.join(f'<li>{text(step)}</li>' for step in string_list(journey.get('steps'), f"Steps for {journey['name']}"))
+    findings = ''.join(f'<li>{text(item)}</li>' for item in string_list(journey.get('findings'), f"Findings for {journey['name']}"))
+    meta = ' · '.join(text(journey[key]) for key in ('mode', 'browser', 'viewport'))
+    body = f'<ol>{steps}</ol>' if steps else ''
+    body += f'<ul class="findings">{findings}</ul>' if findings else ''
+    return (f'<details class="journey"><summary><span class="status {journey["status"]}">{journey["status"]}</span>'
+            f'<b>{text(journey["name"])}</b><span class="dim">{meta}</span></summary>{body}</details>')
 
 
-def footer(standalone, omitted):
-    if not standalone:
-        return 'Pickforge · Device pass · Saved evidence, outside the application repository'
-    missing = f" Not included: {text(', '.join(omitted))}." if omitted else ' Nothing was left out.'
-    return f'Pickforge · Device pass · Self-contained file with every screenshot embedded.{missing}'
+def summary_html(data, omitted):
+    rows = [('Revision', data['revision']), ('Target', data['target'])]
+    rows += [('Environment', item) for item in string_list(data.get('environment'), 'environment')]
+    facts = ''.join(f'<dt>{label}</dt><dd>{text(value)}</dd>' for label, value in rows)
+    journeys = data.get('journeys') or []
+    if not isinstance(journeys, list):
+        raise ValueError('journeys must be a list')
+    blocks = ''.join(journey_html(item) for item in journeys)
+    for title, key in (('Findings', 'findings'), ('Limitations', 'limitations')):
+        items = string_list(data.get(key), key)
+        if items:
+            blocks += f'<h3>{title}</h3><ul>' + ''.join(f'<li>{text(item)}</li>' for item in items) + '</ul>'
+    if omitted:
+        blocks += '<h3>Kept beside this file</h3><ul>' + ''.join(
+            f'<li class="mono">{text(item)}</li>' for item in omitted) + '</ul>'
+    intro = f'<p class="intro">{text(data["intro"])}</p>' if data.get('intro') else ''
+    return f'<section class="summary">{intro}<dl>{facts}</dl>{blocks}</section>'
+
+
+def links_html(links):
+    if not isinstance(links, list):
+        raise ValueError('links must be a list')
+    out = []
+    for link in links:
+        url = str(link.get('url', '')) if isinstance(link, dict) else ''
+        if not re.match(r'https?://', url):
+            raise ValueError(f'Links need an http or https url: {link!r}')
+        out.append(f'<a href="{text(url)}" target="_blank" rel="noopener">{text(link.get("label", url))}</a>')
+    return ''.join(out)
 
 
 def script_hash(script):
@@ -413,34 +533,104 @@ def script_hash(script):
     return 'sha256-' + base64.b64encode(digest).decode('ascii')
 
 
-def render(manifest, standalone=True):
-    """Return (html, images) for a manifest; never writes any file."""
+def load(manifest):
+    data = json.loads(Path(manifest).read_text(encoding='utf-8'))
+    for key in ('title', 'revision', 'target'):
+        if not isinstance(data.get(key), str) or not data[key].strip():
+            raise ValueError(f"Manifest needs {key}")
+    cards = data.get('cards')
+    if not isinstance(cards, list) or not cards:
+        raise ValueError('Manifest needs at least one card')
+    ids = [card.get('id') for card in cards if isinstance(card, dict)]
+    if len(ids) != len(cards):
+        raise ValueError('Each card must be an object')
+    if len(set(ids)) != len(ids):
+        raise ValueError('Card ids must be unique')
+    defaults = data.get('defaults', {})
+    if not isinstance(defaults, dict) or not all(isinstance(v, dict) for v in defaults.values()):
+        raise ValueError('defaults must map a pane kind to its settings')
+    return data
+
+
+def render(manifest, standalone=True, only=None):
+    """Return (html, images) for a manifest; never writes any file.
+
+    only=<card id> renders that card alone, linked and without page chrome, for the PNG export.
+    """
     manifest = Path(manifest)
-    data = json.loads(manifest.read_text(encoding='utf-8'))
+    data = load(manifest)
     root = manifest.parent.resolve()
-    images = Images(root, standalone)
-    omitted = []
-    scenarios = ''.join(scenario_html(images, item, omitted) for item in data['scenarios'])
+    images = Images(root, standalone and only is None)
     assets = Path(__file__).parent
-    template = (assets / 'report.html').read_text(encoding='utf-8')
+    css = (assets / 'report.css').read_text(encoding='utf-8')
+    cards = [card for card in data['cards'] if only is None or card['id'] == only]
+    cards_html = ''.join(card_html(images, card, data.get('defaults', {})) for card in cards)
+    if only is not None:
+        base = text(root.as_uri() + '/')
+        return (f'<!doctype html><html lang="en" class="export"><head><meta charset="utf-8"><base href="{base}">'
+                f'<style>{css}</style></head><body><main>{cards_html}</main></body></html>'), images
+    omitted = []
+    videos = ''.join(video_html(images, video, omitted) for video in data.get('videos') or [])
     script = (assets / 'report.js').read_text(encoding='utf-8')
     if '</script' in script.lower():
         raise ValueError('report.js must not contain a closing script tag')
     head = ''
-    noscript = ''
-    if standalone:
-        policy = f"default-src 'none'; img-src blob:; style-src 'unsafe-inline'; script-src '{script_hash(script)}'; base-uri 'none'; form-action 'none'"
+    if images.standalone:
+        policy = (f"default-src 'none'; img-src blob:; media-src 'self' file:; style-src 'unsafe-inline'; "
+                  f"script-src '{script_hash(script)}'; base-uri 'none'; form-action 'none'")
         head = f'<meta http-equiv="Content-Security-Policy" content="{text(policy)}">'
-        noscript = '<noscript><p class="empty">Screenshots in this file need JavaScript to display. Allow scripts for this local file, or ask for the linked evidence folder.</p></noscript>'
     values = {
-        'HEAD': head, 'WORKSPACE': 'Self-contained evidence file' if standalone else 'Local evidence workspace', 'TITLE': text(data['title']), 'STATS': report_stats(data, standalone),
-        'SUBTITLE': text(data.get('subtitle', DEFAULT_SUBTITLE)),
-        'CONTEXT': report_context(data, standalone, omitted), 'SCENARIOS': scenarios,
-        'NOSCRIPT': noscript, 'FOOTER': footer(standalone, omitted),
-        'IMAGES': images.data_block(), 'CSS': (assets / 'report.css').read_text(encoding='utf-8'), 'JS': script,
-        'CAPTURES': str(sum(len(item.get('screenshots', [])) for item in data['scenarios'])),
+        'HEAD': head, 'TITLE': text(data['title']), 'LINKS': links_html(data.get('links') or []),
+        'SUMMARY': summary_html(data, omitted), 'VIDEOS': videos, 'CARDS': cards_html,
+        'IMAGES': images.data_block(), 'CSS': css, 'JS': script,
     }
+    template = (assets / 'report.html').read_text(encoding='utf-8')
     return re.sub(r'\{\{([A-Z]+)\}\}', lambda match: values[match[1]], template), images
+
+
+def find_chrome():
+    configured = os.environ.get('CHROME')
+    for candidate in ([configured] if configured else []) + list(CHROMES):
+        path = candidate if os.path.isabs(candidate) else shutil.which(candidate)
+        if path and os.access(path, os.X_OK):
+            return path
+    raise ValueError('Card export needs Chrome or Chromium; set CHROME to its path')
+
+
+def chrome(binary, page, *args):
+    command = [binary, '--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run',
+               '--allow-file-access-from-files', '--virtual-time-budget=4000', *args, page.as_uri()]
+    return subprocess.run(command, check=True, capture_output=True, text=True, timeout=120).stdout
+
+
+MEASURE = ("<script>addEventListener('load',()=>{const r=document.querySelector('.card').getBoundingClientRect();"
+           "document.body.dataset.size=Math.ceil(r.right+24)+'x'+Math.ceil(r.bottom+24)})</script></body>")
+
+
+def export_cards(manifest):
+    """Write cards/<nn>-<id>.png beside the manifest: one dark PNG per card, at 2x, cropped to the card."""
+    manifest = Path(manifest)
+    data = load(manifest)
+    binary = find_chrome()
+    out = manifest.parent / 'cards'
+    out.mkdir(exist_ok=True)
+    for old in out.glob('*.png'):
+        old.unlink()
+    written = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for n, card in enumerate(data['cards'], 1):
+            page_html, _ = render(manifest, only=card['id'])
+            page = Path(tmp) / f"{card['id']}.html"
+            page.write_text(page_html.replace('</body>', MEASURE), encoding='utf-8')
+            found = re.search(r'data-size="(\d+)x(\d+)"', chrome(binary, page, f'--window-size={EXPORT_WIDTH},8000', '--dump-dom'))
+            if not found:
+                raise ValueError(f"Could not measure card {card['id']}")
+            png = out / f"{n:02d}-{card['id']}.png"
+            page.write_text(page_html, encoding='utf-8')
+            chrome(binary, page, f'--window-size={found[1]},{found[2]}', '--force-device-scale-factor=2',
+                   f'--screenshot={png}')
+            written.append(png)
+    return written
 
 
 def size(count):
@@ -453,21 +643,25 @@ def size(count):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('manifest', type=Path)
-    parser.add_argument('--linked', action='store_true', help='link screenshots and video as files beside the report instead of embedding them')
+    parser.add_argument('--linked', action='store_true', help='link images and videos beside the page instead of embedding images')
+    parser.add_argument('--cards', action='store_true', help='also export one PNG per card to cards/ for a PR')
     args = parser.parse_args()
     try:
         report, images = render(args.manifest, standalone=not args.linked)
-    except (ValueError, OSError) as error:
+        output = args.manifest.with_suffix('.html')
+        output.write_text(report, encoding='utf-8')
+        print(output)
+        print(f'size: {size(output.stat().st_size)}')
+        if args.linked:
+            print('mode: linked; keep the images and videos beside the page when sharing')
+        else:
+            print(f'embedded images: {len(images.payloads)} unique, {size(images.total)} of original bytes')
+        if args.cards:
+            for png in export_cards(args.manifest):
+                print(png)
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
         print(f'error: {error}', file=sys.stderr)
         return 1
-    output = args.manifest.with_suffix('.html')
-    output.write_text(report, encoding='utf-8')
-    print(output)
-    print(f'size: {size(output.stat().st_size)}')
-    if args.linked:
-        print('mode: linked; keep the screenshots and video beside the report when sharing')
-    else:
-        print(f'embedded images: {len(images.payloads)} unique, {size(images.total)} of original bytes')
     return 0
 
 

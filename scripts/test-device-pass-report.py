@@ -61,23 +61,27 @@ def write_fixture(root):
         "title": "Checkout pass ✓ — café 日本語",
         "revision": "abc1234 (synthetic)",
         "target": "http://localhost:3000 · Chromium 140 · DPR 1 and 3, touch on mobile",
+        "environment": ["Chromium 140, 390x844 at DPR 3, touch"],
+        "links": [{"label": "PR", "url": "https://example.com/pr/1"}],
         "findings": ["Top-level finding: " + EVIL],
         "limitations": ["Safari and physical devices not tested", EVIL],
-        "scenarios": [
+        "defaults": {"device": {"scale": 2, "cropTopPt": 10, "caption": "status bar cropped (10 pt)"}},
+        "videos": [{"src": "shots/run.webm", "title": "Mobile menu", "desc": "Whole journey."}],
+        "journeys": [
             {"name": "Desktop checkout", "mode": "desktop", "browser": "Chromium 140", "viewport": "1440x1000",
-             "status": "pass", "steps": ["Open home", "Submit form"],
-             "screenshots": [{"file": "shots/desktop-home.png", "caption": "Home ünïcödé 🚀"},
-                             {"file": "shots/desktop-form.png", "caption": EVIL},
-                             {"file": "shots/desktop-home.png", "caption": "Home again, same file"}]},
+             "status": "pass", "steps": ["Open home", "Submit form"]},
             {"name": "Mobile menu", "mode": "mobile emulation", "browser": "Chromium 140", "viewport": "390x844",
-             "status": "fail", "steps": ["Open menu"], "findings": ["Menu overlaps footer"],
-             "screenshots": [{"file": "shots/mobile-menu.png", "caption": "Menu open"},
-                             {"file": "shots/mobile-copy.png", "caption": "Identical bytes, other file"},
-                             {"file": "shots/error.webp", "caption": "Error state (WebP)"},
-                             {"file": "shots/receipt.jpg", "caption": "Receipt (JPEG)"}],
-             "video": "shots/run.webm"},
+             "status": "fail", "steps": ["Open menu"], "findings": ["Menu overlaps footer"]},
             {"name": "Payment provider", "mode": "desktop", "browser": "Chromium 140", "viewport": "1440x1000",
-             "status": "blocked", "steps": ["Sandbox credentials unavailable"], "screenshots": []},
+             "status": "blocked", "steps": ["Sandbox credentials unavailable"]},
+        ],
+        "cards": [
+            {"id": "home", "title": "Home ünïcödé 🚀", "desc": "Desktop home.", "device": "shots/desktop-home.png",
+             "figma": {"src": "shots/desktop-form.png", "caption": EVIL}, "note": EVIL},
+            {"id": "menu", "title": EVIL, "device": [{"src": "shots/mobile-menu.png", "label": "Smallest"},
+                                                     {"src": "shots/mobile-copy.png", "label": "Largest"}],
+             "widget": {"src": "shots/error.webp", "scale": 1}},
+            {"id": "receipt", "title": "Receipt (JPEG)", "widget": "shots/receipt.jpg"},
         ],
     }
     (root / "pass.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
@@ -107,7 +111,7 @@ class DevicePassReportTests(unittest.TestCase):
         self.manifest.write_text(json.dumps(data), encoding="utf-8")
 
     def set_first_file(self, name):
-        self.edit(lambda data: data["scenarios"][0]["screenshots"][0].update(file=name))
+        self.edit(lambda data: data["cards"][0].update(device=name))
 
     def assert_rejected(self, name, message):
         self.set_first_file(name)
@@ -118,23 +122,64 @@ class DevicePassReportTests(unittest.TestCase):
     def test_statuses_unicode_and_context_render(self):
         report, _ = module.render(self.manifest)
         for status in ("pass", "fail", "blocked"):
-            self.assertIn(f'<span class="badge {status}">{status}</span>', report)
+            self.assertIn(f'<span class="status {status}">{status}</span>', report)
         self.assertIn("Home ünïcödé 🚀", report)
         self.assertIn("café 日本語", report)
-        self.assertIn("Outcomes: 1 pass · 1 fail · 1 blocked", report)
         self.assertIn("Menu overlaps footer", report)
         self.assertIn("Safari and physical devices not tested", report)
         self.assertIn("390x844", report)
-        self.assertIn('<details class="context" open>', report)
-        self.assertIn("Self-contained file", report)
-        self.assertIn("<span>Self-contained evidence file</span></header>", report)
-        self.assertNotIn("Local evidence workspace", report)
+        self.assertIn("<dt>Environment</dt><dd>Chromium 140, 390x844 at DPR 3, touch</dd>", report)
+        self.assertIn('<a href="https://example.com/pr/1" target="_blank" rel="noopener">PR</a>', report)
+
+    def test_cards_carry_no_status(self):
+        report, _ = module.render(self.manifest)
+        for card in re.findall(r'<section class="card".*?</section>', report, re.S):
+            self.assertNotIn('class="status', card)
 
     def test_both_modes_keep_steps_collapsed(self):
         for standalone in (True, False):
             report, _ = module.render(self.manifest, standalone=standalone)
-            self.assertEqual(report.count('<details class="steps">'), 3)
-            self.assertNotIn('<details class="steps" open', report)
+            self.assertEqual(report.count('<details class="journey">'), 3)
+            self.assertNotIn('<details class="journey" open', report)
+
+    def test_crop_and_scale_set_point_sizes(self):
+        report, _ = module.render(self.manifest)
+        # 320x200 px at scale 2 with a 10 pt top crop is 160 x 90 pt.
+        self.assertIn('style="--w:160;--h:90;--top:10"', report)
+        self.assertIn("160 × 90 pt", report)
+        # The figma pane has no defaults: scale 1, no crop.
+        self.assertIn('style="--w:320;--h:200;--top:0"', report)
+        self.assertIn("16 × 16 pt", report)
+        self.assertIn("Overlay Device on Figma", report)
+        self.assertEqual(report.count('<details class="overlay">'), 1)
+
+    def test_image_sizes_are_read_for_each_type(self):
+        self.assertEqual(module.image_size(png(3, 2, (1, 2, 3)), "image/png"), (3, 2))
+        self.assertEqual(module.image_size(PNG_INTERLACED, "image/png"), (5, 3))
+        self.assertEqual(module.image_size(JPEG, "image/jpeg"), (16, 16))
+        self.assertEqual(module.image_size(WEBP, "image/webp"), (16, 16))
+        self.assertEqual(module.image_size(WEBP_LOSSLESS, "image/webp"), (21, 11))
+
+    def test_invalid_cards_are_rejected(self):
+        cases = [
+            (lambda d: d["cards"][0].update(cropTopPt=1, device={"src": "shots/desktop-home.png", "cropTopPt": 100}), "removes the whole image"),
+            (lambda d: d["cards"][0].update(id="../x"), "Card id"),
+            (lambda d: d["cards"][1].update(id="home"), "unique"),
+            (lambda d: d.update(cards=[{"id": "empty", "title": "Empty"}]), "needs a device, figma, or widget pane"),
+            (lambda d: d.update(cards=[]), "at least one card"),
+            (lambda d: d["cards"][0].update(device={"src": "shots/desktop-home.png", "scale": 0}), "scale must be"),
+            (lambda d: d.update(links=[{"label": "x", "url": "javascript:alert(1)"}]), "http or https"),
+            (lambda d: d["journeys"][0].update(status="ok"), "Invalid journey status"),
+            (lambda d: d["videos"][0].update(src="shots/desktop-home.png"), "MP4, WebM, or MOV"),
+            (lambda d: d.pop("revision"), "needs revision"),
+        ]
+        original = self.manifest.read_text(encoding="utf-8")
+        for change, message in cases:
+            with self.subTest(message=message):
+                self.manifest.write_text(original, encoding="utf-8")
+                self.edit(change)
+                with self.assertRaisesRegex(ValueError, message):
+                    module.render(self.manifest)
 
     def test_malicious_text_is_inert(self):
         report, _ = module.render(self.manifest)
@@ -165,7 +210,7 @@ class DevicePassReportTests(unittest.TestCase):
         evil = png(4, 4, (9, 9, 9))
         (outside / "desktop-home.png").write_bytes(evil)
         original = (self.root / "shots/desktop-home.png").read_bytes()
-        self.edit(lambda data: data.update(scenarios=[{**data["scenarios"][0], "screenshots": [data["scenarios"][0]["screenshots"][0]]}]))
+        self.edit(lambda data: data.update(videos=[], cards=[{"id": "one", "title": "One", "device": "shots/desktop-home.png"}]))
         real_open = module.os.open
 
         def run(trigger):
@@ -197,7 +242,7 @@ class DevicePassReportTests(unittest.TestCase):
         self.assert_rejected("shots/nope.png", "Missing evidence artifact")
         self.assert_rejected("notes.png", "Unsupported screenshot type")
         self.set_first_file("shots/desktop-home.png")
-        self.edit(lambda data: data["scenarios"][1].update(video="../outside.webm"))
+        self.edit(lambda data: data["videos"][0].update(src="../outside.webm"))
         with self.assertRaisesRegex(ValueError, "inside the evidence folder"):
             module.render(self.manifest)
 
@@ -288,17 +333,15 @@ class DevicePassReportTests(unittest.TestCase):
             self.assertEqual(report.count(item["data"]), 1)
         self.assertEqual(payloads[next(d for d, b in originals.items() if b.startswith(b"RIFF"))]["mime"], "image/webp")
         self.assertEqual(images.total, sum(len(b) for b in originals.values()))
-        self.assertEqual(len(re.findall(r'<img data-img="[0-9a-f]{64}"', report)), 7)
+        # Six panes plus the two overlay layers.
+        self.assertEqual(len(re.findall(r'<img data-img="[0-9a-f]{64}"', report)), 8)
 
-    def test_standalone_has_no_external_or_relative_references(self):
+    def test_standalone_references_only_the_video_and_links(self):
         report, _ = module.render(self.manifest)
         markup = re.sub(r'<script type="application/json" id="images">.*?</script>', "", report, flags=re.S)
-        self.assertIsNone(re.search(r"https?:|//[a-z]", markup.replace("http://localhost:3000", ""), re.I))
-        for attr, value in re.findall(r'\b(src|href)="([^"]*)"', report):
-            self.assertTrue(value.startswith("#"), f"{attr}={value}")
-        self.assertNotIn("<video", report)
-        self.assertIn("Video not included in this portable file: shots/run.webm", report)
-        self.assertIn("Not included: video shots/run.webm", report)
+        refs = re.findall(r'\b(src|href)="([^"]*)"', markup)
+        self.assertEqual(refs, [("href", "https://example.com/pr/1"), ("src", "shots/run.webm")])
+        self.assertIn("<h3>Kept beside this file</h3>", report)
         self.assertIn("<noscript>", report)
 
     def test_csp_hash_matches_inline_script(self):
@@ -309,7 +352,7 @@ class DevicePassReportTests(unittest.TestCase):
         digest = base64.b64encode(hashlib.sha256(scripts[0].encode()).digest()).decode()
         self.assertIn(f"script-src 'sha256-{digest}'", csp)
         self.assertNotIn("data:", csp)
-        for directive in ("default-src 'none'", "img-src blob:", "style-src 'unsafe-inline'", "base-uri 'none'", "form-action 'none'"):
+        for directive in ("default-src 'none'", "img-src blob:", "media-src 'self' file:", "style-src 'unsafe-inline'", "base-uri 'none'", "form-action 'none'"):
             self.assertIn(directive, csp)
 
     def test_cli_writes_only_report_and_keeps_evidence_unchanged(self):
@@ -348,12 +391,30 @@ class DevicePassReportTests(unittest.TestCase):
     def test_linked_mode_keeps_relative_links(self):
         report, _ = module.render(self.manifest, standalone=False)
         self.assertIn('<img src="shots/desktop-home.png"', report)
-        self.assertIn('<a href="shots/desktop-form.png"', report)
-        self.assertIn('<video controls preload="metadata" src="shots/run.webm">', report)
+        self.assertIn('<source src="shots/run.webm" type="video/webm">', report)
         self.assertNotIn('id="images"', report)
         self.assertNotIn("Content-Security-Policy", report)
-        self.assertIn("Saved evidence, outside the application repository", report)
-        self.assertIn("<span>Local evidence workspace</span></header>", report)
+        self.assertNotIn("Kept beside this file", report)
+
+    def test_export_page_holds_one_card_without_script(self):
+        page, _ = module.render(self.manifest, only="menu")
+        self.assertEqual(page.count('<section class="card"'), 1)
+        self.assertIn('id="menu"', page)
+        self.assertIn(f'<base href="{self.root.resolve().as_uri()}/">', page)
+        self.assertIn('<img src="shots/mobile-menu.png"', page)
+        self.assertNotIn("<script", page)
+        self.assertNotIn("Desktop checkout", page)
+
+    @unittest.skipUnless(any(shutil.which(c) or os.path.exists(c) for c in module.CHROMES), "needs Chrome or Chromium")
+    def test_cards_export_one_png_per_card(self):
+        written = module.export_cards(self.manifest)
+        self.assertEqual([p.name for p in written], ["01-home.png", "02-menu.png", "03-receipt.png"])
+        for path in written:
+            data = path.read_bytes()
+            self.assertEqual(module.validate_image(data, path.name), "image/png")
+            width, height = module.image_size(data, "image/png")
+            self.assertLess(width, module.EXPORT_WIDTH * 2)
+            self.assertGreater(height, 100)
 
 
 if __name__ == "__main__":

@@ -14,93 +14,56 @@ if (imageData) {
     if (urls[img.dataset.img]) img.src = urls[img.dataset.img];
   });
 }
-const dialog = document.getElementById("viewer");
-const shots = [...document.querySelectorAll(".shot a")];
-let current = 0;
-let mode = "all";
-function visibleShots() {
-  return shots.filter(
-    (shot) =>
-      !shot.closest(".scenario").hidden && !shot.closest(".shot").hidden,
-  );
-}
-function updateViewer() {
-  const shot = shots[current];
-  const thumbnail = shot.querySelector("img");
-  const img = document.getElementById("viewer-image");
-  img.src = thumbnail.src;
-  img.alt = thumbnail.alt;
-  document.getElementById("viewer-title").textContent = img.alt;
-  const original = document.getElementById("original");
-  original.hidden = Boolean(thumbnail.dataset.img);
-  if (!original.hidden) original.href = shot.href;
-  const visible = visibleShots();
-  const index = visible.indexOf(shot);
-  document.getElementById("position").textContent =
-    `${index + 1} / ${visible.length} · ← → to browse`;
-  document.getElementById("previous").disabled = index === 0;
-  document.getElementById("next").disabled = index === visible.length - 1;
-  document.querySelector(".viewer-stage").classList.remove("zoom");
-  document.getElementById("zoom").setAttribute("aria-pressed", "false");
-  document.getElementById("zoom").textContent = "Actual size";
-}
-function move(delta) {
-  const visible = visibleShots();
-  const index = visible.indexOf(shots[current]) + delta;
-  if (index < 0 || index >= visible.length) return;
-  current = shots.indexOf(visible[index]);
-  updateViewer();
-}
-shots.forEach((shot, index) =>
-  shot.addEventListener("click", (event) => {
-    event.preventDefault();
-    current = index;
-    updateViewer();
-    dialog.showModal();
-  }),
-);
-document
-  .getElementById("close")
-  .addEventListener("click", () => dialog.close());
-document.getElementById("previous").addEventListener("click", () => move(-1));
-document.getElementById("next").addEventListener("click", () => move(1));
-dialog.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowRight") move(1);
-  if (event.key === "ArrowLeft") move(-1);
+
+const zoom = document.getElementById("zoom");
+const zoomValue = document.getElementById("zoom-value");
+zoom.addEventListener("input", () => {
+  document.documentElement.style.setProperty("--zoom", zoom.value / 100);
+  zoomValue.textContent = `${zoom.value}%`;
 });
-document.getElementById("zoom").addEventListener("click", (event) => {
-  const zoom = document.querySelector(".viewer-stage").classList.toggle("zoom");
-  event.currentTarget.setAttribute("aria-pressed", String(zoom));
-  event.currentTarget.textContent = zoom ? "Fit to view" : "Actual size";
-});
-function filterScenario(section, query) {
-  const matchesMode = mode === "all" || section.dataset.mode === mode;
-  let count = 0;
-  section.querySelectorAll(".shot").forEach((shot) => {
-    const match = shot.textContent.toLowerCase().includes(query);
-    shot.hidden = !match;
-    if (match) count++;
+
+document.querySelectorAll(".overlay input").forEach((slider) => {
+  slider.addEventListener("input", () => {
+    slider.closest(".overlay").querySelector(".top").style.opacity =
+      slider.value / 100;
   });
-  section.hidden = !matchesMode || count === 0;
-  return section.hidden ? 0 : count;
+});
+
+const dialog = document.getElementById("viewer");
+const opens = [...document.querySelectorAll("button.open")];
+let current = 0;
+function show(index) {
+  current = index;
+  const source = opens[index].querySelector("img");
+  const img = document.getElementById("viewer-image");
+  img.src = source.src;
+  img.alt = source.alt;
+  document.getElementById("viewer-title").textContent = source.alt;
+  document.getElementById("position").textContent =
+    `${index + 1} / ${opens.length}`;
+  document.getElementById("previous").disabled = index === 0;
+  document.getElementById("next").disabled = index === opens.length - 1;
 }
-function filter() {
-  const query = document.getElementById("search").value.toLowerCase().trim();
-  let count = 0;
-  document
-    .querySelectorAll(".scenario")
-    .forEach((section) => (count += filterScenario(section, query)));
-  document.getElementById("result-count").textContent = `${count} captures`;
-  document.getElementById("empty").hidden = count > 0;
-}
-document.querySelectorAll("[data-filter]").forEach((button) =>
+opens.forEach((button, index) => {
   button.addEventListener("click", () => {
-    mode = button.dataset.filter;
-    document.querySelectorAll("[data-filter]").forEach((item) => {
-      item.classList.toggle("active", item === button);
-      item.setAttribute("aria-pressed", String(item === button));
-    });
-    filter();
-  }),
-);
-document.getElementById("search").addEventListener("input", filter);
+    show(index);
+    dialog.showModal();
+  });
+});
+document.getElementById("previous").addEventListener("click", () => {
+  if (current > 0) show(current - 1);
+});
+document.getElementById("next").addEventListener("click", () => {
+  if (current < opens.length - 1) show(current + 1);
+});
+document.getElementById("close").addEventListener("click", () => dialog.close());
+dialog.addEventListener("click", (event) => {
+  if (event.target === dialog) dialog.close();
+});
+dialog.addEventListener("close", () => opens[current]?.focus());
+document.addEventListener("keydown", (event) => {
+  if (!dialog.open) return;
+  if (event.key === "ArrowLeft" && current > 0) show(current - 1);
+  if (event.key === "ArrowRight" && current < opens.length - 1)
+    show(current + 1);
+});

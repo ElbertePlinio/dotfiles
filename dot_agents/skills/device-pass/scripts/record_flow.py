@@ -1,0 +1,486 @@
+#!/usr/bin/env python3
+"""Replay a flow on a phone at a human pace and record it as evidence.
+
+Usage:
+  record_flow.py (--udid <udid> | --serial <serial>) [--dry-run] [--seed N] [--no-taps] <evidence>/raw/video/<name>.flow.json
+  record_flow.py --sheet <video.mp4>
+
+--udid drives an iOS Simulator (xcrun simctl, idb). --serial drives an Android device or emulator (adb).
+The flow file is a JSON list of steps, one key each (plus options). A label is the iOS AXLabel, or the
+Android content-desc (Flutter semantics label) or text of a node in `uiautomator dump`.
+  {"open": "scheme://path"}                         open a deep link
+  {"wait": "Label", "timeout": 20}                  wait until an element shows (default 15 s)
+  {"tap": "Label"}                                  tap the element whose label is exactly Label
+  {"tap": "Part", "contains": true, "index": 1}     substring match; index picks the nth match
+  {"tapAt": [x, y]}                                 tap a point (iOS pt, Android px), for icon-only buttons
+  {"type": "Ella"}                                  type into the focused field, one key at a time (ASCII)
+  {"scroll": "down", "distance": 300}               swipe so the page moves down (or "up"), in pt or px
+  {"pause": 1.5}                                    hold still, in seconds
+  {"textSize": "largest"}                           live text size change: smallest, default, largest
+
+A recording writes raw/video/<name>.raw.<ext>, <name>.events.json, <name>-sheet.png and
+<evidence>/videos/<name>.mp4. A dry run plays the steps fast, records nothing and stops at the first
+step that fails. --sheet only writes a frame sheet beside any video, such as a browser recording.
+"""
+import argparse
+import json
+import math
+import random
+import re
+import signal
+import subprocess
+import sys
+import threading
+import time
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+MAX_WIDTH = 720
+SHEET_FRAMES = 24
+GITHUB_LIMIT_MB = 100
+
+
+class StepFailed(Exception):
+    pass
+
+
+def run(*cmd, check=True):
+    return subprocess.run(cmd, check=check, capture_output=True, text=True)
+
+
+class IOS:
+    """iOS Simulator through simctl and idb. Coordinates are in points."""
+
+    TEXT_SIZES = {"smallest": "extra-small", "default": "large", "largest": "accessibility-extra-extra-extra-large"}
+    raw_suffix = ".mov"
+    dot_pt = 44
+
+    def __init__(self, udid):
+        self.udid = udid
+        self.screen = None
+
+    def elements(self):
+        out = run("idb", "ui", "describe-all", "--udid", self.udid).stdout
+        nodes = json.loads(out)
+        if self.screen is None:
+            frame = next(e["frame"] for e in nodes if e.get("type") == "Application")
+            self.screen = {"width": frame["width"], "height": frame["height"]}
+        found = []
+        for e in nodes:
+            f = e.get("frame") or {}
+            if not (f.get("width") and f.get("height") and e.get("AXLabel")):
+                continue
+            cx, cy = f.get("x", 0) + f["width"] / 2, f.get("y", 0) + f["height"] / 2
+            if 0 <= cx <= self.screen["width"] and 0 <= cy <= self.screen["height"]:
+                found.append((e["AXLabel"], (cx, cy)))
+        return found
+
+    def open(self, url):
+        run("xcrun", "simctl", "openurl", self.udid, url)
+
+    def tap(self, x, y):
+        run("idb", "ui", "tap", "--udid", self.udid, str(round(x)), str(round(y)))
+
+    def key(self, ch):
+        run("idb", "ui", "text", "--udid", self.udid, ch)
+
+    def swipe(self, x, y1, y2):
+        run("idb", "ui", "swipe", "--udid", self.udid, "--duration", "0.4", "--delta", "12",
+            str(round(x)), str(round(y1)), str(round(x)), str(round(y2)))
+
+    def text_size(self, size, recording):
+        run("xcrun", "simctl", "ui", self.udid, "content_size", self.TEXT_SIZES[size])
+
+    def save_text_size(self):
+        return None
+
+    def restore_text_size(self, saved):
+        pass
+
+    def clean_status_bar(self, on):
+        if on:
+            run("xcrun", "simctl", "status_bar", self.udid, "override", "--time", "9:41",
+                "--dataNetwork", "wifi", "--wifiMode", "active", "--wifiBars", "3",
+                "--cellularMode", "active", "--cellularBars", "4",
+                "--batteryState", "charged", "--batteryLevel", "100")
+        else:
+            run("xcrun", "simctl", "status_bar", self.udid, "clear", check=False)
+
+    def start_recording(self, raw):
+        self.proc = subprocess.Popen(
+            ["xcrun", "simctl", "io", self.udid, "recordVideo", "--codec=h264", "--force", str(raw)],
+            stderr=subprocess.PIPE, text=True)
+        started = threading.Event()
+
+        def watch():
+            for line in self.proc.stderr:
+                if "Recording started" in line:
+                    started.set()
+
+        threading.Thread(target=watch, daemon=True).start()
+        if not started.wait(20):
+            self.proc.send_signal(signal.SIGINT)
+            raise SystemExit("simctl recordVideo did not start within 20 s")
+
+    def stop_recording(self, raw):
+        self.proc.send_signal(signal.SIGINT)
+        self.proc.wait(timeout=60)
+
+    def labels_hint(self):
+        return "AXLabel from `idb ui describe-all`"
+
+
+class Android:
+    """Android device or emulator through adb. Coordinates are in pixels."""
+
+    FONT_SCALES = {"smallest": "0.85", "default": "1.0", "largest": "2.0"}
+    BOUNDS = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
+    DEVICE_FILE = "/sdcard/device-pass-recording.mp4"
+    raw_suffix = ".mp4"
+
+    def __init__(self, serial):
+        self.serial = serial
+        self.screen = None
+
+    @property
+    def dot_pt(self):
+        # 48 px on a 1080 px wide screen, scaled to other widths.
+        return 48 * self.screen["width"] / 1080
+
+    def adb(self, *args, check=True):
+        return run("adb", "-s", self.serial, *args, check=check)
+
+    def shell(self, *args, check=True):
+        return self.adb("shell", *args, check=check)
+
+    def elements(self):
+        for _ in range(5):
+            out = self.adb("exec-out", "uiautomator", "dump", "/dev/tty", check=False).stdout
+            start, end = out.find("<?xml"), out.rfind("</hierarchy>")
+            if start >= 0 and end > start:
+                break
+            time.sleep(0.5)  # uiautomator fails while the screen animates
+        else:
+            raise StepFailed("uiautomator dump returned no hierarchy; is the screen unlocked?")
+        found = []
+        for node in ET.fromstring(out[start:end + len("</hierarchy>")]).iter("node"):
+            m = self.BOUNDS.fullmatch(node.get("bounds", ""))
+            if not m:
+                continue
+            x1, y1, x2, y2 = map(int, m.groups())
+            if self.screen is None:
+                self.screen = {"width": x2, "height": y2}
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            if x2 <= x1 or y2 <= y1 or not (0 <= cx <= self.screen["width"] and 0 <= cy <= self.screen["height"]):
+                continue
+            for label in {node.get("content-desc") or "", node.get("text") or ""} - {""}:
+                found.append((label, (cx, cy)))
+        return found
+
+    def open(self, url):
+        self.shell("am", "start", "-a", "android.intent.action.VIEW", "-d", "'" + url.replace("'", "'\\''") + "'")
+
+    def tap(self, x, y):
+        self.shell("input", "tap", str(round(x)), str(round(y)))
+
+    def key(self, ch):
+        self.shell("input", "text", "%s" if ch == " " else "'" + ch.replace("'", "'\\''") + "'")
+
+    def swipe(self, x, y1, y2):
+        self.shell("input", "swipe", str(round(x)), str(round(y1)), str(round(x)), str(round(y2)), "400")
+
+    def text_size(self, size, recording):
+        self.shell("settings", "put", "system", "font_scale", self.FONT_SCALES[size])
+        if recording:
+            time.sleep(0.5)  # a font change reloads the status bar and drops demo mode
+            self.clean_status_bar(True)
+
+    def save_text_size(self):
+        value = self.shell("settings", "get", "system", "font_scale", check=False).stdout.strip()
+        return value if re.fullmatch(r"\d+(\.\d+)?", value) else None
+
+    def restore_text_size(self, saved):
+        if saved:
+            self.shell("settings", "put", "system", "font_scale", saved, check=False)
+
+    def clean_status_bar(self, on):
+        """Demo mode: 9:41, full battery, full wifi, no mobile icon, no notifications."""
+        def demo(command, *extras):
+            self.shell("am", "broadcast", "-a", "com.android.systemui.demo", "-e", "command", command, *extras,
+                       check=False)
+
+        if not on:
+            demo("exit")
+            return
+        self.shell("settings", "put", "global", "sysui_demo_allowed", "1", check=False)
+        demo("enter")
+        demo("clock", "-e", "hhmm", "0941")
+        demo("battery", "-e", "level", "100", "-e", "plugged", "false")
+        demo("network", "-e", "fully", "true")
+        demo("network", "-e", "wifi", "show", "-e", "level", "4")
+        demo("network", "-e", "mobile", "hide")
+        demo("notifications", "-e", "visible", "false")
+
+    def start_recording(self, raw):
+        self.shell("rm", "-f", self.DEVICE_FILE, check=False)
+        self.proc = subprocess.Popen(
+            ["adb", "-s", self.serial, "shell", "screenrecord", "--bit-rate", "8000000", "--time-limit", "180",
+             self.DEVICE_FILE],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        deadline = time.monotonic() + 10
+        while self.shell("pidof", "screenrecord", check=False).returncode != 0:
+            if self.proc.poll() is not None or time.monotonic() > deadline:
+                self.proc.kill()
+                raise SystemExit(f"screenrecord did not start: {self.proc.stderr.read().strip()}")
+            time.sleep(0.2)
+
+    def stop_recording(self, raw):
+        self.shell("pkill", "-INT", "screenrecord", check=False)
+        # screenrecord writes the mp4 trailer after SIGINT; pull only once it has exited on the device.
+        deadline = time.monotonic() + 30
+        while self.shell("pidof", "screenrecord", check=False).returncode == 0 and time.monotonic() < deadline:
+            time.sleep(0.3)
+        try:
+            self.proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+        self.adb("pull", self.DEVICE_FILE, str(raw))
+        self.shell("rm", "-f", self.DEVICE_FILE, check=False)
+
+    def labels_hint(self):
+        return "content-desc or text from `adb exec-out uiautomator dump /dev/tty`"
+
+
+class Flow:
+    def __init__(self, device, dry_run, seed):
+        self.device = device
+        self.dry = dry_run
+        self.rng = random.Random(seed)
+        self.t0 = None
+        self.last_action = time.monotonic()
+        self.events = []
+
+    def find(self, step, key):
+        label = step[key]
+        timeout = step.get("timeout", 15)
+        deadline = time.monotonic() + timeout
+        while True:
+            hits = [xy for text, xy in self.device.elements()
+                    if (label in text if step.get("contains") else text == label)]
+            if len(hits) > step.get("index", 0):
+                return hits[step.get("index", 0)]
+            if time.monotonic() > deadline:
+                raise StepFailed(f'no element "{label}" after {timeout} s')
+            time.sleep(0.25)
+
+    def dwell(self, low, high, floor=0.0):
+        """Sleep so the next action lands a human pause after the last one."""
+        if self.dry:
+            return
+        target = self.rng.uniform(low, high)
+        time.sleep(max(floor, target - (time.monotonic() - self.last_action)))
+
+    def stamp(self, action, x=None, y=None):
+        self.last_action = time.monotonic()
+        if self.t0 is not None:
+            self.events.append({"t": round(self.last_action - self.t0, 3), "action": action, "x": x, "y": y})
+
+    def tap(self, x, y):
+        self.device.tap(x, y)
+        self.stamp("tap", x, y)
+
+    def step(self, step):
+        d = self.device
+        if "open" in step:
+            d.open(step["open"])
+            self.stamp("open")
+        elif "wait" in step:
+            self.find(step, "wait")
+        elif "tap" in step:
+            x, y = self.find(step, "tap")
+            self.dwell(0.8, 1.3, floor=0.5)
+            self.tap(x, y)
+        elif "tapAt" in step:
+            self.dwell(0.8, 1.3)
+            self.tap(*step["tapAt"])
+        elif "type" in step:
+            text = step["type"]
+            if not text.isascii():
+                raise StepFailed("typing supports ASCII only")
+            self.dwell(0.5, 0.8)
+            for ch in text:
+                d.key(ch)
+                self.stamp("key")
+                self.dwell(0.06, 0.16)
+        elif "scroll" in step:
+            if d.screen is None:
+                d.elements()
+            w, h = d.screen["width"], d.screen["height"]
+            dist = min(step.get("distance", h * 0.4), h * 0.7)
+            y1 = h * 0.65 if step["scroll"] == "down" else h * 0.35
+            y2 = y1 - dist if step["scroll"] == "down" else y1 + dist
+            self.dwell(0.8, 1.3)
+            d.swipe(w / 2, y1, y2)
+            self.stamp("scroll")
+        elif "pause" in step:
+            if not self.dry:
+                time.sleep(step["pause"])
+        elif "textSize" in step:
+            if step["textSize"] not in ("smallest", "default", "largest"):
+                raise StepFailed("textSize is smallest, default or largest")
+            self.dwell(0.8, 1.2)
+            d.text_size(step["textSize"], recording=self.t0 is not None)
+            self.stamp("textSize")
+        else:
+            raise StepFailed(f"unknown step {step}")
+
+
+def probe(path):
+    out = run("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+              "-show_entries", "format=duration", "-of", "json", str(path)).stdout
+    data = json.loads(out)
+    s = data["streams"][0]
+    # A recording of a still screen can hold one frame and no duration.
+    return s["width"], s["height"], float(data["format"].get("duration", 0))
+
+
+def encode(raw, mp4, events, end, device, draw_taps, tap_png):
+    if raw.suffix == ".mov":
+        # simctl can write bad decode timestamps at the end of the .mov, and ffmpeg then runs the screens ahead
+        # of the tap log. A stream copy into .mkv keeps the real frame times.
+        remux = raw.with_suffix(".mkv")
+        run("ffmpeg", "-v", "error", "-y", "-i", str(raw), "-c", "copy", str(remux))
+        raw = remux
+    vw, _, raw_duration = probe(raw)
+    scale = vw / device.screen["width"]
+    taps = [e for e in events if e["action"] == "tap"] if draw_taps else []
+    # A still screen gives one frame with no duration, which filters drop unless the input has a rate.
+    inputs = ["-r", "30", "-i", str(raw)] if raw_duration == 0 else ["-i", str(raw)]
+    # Both recorders write a frame only when the screen changes, so pad the still tail back to the real end.
+    graph = [f"[0:v]tpad=stop_mode=clone:stop_duration={max(0, end - raw_duration):.3f},fps=30[v0]"]
+    if taps:
+        # Neither platform draws a touch for injected taps, so draw a grey dot from the tap log.
+        d = round(device.dot_pt * scale)
+        r = d / 2
+        run("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=black@0:s={d}x{d},format=rgba",
+            "-vf", f"geq=r=90:g=90:b=90:a='if(lt(hypot(X-{r},Y-{r}),{r * 0.85}),110,"
+                   f"if(lt(hypot(X-{r},Y-{r}),{r}),200,0))'",
+            "-frames:v", "1", str(tap_png))
+        inputs += ["-i", str(tap_png)]
+        graph.append(f"[1:v]split={len(taps)}" + "".join(f"[d{i}]" for i in range(len(taps))))
+        for i, e in enumerate(taps):
+            # The tap command returns just after the touch, so the dot starts a little before the stamp.
+            a, b = max(0, e["t"] - 0.1), e["t"] + 0.4
+            x, y = round(e["x"] * scale - r), round(e["y"] * scale - r)
+            graph.append(f"[v{i}][d{i}]overlay={x}:{y}:enable='between(t,{a:.3f},{b:.3f})'[v{i + 1}]")
+    graph.append(f"[v{len(taps)}]scale='min({MAX_WIDTH},iw)':-2,format=yuv420p[out]")
+    run("ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(graph), "-map", "[out]",
+        "-c:v", "libx264", "-preset", "slow", "-crf", "26", "-movflags", "+faststart", "-an", str(mp4))
+
+
+def contact_sheet(video, sheet):
+    _, _, duration = probe(video)
+    if duration <= 0:
+        raise SystemExit(f"video has no duration: {video}")
+    frames = min(SHEET_FRAMES, max(1, math.ceil(duration)))
+    cols = min(6, frames)
+    rows = math.ceil(frames / cols)
+    frames = cols * rows
+    run("ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf",
+        f"fps={frames / duration:.4f},scale=240:-2,tile={cols}x{rows}:padding=4", "-frames:v", "1", str(sheet))
+
+
+def report(mp4, sheet):
+    w, h, duration = probe(mp4)
+    size_mb = mp4.stat().st_size / 1e6
+    print(f"wrote {mp4} ({w}x{h}, {duration:.1f} s, {size_mb:.1f} MB)")
+    print(f"look at {sheet} before you report the video")
+    if size_mb > GITHUB_LIMIT_MB:
+        print(f"warning: GitHub rejects attachments over {GITHUB_LIMIT_MB} MB; lower the quality, do not split",
+              file=sys.stderr)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("flow", type=Path, nargs="?")
+    target = ap.add_mutually_exclusive_group()
+    target.add_argument("--udid", help="iOS Simulator you own, never another session's")
+    target.add_argument("--serial", help="adb serial; pin it, a stale wireless entry can coexist")
+    target.add_argument("--sheet", type=Path, help="only write <video>-sheet.png for an existing video")
+    ap.add_argument("--dry-run", action="store_true", help="play the steps fast with no recording")
+    ap.add_argument("--seed", type=int, default=1, help="seed for the human pauses")
+    ap.add_argument("--no-taps", action="store_true", help="do not draw tap dots")
+    args = ap.parse_args()
+
+    if args.sheet:
+        video = args.sheet.expanduser().resolve()
+        sheet = video.with_name(video.stem + "-sheet.png")
+        contact_sheet(video, sheet)
+        print(f"wrote {sheet}")
+        return
+    if not args.flow or not (args.udid or args.serial):
+        ap.error("give a flow file and --udid or --serial, or --sheet <video>")
+
+    flow_path = args.flow.expanduser().resolve()
+    steps = json.loads(flow_path.read_text())
+    name = flow_path.name.removesuffix(".flow.json")
+    video_dir = flow_path.parent
+    evidence = video_dir.parent.parent
+    device = IOS(args.udid) if args.udid else Android(args.serial)
+    raw = video_dir / f"{name}.raw{device.raw_suffix}"
+    mp4 = evidence / "videos" / f"{name}.mp4"
+
+    flow = Flow(device, args.dry_run, args.seed)
+    device.elements()
+    saved_size = device.save_text_size()
+    recording = False
+    failed = None
+    end = 0
+    try:
+        if not args.dry_run:
+            device.clean_status_bar(True)
+            device.start_recording(raw)
+            recording = True
+            flow.t0 = flow.last_action = time.monotonic()
+        for i, step in enumerate(steps, 1):
+            print(f"{i:>3} {json.dumps(step)}", flush=True)
+            try:
+                flow.step(step)
+            except (StepFailed, subprocess.CalledProcessError) as err:
+                detail = err.stderr.strip() if isinstance(err, subprocess.CalledProcessError) else err
+                failed = f"step {i} failed: {detail}"
+                break
+        if recording and not failed:
+            time.sleep(1.5)
+    finally:
+        if recording:
+            end = time.monotonic() - flow.t0
+            device.stop_recording(raw)
+        if not args.dry_run:
+            device.clean_status_bar(False)
+        if any("textSize" in s for s in steps):
+            device.restore_text_size(saved_size)
+
+    if failed:
+        labels = sorted({text for text, _ in device.elements()})
+        print(failed, file=sys.stderr)
+        print(f"labels on screen ({device.labels_hint()}): "
+              + " | ".join(l.replace("\n", " ") for l in labels[:40]), file=sys.stderr)
+        if recording:
+            print(f"raw video kept for a look: {raw}", file=sys.stderr)
+        sys.exit(1)
+    if args.dry_run:
+        print("dry run passed; put the app back at the first screen, then record")
+        return
+
+    (video_dir / f"{name}.events.json").write_text(json.dumps(flow.events, indent=1))
+    mp4.parent.mkdir(exist_ok=True)
+    encode(raw, mp4, flow.events, end, device, not args.no_taps, video_dir / "_tap.png")
+    (video_dir / "_tap.png").unlink(missing_ok=True)
+    sheet = video_dir / f"{name}-sheet.png"
+    contact_sheet(mp4, sheet)
+    report(mp4, sheet)
+
+
+if __name__ == "__main__":
+    main()
