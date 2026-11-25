@@ -285,8 +285,11 @@ class Flow:
         timeout = step.get("timeout", 15)
         deadline = time.monotonic() + timeout
         while True:
-            hits = [xy for text, xy in self.device.elements()
-                    if (label in text if step.get("contains") else text == label)]
+            try:
+                elements = self.device.elements()
+            except StepFailed:
+                elements = []  # the tree is briefly unreadable while a screen animates
+            hits = [xy for text, xy in elements if (label in text if step.get("contains") else text == label)]
             if len(hits) > step.get("index", 0):
                 return hits[step.get("index", 0)]
             if time.monotonic() > deadline:
